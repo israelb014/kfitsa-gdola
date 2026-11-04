@@ -1,0 +1,11 @@
+Library/
+Temp/
+Logs/
+Obj/
+Builds/
+UserSettings/
+_downloads/
+_kenney/
+verification/
+*.csproj
+*.sln
