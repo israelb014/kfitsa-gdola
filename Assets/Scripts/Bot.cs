@@ -197,18 +197,18 @@ namespace Kfitsa
                 case 2: Keys(Key.Space); break;
                 case 3: Keys(); Note("after Space on map: " + app.ScreenName); break;
                 case 4: break;
-                case 5: startX = h.x; startY = h.y; Keys(Key.RightArrow, Key.LeftShift); break;
-                case 6: Note($"held Right+Shift: moved {h.x - startX:F2} tiles, vx {h.vx:F2}"); Keys(Key.RightArrow, Key.LeftShift, Key.Space); t = .6f; break;
-                case 7: Note($"pressed Space: height {h.y - startY:F2}, jumping {h.jumping}"); Keys(); break;
-                case 8: Keys(Key.Escape); break;
-                case 9: Keys(); Note("after Esc: " + app.ScreenName); break;
+                case 5: startX = h.x; startY = h.y; InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }); break;
+                case 6: Note($"gamepad stick right: moved {h.x - startX:F2} tiles"); InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }.WithButton(GamepadButton.South)); t = .6f; break;
+                case 7: Note($"gamepad South: height {h.y - startY:F2}, jumping {h.jumping}"); InputSystem.QueueStateEvent(pad, new GamepadState()); break;
+                case 8: InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.Start)); break;
+                case 9: InputSystem.QueueStateEvent(pad, new GamepadState()); Note("gamepad Start: " + app.ScreenName); break;
                 case 10: Keys(Key.Escape); break;
-                case 11: Keys(); Note("after Esc again: " + app.ScreenName); break;
-                case 12: startX = h.x; InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }); break;
-                case 13: Note($"gamepad stick right: moved {h.x - startX:F2} tiles"); InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }.WithButton(GamepadButton.South)); t = .6f; break;
-                case 14: Note($"gamepad South: jumping {h.jumping} y {h.y:F2}"); InputSystem.QueueStateEvent(pad, new GamepadState()); break;
-                case 15: InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(GamepadButton.Start)); break;
-                case 16: InputSystem.QueueStateEvent(pad, new GamepadState()); Note("gamepad Start: " + app.ScreenName); Application.Quit(); break;
+                case 11: Keys(); Note("after Esc: " + app.ScreenName); break;
+                case 12: startX = h.x; startY = h.y; Keys(Key.RightArrow, Key.LeftShift); t = .5f; break;
+                case 13: Note($"held Right+Shift: moved {h.x - startX:F2} tiles, vx {h.vx:F2}"); Keys(Key.RightArrow, Key.LeftShift, Key.Space); t = .6f; break;
+                case 14: Note($"pressed Space: height {h.y - startY:F2}, jumping {h.jumping}"); Keys(); break;
+                case 15: Keys(Key.Escape); break;
+                case 16: Keys(); Note("after Esc: " + app.ScreenName); Application.Quit(); break;
             }
         }
     }
