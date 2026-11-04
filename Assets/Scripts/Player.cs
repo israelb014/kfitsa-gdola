@@ -4,7 +4,7 @@ namespace Kfitsa
 {
     public class Player : Body
     {
-        public bool big, skidding, jumping, dead;
+        public bool big, skidding, jumping, dead, shooter;
         public int facing = 1;
         public float invuln;
         public System.Action<int, int> onBump;   // a block was hit from below
@@ -12,6 +12,8 @@ namespace Kfitsa
 
         float coyote, buffer, riseGravity = Tune.RiseGravity, fallStartVy;
         bool wasGrounded = true;
+
+        public Player Copy() => (Player)MemberwiseClone();
 
         public void SetBig(bool b)
         {
@@ -107,6 +109,14 @@ namespace Kfitsa
             base.HitHead(row, hits, col);
             int c = Mathf.FloorToInt(x);
             onBump?.Invoke(grid.Solid(c, row) ? c : col, row);
+        }
+
+        /// A spring: same rise physics as a jump, just a harder launch.
+        public void Launch(float speed)
+        {
+            vy = speed;
+            jumping = true; grounded = false; wasGrounded = false; coyote = 0; buffer = 0;
+            riseGravity = Tune.RiseGravity;
         }
 
         public void Stomped(bool held)

@@ -17,9 +17,23 @@ namespace Kfitsa.EditorTools
             if (!assetPath.StartsWith("Assets/Resources/Art/")) return;
             var t = (TextureImporter)assetImporter;
             t.textureType = TextureImporterType.Default;
-            t.filterMode = FilterMode.Point; t.mipmapEnabled = false; t.alphaIsTransparency = true;
+            t.filterMode = FilterMode.Bilinear; t.mipmapEnabled = false; t.alphaIsTransparency = true;
             t.textureCompression = TextureImporterCompression.Uncompressed; t.npotScale = TextureImporterNPOTScale.None;
             t.wrapMode = TextureWrapMode.Clamp;
+        }
+    }
+
+    public class AudioImport : AssetPostprocessor
+    {
+        void OnPreprocessAudio()
+        {
+            if (!assetPath.StartsWith("Assets/Resources/Audio/")) return;
+            var a = (AudioImporter)assetImporter;
+            bool music = Path.GetFileName(assetPath).StartsWith("m_");
+            var s = a.defaultSampleSettings;
+            s.compressionFormat = AudioCompressionFormat.Vorbis; s.quality = .6f;
+            s.loadType = music ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad;
+            a.defaultSampleSettings = s;
         }
     }
 
@@ -55,8 +69,9 @@ namespace Kfitsa.EditorTools
                 QualitySettings.renderPipeline = urp;
             }
 
+            Directory.CreateDirectory("Assets/Resources/Materials"); AssetDatabase.Refresh();
             var mat = new Material(Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default"));
-            AssetDatabase.CreateAsset(mat, "Assets/Resources/Art/SpriteUnlit.mat");
+            AssetDatabase.CreateAsset(mat, "Assets/Resources/Materials/SpriteUnlit.mat");
 
             // Scene: camera and game object; the level itself builds at runtime from Resources/Levels
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -66,10 +81,10 @@ namespace Kfitsa.EditorTools
             cam.backgroundColor = new Color(.84f, .94f, .95f);
             camGo.AddComponent<UniversalAdditionalCameraData>();
             var ppc = camGo.AddComponent<PixelPerfectCamera>();
-            ppc.assetsPPU = Art.PPU; ppc.refResolutionX = 480; ppc.refResolutionY = 270;
-            ppc.gridSnapping = PixelPerfectCamera.GridSnapping.UpscaleRenderTexture;
+            ppc.assetsPPU = Art.PPU; ppc.refResolutionX = 1920; ppc.refResolutionY = 1080;
+            ppc.gridSnapping = PixelPerfectCamera.GridSnapping.None;
             ppc.cropFrame = PixelPerfectCamera.CropFrame.None;
-            new GameObject("Game").AddComponent<Game>();
+            new GameObject("App").AddComponent<App>();
             EditorSceneManager.SaveScene(scene, Scene);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(Scene, true) };
 
@@ -83,15 +98,12 @@ namespace Kfitsa.EditorTools
             Debug.Log("SETUP OK");
         }
 
-        public static void BuildLinux()
+        public static void BuildLinux() => Build("Builds/linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64);
+        public static void BuildWindows() => Build("Builds/windows/KfitsaGdola.exe", BuildTarget.StandaloneWindows64);
+
+        static void Build(string path, BuildTarget target)
         {
-            var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-            {
-                scenes = new[] { Scene },
-                locationPathName = "Builds/proto/KfitsaGdola.x86_64",
-                target = BuildTarget.StandaloneLinux64,
-                options = BuildOptions.None
-            });
+            var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, locationPathName = path, target = target, options = BuildOptions.None });
             Debug.Log("BUILD " + r.summary.result + " size=" + r.summary.totalSize);
             if (r.summary.result != BuildResult.Succeeded) EditorApplication.Exit(1);
         }

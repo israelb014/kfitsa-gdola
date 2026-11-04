@@ -9,6 +9,7 @@ namespace Kfitsa
         public Grid2 grid;
         public float x, y, w, h, vx, vy;
         public bool grounded;
+        public Platform on;   // moving platform under the feet, if any
 
         public float Left => x - w / 2;
         public float Right => x + w / 2;
@@ -42,8 +43,15 @@ namespace Kfitsa
         {
             y += dy;
             grounded = false;
+            on = null;
             if (dy < 0)
             {
+                foreach (var p in grid.Platforms)
+                    if (y - dy >= p.Top - .05f && y <= p.Top && Right > p.Left && Left < p.Right)
+                    {
+                        y = p.Top; vy = 0; grounded = true; on = p;
+                        return;
+                    }
                 int row = Mathf.FloorToInt(y);
                 for (int c = ColLo; c <= ColHi; c++)
                     if (grid.Solid(c, row))
@@ -58,7 +66,7 @@ namespace Kfitsa
                 int row = Mathf.FloorToInt(Top);
                 int lo = ColLo, hi = ColHi, hit = int.MinValue, hits = 0;
                 for (int c = lo; c <= hi; c++)
-                    if (grid.Solid(c, row)) { hits++; hit = c; }
+                    if (grid.SolidFromBelow(c, row)) { hits++; hit = c; }
                 if (hits > 0) HitHead(row, hits, hit);
             }
         }

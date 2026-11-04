@@ -3,51 +3,32 @@ using UnityEngine;
 
 namespace Kfitsa
 {
-    /// Slices the Kenney sheets at runtime. 18 pixels = 1 world unit.
+    /// Loads single-image sprites from Resources/Art. 72 pixels = 1 world unit (1 tile).
     public static class Art
     {
-        public const int PPU = 18;
-        // Tile indices in tiles.png (20 columns)
-        public const int Crate = 26, UsedBlock = 29, Gem = 67, CoinA = 151, CoinB = 152, Heart = 44, Dust = 157;
-        public const int DoorTop = 130, DoorBottom = 150, PillarTop = 32, PillarMid = 52, PillarBase = 72;
-        // Character indices in chars.png (9 columns)
-        public const int HeroA = 6, HeroB = 7, EnemyA = 18, EnemyB = 19, EnemyFlat = 20;
-
-        static readonly Dictionary<int, Sprite> cache = new Dictionary<int, Sprite>();
-        static Texture2D tiles, chars, bgs, extras;
+        public const int PPU = 72;
+        static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
         static Material unlit;
 
-        public static Material Unlit => unlit != null ? unlit : unlit = Resources.Load<Material>("Art/SpriteUnlit");
+        public static Material Unlit => unlit != null ? unlit : unlit = Resources.Load<Material>("Materials/SpriteUnlit");
 
-        static Texture2D Tex(ref Texture2D t, string name) => t != null ? t : t = Resources.Load<Texture2D>("Art/" + name);
-
-        static Sprite Cut(Texture2D t, int px, int py, int size, Vector2 pivot) =>
-            Sprite.Create(t, new Rect(px, t.height - py - size, size, size), pivot, PPU, 0, SpriteMeshType.FullRect);
-
-        static Sprite Cached(int key, System.Func<Sprite> make)
+        static Sprite Get(string name, Vector2 pivot, string key)
         {
-            if (!cache.TryGetValue(key, out var s)) cache[key] = s = make();
-            return s;
+            if (cache.TryGetValue(key, out var s)) return s;
+            var t = Resources.Load<Texture2D>("Art/" + name);
+            if (t == null) { Debug.LogError("Missing art: " + name); t = Texture2D.whiteTexture; }
+            s = Sprite.Create(t, new Rect(0, 0, t.width, t.height), pivot, PPU, 0, SpriteMeshType.FullRect);
+            return cache[key] = s;
         }
 
         /// Pivot at the bottom left, so a sprite at (c, r) fills that cell.
-        public static Sprite Tile(int i) => Cached(i, () => Cut(Tex(ref tiles, "tiles"), i % 20 * 18, i / 20 * 18, 18, Vector2.zero));
+        public static Sprite Tile(string name) => Get(name, Vector2.zero, name);
+        public static Sprite Center(string name) => Get(name, new Vector2(.5f, .5f), name + "#c");
+        public static Sprite Feet(string name) => Get(name, new Vector2(.5f, 0), name + "#f");
 
-        /// Same tile with a centred pivot, for things that spin or fly.
-        public static Sprite TileC(int i) => Cached(1000 + i, () => Cut(Tex(ref tiles, "tiles"), i % 20 * 18, i / 20 * 18, 18, new Vector2(.5f, .5f)));
-
-        /// Pivot at the feet.
-        public static Sprite Char(int i) => Cached(2000 + i, () => Cut(Tex(ref chars, "chars"), i % 9 * 24, i / 9 * 24, 24, new Vector2(.5f, 0)));
-
-        public static Sprite Bg(int i) => Cached(3000 + i, () => Cut(Tex(ref bgs, "bgs"), i % 8 * 24, i / 8 * 24, 24, Vector2.zero));
-
-        public static Sprite BigHero(int frame) => Cached(4000 + frame, () => Cut(Tex(ref extras, "extras"), frame * 36, 0, 36, new Vector2(.5f, 0)));
-
-        public static Sprite SurpriseBlock => Cached(5000, () =>
-        {
-            var t = Tex(ref extras, "extras");
-            return Sprite.Create(t, new Rect(72, t.height - 18, 18, 18), Vector2.zero, PPU, 0, SpriteMeshType.FullRect);
-        });
+        /// form: s small, b big, p shooter. The hero canvas keeps a small gap under the feet.
+        public static Sprite Hero(char form, string pose) =>
+            Get($"hero_{form}_{pose}", new Vector2(.5f, form == 's' ? .0435f : .0286f), $"hero_{form}_{pose}");
 
         public static SpriteRenderer Spawn(string name, Transform parent, Sprite s, int order)
         {
