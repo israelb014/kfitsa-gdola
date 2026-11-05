@@ -1,6 +1,7 @@
 package com.ibfix.kfitsagdola;
 
 import android.content.Context;
+import android.media.AudioManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.KeyEvent;
@@ -15,6 +16,8 @@ public class GameMain extends UnityPlayerGameActivity {
     protected void onCreate(android.os.Bundle saved) {
         super.onCreate(saved);
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        // The volume keys change the media volume at all times, also on a menu with nothing playing
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
     }
 
     /** Called from the game. strength is 1 to 255. */

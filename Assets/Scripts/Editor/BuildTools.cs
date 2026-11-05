@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -135,8 +138,8 @@ namespace Kfitsa.EditorTools
         {
             var id = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(id, "com.ibfix.kfitsagdola");
-            PlayerSettings.bundleVersion = "1.2.0";
-            PlayerSettings.Android.bundleVersionCode = 3;
+            PlayerSettings.bundleVersion = "1.2.1";
+            PlayerSettings.Android.bundleVersionCode = 4;
             PlayerSettings.SetScriptingBackend(id, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(id, ManagedStrippingLevel.Minimal);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -202,12 +205,132 @@ namespace Kfitsa.EditorTools
 
         static void Build(string path, BuildTarget target)
         {
-            try { if (!skipCheck) Validate(); }
+            try { if (!skipCheck) { Validate(); AudioBefore(); } }
             catch (BuildFailedException e) { Debug.LogError(e.Message); EditorApplication.Exit(1); return; }
-            PlayerSettings.bundleVersion = "1.2.0";
+            PlayerSettings.bundleVersion = "1.2.1";
             var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, locationPathName = path, target = target, options = BuildOptions.None });
             Debug.Log("BUILD " + r.summary.result + " size=" + r.summary.totalSize);
-            if (r.summary.result != BuildResult.Succeeded) EditorApplication.Exit(1);
+            if (r.summary.result != BuildResult.Succeeded) { EditorApplication.Exit(1); return; }
+            try { if (!skipCheck) AudioAfter(path, target); }
+            catch (BuildFailedException e) { Debug.LogError("AUDIO FAILED: " + e.Message); EditorApplication.Exit(1); }
+        }
+
+        const string AudioDir = "Assets/Resources/Audio", AudioStamp = "Library/audio_passed.txt", AudioReport = "verification/v1.2.1";
+
+        static string[] AudioFiles() => Directory.GetFiles(AudioDir).Where(f => !f.EndsWith(".meta")).Select(f => f.Replace('\\', '/')).OrderBy(f => f, StringComparer.Ordinal).ToArray();
+
+        /// Checks that need no player: the sound list, the files, the project settings and the default volumes.
+        static void AudioBefore()
+        {
+            var listed = new HashSet<string>(Sound.Effects.Concat(Sound.Tracks));
+            var files = AudioFiles();
+            var names = new HashSet<string>(files.Select(Path.GetFileNameWithoutExtension));
+            foreach (string name in listed.Except(names)) throw new BuildFailedException("Sound listed but no file: " + name);
+            foreach (string name in names.Except(listed)) throw new BuildFailedException("Sound file not in Sound.cs: " + name);
+
+            foreach (string f in files)
+            {
+                using (var read = File.OpenRead(f))
+                {
+                    var head = new byte[24];
+                    read.Read(head, 0, head.Length);
+                    if (System.Text.Encoding.ASCII.GetString(head).StartsWith("version https://git-lfs")) throw new BuildFailedException("Sound is only a Git LFS pointer: " + f);
+                }
+                var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(f);
+                if (clip == null || clip.length <= 0) throw new BuildFailedException("Sound does not import: " + f);
+            }
+
+            var asked = new HashSet<string>(Levels.All.Select(l => l.music));
+            foreach (string code in Directory.GetFiles("Assets/Scripts", "*.cs"))
+                foreach (Match m in Regex.Matches(File.ReadAllText(code), "Sound\\.(?:Play|Music)\\(\"([^\"]+)\""))
+                    asked.Add(m.Groups[1].Value);
+            foreach (string name in asked.Except(listed)) throw new BuildFailedException("Code plays a sound that does not exist: " + name);
+
+            var fresh = new Save();
+            if (fresh.music <= 0 || fresh.sfx <= 0) throw new BuildFailedException("Default volume is 0");
+
+            var settings = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/AudioManager.asset")[0]);
+            if (settings.FindProperty("m_DisableAudio").boolValue) throw new BuildFailedException("Audio is disabled in the project settings");
+            if (settings.FindProperty("m_Volume").floatValue <= 0) throw new BuildFailedException("Project audio volume is 0");
+            Debug.Log("AUDIO sound list, files, settings and default volumes OK");
+        }
+
+        /// Checks on the player just built. Linux runs here, so its test proves the code and the sounds;
+        /// the other two must carry the same files, and Android is played on the emulator by tools/build_android.sh.
+        static void AudioAfter(string path, BuildTarget target)
+        {
+            CheckPacked(path, target);
+            Debug.Log("AUDIO all " + AudioFiles().Length + " sounds are in the player");
+
+            string now = AudioFingerprint();
+            if (target != BuildTarget.StandaloneLinux64)
+            {
+                if (!File.Exists(AudioStamp) || File.ReadAllText(AudioStamp) != now) throw new BuildFailedException("The audio play test has not passed on this code: build Linux first");
+                Debug.Log("AUDIO play test passed on the Linux build of the same code");
+                return;
+            }
+
+            Directory.CreateDirectory(AudioReport);
+            string dir = Path.GetFullPath(AudioReport), report_ = Path.Combine(dir, "audio_report.txt");
+            File.Delete(report_);
+            var run = new System.Diagnostics.ProcessStartInfo(Path.GetFullPath(path), $"-batchmode -nographics -audiotest -captureDir \"{dir}\" -logFile \"{dir}/audio_player.log\"") { UseShellExecute = false };
+            run.Environment["PULSE_SERVER"] = "/nonexistent";   // the measurement is inside the player, so the build need not play through the speakers
+            using (var player = System.Diagnostics.Process.Start(run))
+            {
+                if (!player.WaitForExit(90000)) { player.Kill(); throw new BuildFailedException("The audio play test did not finish"); }
+                string text = File.Exists(report_) ? File.ReadAllText(report_) : "";
+                foreach (string need in new[] { "music started", "sfx started", "ALL PASS" })
+                    if (!text.Contains(need)) throw new BuildFailedException("The audio play test did not log \"" + need + "\", see " + report_);
+                if (player.ExitCode != 0) throw new BuildFailedException("The audio play test failed, see " + report_);
+            }
+            File.WriteAllText(AudioStamp, now);
+            Debug.Log("AUDIO play test passed");
+        }
+
+        /// Opens the built files, because this Unity leaves the build report's asset list empty. On desktop a clip's
+        /// name sits in resources.assets as a length and then its letters; the samples sit in resources.resource.
+        static void CheckPacked(string path, BuildTarget target)
+        {
+            if (target == BuildTarget.Android)
+            {
+                // The APK stores each clip's samples in its own file with a hashed name; tools/build_android.sh then loads every clip by name
+                using var apk = System.IO.Compression.ZipFile.OpenRead(path);
+                var parts = apk.Entries.Where(e => e.FullName.StartsWith("assets/bin/Data/") && e.FullName.EndsWith(".resource")).ToArray();
+                if (parts.Length != AudioFiles().Length || parts.Any(e => e.Length == 0)) throw new BuildFailedException($"The APK has {parts.Length} sound files, not {AudioFiles().Length}");
+                if (parts.Sum(e => e.Length) < 1000000) throw new BuildFailedException("The APK has almost no sound data");
+                return;
+            }
+            string data = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path) + "_Data");
+            byte[] index = File.ReadAllBytes(Path.Combine(data, "resources.assets"));
+            long samples = new FileInfo(Path.Combine(data, "resources.resource")).Length;
+            if (samples < 1000000) throw new BuildFailedException("The player has almost no sound data: " + samples + " bytes");
+            foreach (string f in AudioFiles())
+            {
+                string name = Path.GetFileNameWithoutExtension(f);
+                var key = BitConverter.GetBytes(name.Length).Concat(System.Text.Encoding.ASCII.GetBytes(name)).ToArray();
+                if (!Contains(index, key)) throw new BuildFailedException("Sound is not in the built player: " + name);
+            }
+        }
+
+        static bool Contains(byte[] all, byte[] key)
+        {
+            for (int i = 0; i + key.Length <= all.Length; i++)
+            {
+                int k = 0;
+                while (k < key.Length && all[i + k] == key[k]) k++;
+                if (k == key.Length) return true;
+            }
+            return false;
+        }
+
+        static string AudioFingerprint()
+        {
+            using var md5 = System.Security.Cryptography.MD5.Create();
+            var all = new System.Text.StringBuilder();
+            var files = new List<string>(AudioFiles()) { "ProjectSettings/AudioManager.asset", Scene };
+            foreach (string name in new[] { "Sound", "AudioTest", "App", "Save" }) files.Add("Assets/Scripts/" + name + ".cs");
+            foreach (string f in files) all.Append(f).Append(BitConverter.ToString(md5.ComputeHash(File.ReadAllBytes(f))));
+            return all.ToString();
         }
     }
 }

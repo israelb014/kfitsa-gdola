@@ -59,7 +59,7 @@ namespace Kfitsa
                 Application.Quit(ok ? 0 : 3); return;
             }
 
-            foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
+            foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots", "-audiotest" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
             save = Save.Load();
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
@@ -80,6 +80,7 @@ namespace Kfitsa
             if (Array.IndexOf(args, "-selftest") >= 0) { try { SelfTest.Run(this, Arg(args, "-captureDir")); } catch (Exception e) { Debug.LogError(e); } Application.Quit(); return; }
             if (Array.IndexOf(args, "-inputtest") >= 0) { gameObject.AddComponent<InputTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
             if (Array.IndexOf(args, "-touchtest") >= 0) { gameObject.AddComponent<TouchTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
+            if (Array.IndexOf(args, "-audiotest") >= 0) { ShowTitle(); gameObject.AddComponent<AudioTest>().Begin(this, Arg(args, "-captureDir")); return; }
             if (Array.IndexOf(args, "-shots") >= 0) { gameObject.AddComponent<ScreenTour>().Begin(this, Arg(args, "-captureDir")); return; }
             ShowTitle();
         }
@@ -102,8 +103,15 @@ namespace Kfitsa
         }
 
         // The phone sends the app to the background: stop the level, keep progress.
-        void OnApplicationPause(bool paused) { if (paused && Application.isMobilePlatform) Backgrounded(); }
-        void OnApplicationFocus(bool focus) { if (!focus && Application.isMobilePlatform) Backgrounded(); }
+        void OnApplicationPause(bool paused) { Away(paused); }
+        void OnApplicationFocus(bool focus) { Away(!focus); }
+
+        void Away(bool away)
+        {
+            if (!Application.isMobilePlatform) return;
+            Sound.Background(away);
+            if (away) Backgrounded();
+        }
 
         /// Called by name from GameMain.java.
         public void OnSystemBack(string unused) => GameInput.SystemBack();
@@ -119,6 +127,15 @@ namespace Kfitsa
         {
             int i = Array.IndexOf(a, name);
             return i >= 0 && i + 1 < a.Length ? a[i + 1] : ".";
+        }
+
+        /// Puts the test straight into a level, with no menus.
+        public void TestPlay(int level)
+        {
+            ClearScreen(); hud.Show(true); screen = Screen.Playing;
+            run = new RunState { lives = 99 };
+            game.skipIntro = true;
+            game.StartLevel(level);
         }
 
         void Update()
