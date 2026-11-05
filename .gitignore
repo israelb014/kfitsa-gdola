@@ -12,3 +12,4 @@ verification/
 __pycache__/
 Keystore/
 .utmp/
+build/
