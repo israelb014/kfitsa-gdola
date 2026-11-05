@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>קפיצה גדולה</title>
+<meta name="description" content="פלטפורמר דו-ממדי בעברית. שני עולמות, שבעה שלבים ובוס אחד.">
+<style>
+@font-face{font-family:Rubik;src:url(Rubik.ttf) format("truetype");font-weight:300 900;font-display:swap}
+:root{--sky:#bfe3f7;--ink:#17324a;--muted:#47637a;--grass:#1f9d5b;--grass-dark:#14764a;--brick:#c8562d;--brick-dark:#9c3f1e;--code:#14283a}
+*{box-sizing:border-box}
+html{background:var(--sky)}
+body{margin:0;font-family:Rubik,system-ui,sans-serif;color:var(--ink);line-height:1.6}
+main{max-width:980px;margin:0 auto;padding:48px 16px 32px}
+h1{font-size:clamp(44px,10vw,76px);line-height:1.1;margin:0;font-weight:800}
+.lead{font-size:20px;margin:12px 0 32px;color:var(--muted)}
+.downloads{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:40px}
+.btn{display:block;padding:16px 20px;border-radius:12px;color:#fff;text-decoration:none;text-align:center;font-weight:700;font-size:20px;line-height:1.35;box-shadow:0 5px 0 var(--grass-dark);background:var(--grass)}
+.btn.win{background:var(--brick);box-shadow:0 5px 0 var(--brick-dark)}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--grass-dark)}
+.btn.win:active{box-shadow:0 2px 0 var(--brick-dark)}
+.btn:focus-visible,a:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.btn span{display:block}
+.btn small{display:block;font-weight:400;font-size:15px}
+.note{margin:12px 0 0;font-size:15px;color:var(--muted);text-align:center}
+.shots{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:40px}
+.shots img{display:block;width:100%;height:auto;border-radius:10px;background:#9cc9e6}
+.eyebrow{margin:0;font-weight:700;color:var(--grass-dark);text-align:right}
+h2{margin:0 0 12px;font-size:28px}
+pre{margin:0;padding:16px;background:var(--code);color:#eaf4fb;border-radius:10px;overflow-x:auto;font:15px/1.7 ui-monospace,Consolas,monospace;direction:ltr;text-align:left}
+footer{margin-top:40px;font-size:15px;color:var(--muted)}
+footer a{color:inherit}
+@media(max-width:640px){.shots{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>קפיצה גדולה</h1>
+<p class="lead">פלטפורמר דו-ממדי בעברית. שני עולמות, שבעה שלבים ובוס אחד.</p>
+
+<section class="downloads" aria-label="הורדה">
+<div>
+<a class="btn" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-linux.tar.gz"><span>הורדה</span><span dir="ltr">Linux</span><small>45 מגה-בייט</small></a>
+</div>
+<div>
+<a class="btn win" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-windows.zip"><span>הורדה</span><span dir="ltr">Windows</span><small>48 מגה-בייט</small></a>
+<p class="note">הגרסה הזו נבנתה, אבל עדיין לא נבדקה בהרצה.</p>
+</div>
+</section>
+
+<section class="shots" aria-label="תמונות מהמשחק">
+<img src="img/title.png" width="1920" height="1080" alt="מסך הפתיחה של המשחק עם הגיבור והתפריט">
+<img src="img/level1.png" width="1920" height="1080" alt="השלב הראשון בעולם הגבעות הירוקות">
+<img src="img/desert.png" width="1920" height="1080" alt="שלב בעולם המדבר עם קקטוסים ואויבים" loading="lazy">
+<img src="img/boss.png" width="1920" height="1080" alt="הקרב מול מלך הג'לי" loading="lazy">
+</section>
+
+<section>
+<p class="eyebrow" dir="ltr">Linux</p>
+<h2>הרצה מהטרמינל</h2>
+<pre><code>curl -LO https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-linux.tar.gz
+tar xzf KfitsaGdola-linux.tar.gz
+cd linux
+./KfitsaGdola.x86_64</code></pre>
+</section>
+
+<footer><a href="https://github.com/israelb014/kfitsa-gdola">קוד המקור</a> · <a href="https://github.com/israelb014/kfitsa-gdola/blob/main/CREDITS.md">קרדיטים</a></footer>
+</main>
+</body>
+</html>

@@ -9,3 +9,4 @@ _kenney/
 verification/
 *.csproj
 *.sln
+__pycache__/
