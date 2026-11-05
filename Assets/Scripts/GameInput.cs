@@ -6,7 +6,7 @@ namespace Kfitsa
     public struct Pad
     {
         public float x;
-        public bool down, run, runPressed, jumpHeld, jumpPressed;
+        public bool down, run, runPressed, throwPressed, jumpHeld, jumpPressed;
     }
 
     /// Keyboard, gamepad and touch, read straight from the devices. Stick input is digital, like a D-pad.
@@ -40,6 +40,18 @@ namespace Kfitsa
             TouchUi.Current?.Merge(ref p);
             p.x = Mathf.Clamp(p.x, -1, 1);
             return p;
+        }
+
+        /// True from the moment a gamepad is used until the next touch; the touch buttons hide meanwhile.
+        public static bool GamepadActive { get; private set; }
+        public static void TouchUsed() => GamepadActive = false;
+
+        public static void Tick()
+        {
+            var g = Gamepad.current;
+            if (g == null) { GamepadActive = false; return; }
+            if (g.leftStick.ReadValue().sqrMagnitude > .16f || g.dpad.ReadValue().sqrMagnitude > .16f || g.buttonSouth.isPressed || g.buttonEast.isPressed || g.buttonWest.isPressed
+                || g.buttonNorth.isPressed || g.startButton.isPressed || g.rightTrigger.isPressed || g.rightShoulder.isPressed || g.leftShoulder.isPressed) GamepadActive = true;
         }
 
         static bool systemBack;

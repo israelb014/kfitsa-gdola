@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Kfitsa
 {
     /// Plays one level: fixed-step simulation, camera, and the win and lose flow.
-    public class Game : MonoBehaviour
+    public partial class Game : MonoBehaviour
     {
         enum Phase { Intro, Play, Door, Dying, Won }
 
@@ -20,9 +20,31 @@ namespace Kfitsa
         public bool paused, god, inRoom, skipIntro;
         public bool Won => phase == Phase.Won;
         public bool Running => grid != null;
-        public LevelDef Def => Levels.All[levelIndex];
-        public Bot bot;
+        public LevelDef Def => levelIndex < 0 ? Levels.Test : Levels.All[levelIndex];
+        int SavedStars { get => levelIndex < 0 ? 0 : app.save.stars[levelIndex]; set { if (levelIndex >= 0) app.save.stars[levelIndex] = value; } }
 
+        // For the tests
+        public bool tidy;       // bricks stay and pickups do nothing, so a route replays exactly as the search saw it
+        public int GotStars => gotStars;
+        public bool CheckpointReached => checkpointSet;
+        public int TopsInAir => tops.Count;
+        public float TopHeight => tops.Count > 0 ? tops[0].y : 0;
+        public int TopDir => tops.Count > 0 ? tops[0].dir : 0;
+        public int RoomCoinsLeft => coinItems.FindAll(c => c.room && c.view.enabled).Count;
+        public bool RoomCoinAt(float x, float y) => coinItems.Exists(c => c.room && c.view.enabled && Mathf.Abs(c.at.x - x) < .1f && Mathf.Abs(c.at.y - y) < .1f);
+        public bool RoomSolved => roomDone;
+        public bool LampLit(float x, float y) => lights.Exists(l => l.lit && Mathf.Abs(l.at.x - x) < .1f && Mathf.Abs(l.at.y - y) < .1f);
+        public void ApplyPowerForTest(int p) => ApplyPower(p);
+        public void RemoveEnemies()
+        {
+            foreach (var e in enemies) Destroy(e.view.gameObject);
+            enemies.Clear();
+            if (boss != null) { Destroy(boss.view.gameObject); boss = null; }
+        }
+        public void SnapCamera() { SetCamBounds(); camX = Mathf.Clamp(hero.x, camMin, camMax); camY = Mathf.Clamp(hero.y + 2.5f, HalfH, camTop); }
+        public void RestartAtFlag() { checkpointSet = true; StartLevel(levelIndex, true); RemoveEnemies(); }
+
+        
         const float HalfH = 7.5f;
         float HalfW => HalfH * cam.aspect;
         float CamLeft => camX - HalfW;
@@ -33,12 +55,23 @@ namespace Kfitsa
         SpriteRenderer heroView, gateDoor, gateTop;
         readonly List<CoinItem> coinItems = new List<CoinItem>();
         readonly List<Spring> springs = new List<Spring>();
-        readonly List<Disc> discs = new List<Disc>();
+        readonly List<Sevivon> tops = new List<Sevivon>();
+        readonly List<Star> stars = new List<Star>();
+        readonly List<Crumble> crumbles = new List<Crumble>();
+        readonly List<(SpriteRenderer view, char kind)> gates = new List<(SpriteRenderer, char)>();
+        readonly List<(SpriteRenderer view, int c, int r)> switches = new List<(SpriteRenderer, int, int)>();
+        readonly List<SpriteRenderer> belts = new List<SpriteRenderer>();
+        readonly List<(SpriteRenderer view, Block box)> powerHints = new List<(SpriteRenderer, Block)>();
+        readonly List<(Vector2 at, SpriteRenderer view, bool lit)> lights = new List<(Vector2, SpriteRenderer, bool)>();
+        Darkness dark; WaterView water; WindView wind;
+        SpriteRenderer chaser;
+        public WorldState world;
+        int gotStars; float roomTimer; bool roomOpen, roomDone; bool crumbleShaking;
         readonly List<Fx> fx = new List<Fx>();
         readonly List<SpriteRenderer> sky = new List<SpriteRenderer>(), torches = new List<SpriteRenderer>();
-        SpriteRenderer lever;
-        float acc, freeze, phaseT, camX, look, heroAnim, squash, simT, skidDust, growFlash, heroGone, shake, throwT;
-        float camMin, camMax;
+        SpriteRenderer flag;
+        float acc, freeze, phaseT, camX, camY = HalfH, look, heroAnim, squash, simT, skidDust, growFlash, heroGone, shake, throwT;
+        float camMin, camMax, camTop;
         int stompChain;
         bool checkpointSet, pendingDoor, lastDown;
         Pad pad; bool latchedJump, latchedRun;
@@ -47,11 +80,12 @@ namespace Kfitsa
 
         public void StartLevel(int index, bool keepCheckpoint = false)
         {
-            if (!keepCheckpoint) checkpointSet = false;
+            if (!keepCheckpoint) { checkpointSet = false; gotStars = 0; }
             levelIndex = index;
             Unload();
             root = new GameObject("Level").transform;
-            grid = Grid2.Parse(Resources.Load<TextAsset>("Levels/" + Def.file).text);
+            grid = Grid2.Parse(Levels.Text(Def.file));
+            world = WorldState.Fresh;
             grid.BuildTilemaps(root, Def.terrain);
             BuildSky();
             BuildRoomBackdrop();
@@ -69,15 +103,18 @@ namespace Kfitsa
             {
                 var v = Art.Spawn("Coin", root, Art.Center("coin_gold"), 1);
                 v.transform.position = c;
-                coinItems.Add(new CoinItem { at = c, view = v });
+                coinItems.Add(new CoinItem { at = c, view = v, room = c.x >= grid.MainW });
             }
+            BuildMechanics();
             foreach (var (c, r, kind) in grid.Blocks)
             {
                 bool hidden = kind == BlockKind.HiddenCoin || kind == BlockKind.HiddenLife;
-                var v = Art.Spawn("Block", root, Art.Tile(kind == BlockKind.Brick ? "bricks_brown" : "block_coin"), 2);
+                var v = Art.Spawn("Block", root, Art.Tile(kind == BlockKind.Brick ? "bricks_brown" : kind == BlockKind.Grow ? "block_power" : "block_coin"), 2);
                 v.transform.position = new Vector3(c, r, 0);
                 v.enabled = !hidden;
-                blocks.Add(new Block { c = c, r = r, kind = kind, view = v });
+                var box = new Block { c = c, r = r, kind = kind, view = v };
+                blocks.Add(box);
+                if (kind == BlockKind.Grow) powerHints.Add((Art.Spawn("Hint", root, Art.Center(app.run.power == 0 ? "gem_blue" : "sevivon"), 3), box));
             }
             foreach (var (c, r) in grid.Springs)
             {
@@ -94,18 +131,19 @@ namespace Kfitsa
             foreach (var p in grid.Platforms)
             {
                 var o = new GameObject("Platform").transform; o.SetParent(root, false);
-                string[] parts = { "horizontal_left", "horizontal_middle", "horizontal_right" };
-                for (int i = 0; i < 3; i++)
+                int n = Mathf.RoundToInt(p.halfW * 2);
+                for (int i = 0; i < n; i++)
                 {
-                    var s = Art.Spawn("Part", o, Art.Tile($"t_{Def.terrain}_{parts[i]}"), 2);
-                    s.transform.localPosition = new Vector3(i - 1.5f, -1, 0);
+                    string part = n == 1 ? "block" : i == 0 ? "horizontal_left" : i == n - 1 ? "horizontal_right" : "horizontal_middle";
+                    var s = Art.Spawn("Part", o, Art.Tile($"t_{Def.terrain}_{part}"), 2);
+                    s.transform.localPosition = new Vector3(i - p.halfW, -1, 0);
                 }
                 p.view = o;
             }
             if (grid.HasCheckpoint)
             {
-                lever = Art.Spawn("Lever", root, Art.Tile(checkpointSet ? "lever_right" : "lever"), -2);
-                lever.transform.position = new Vector3(grid.Checkpoint.x - .5f, grid.Checkpoint.y, 0);
+                flag = Art.Spawn("Flag", root, Art.Tile(checkpointSet ? "flag_a" : "flag_off"), -2);
+                flag.transform.position = new Vector3(grid.Checkpoint.x - .5f, grid.Checkpoint.y, 0);
             }
             if (grid.HasDoor) PlaceDoor(grid.Door);
             if (grid.HasRoomDoor) PlaceDoor(grid.RoomDoor);
@@ -116,14 +154,18 @@ namespace Kfitsa
                 boss = new Boss { grid = grid, x = grid.BossSpot.x, y = grid.BossSpot.y, w = 2.7f, h = 2.5f, view = v, onLand = BossLanded };
             }
 
-            look = 0; phase = bot != null || skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0;
+            look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0;
             heroGone = 0; growFlash = 0; inRoom = false; shake = 0; pendingDoor = false;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
+            camY = Mathf.Clamp(hero.y + 3, HalfH, camTop);
             app.hud.Fade(0);
             app.hud.Banner(phase == Phase.Intro ? Rtl.V($"שלב {Def.Code}\n{Def.name}") : "");
             app.hud.BossBar(-1);
-            app.hud.Hint(index == 0 && bot == null ? 10f : 0, Rtl.V(TouchUi.Available ? "משמאל זזים    מימין קופצים ורצים" : "חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה"));
+            app.hud.Timer(-1);
+            app.hud.Stars(gotStars | SavedStars, grid.Stars.Count);
+            string tip = index == 0 ? (TouchUi.Available ? "משמאל זזים    מימין קופצים ורצים" : "חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה") : Def.tip;
+            app.hud.Hint(skipIntro ? 0 : 8f, Rtl.V(tip));
             TouchUi.Current?.ShowDoor(false);
             Sound.Music(Def.music);
             paused = false;
@@ -132,8 +174,9 @@ namespace Kfitsa
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; lever = null;
-            enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); discs.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
+            root = null; grid = null; boss = null; flag = null; dark = null; water = null; wind = null; chaser = null;
+            enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
+            stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
         }
 
         void AddEnemy(Vector2 at, char kind)
@@ -154,8 +197,7 @@ namespace Kfitsa
         void BuildGate()
         {
             float gx = grid.GateX - .5f;
-            int floor = 0;
-            while (grid.Solid((int)gx, floor)) floor++;
+            int floor = (int)grid.GateY;
             gateDoor = Art.Spawn("Gate", root, Art.Tile("door_open"), -2);
             gateDoor.transform.position = new Vector3(gx, floor, 0);
             gateTop = Art.Spawn("Gate", root, Art.Tile("door_open_top"), -2);
@@ -180,7 +222,7 @@ namespace Kfitsa
         {
             if (grid.RoomStart < 0) return;
             for (int c = grid.RoomStart; c < grid.W; c += 3)
-                for (int r = 0; r < 18; r += 3)
+                for (int r = 0; r < grid.RoomH + 3; r += 3)
                 {
                     var s = Art.Spawn("Room", root, Art.Tile("bg_room"), -50);
                     s.transform.position = new Vector3(c, r, 0);
@@ -189,7 +231,7 @@ namespace Kfitsa
             // A room narrower than a wide phone screen: the wall simply continues past the edge
             int extra = Mathf.CeilToInt(2 * HalfW - (grid.W - grid.RoomStart));
             for (int c = 0; c < extra; c++)
-                for (int r = 0; r < 15; r++)
+                for (int r = 0; r < grid.RoomH; r++)
                     Art.Spawn("RoomWall", root, Art.Tile("t_stone_block_center"), -40).transform.position = new Vector3(grid.W + c, r, 0);
         }
 
@@ -198,22 +240,22 @@ namespace Kfitsa
             float half = HalfW;
             if (inRoom) { camMin = grid.RoomStart + half; camMax = Mathf.Max(camMin, grid.W - half); }
             else { camMin = half; camMax = Mathf.Max(half, grid.MainW - half); }
+            camTop = Mathf.Max(HalfH, (inRoom ? grid.RoomH : grid.H) - HalfH);
         }
 
         void Update()
         {
             if (grid == null || paused) return;
-            var live = bot != null ? default : GameInput.Read();
+            var live = GameInput.Read();
             latchedJump |= live.jumpPressed;
             latchedRun |= live.runPressed;
             pad = live;
 
             const float dt = 1f / Tune.SimHz;
-            acc += bot != null ? dt * bot.StepsPerFrame : Mathf.Min(Time.unscaledDeltaTime, .1f);
+            acc += Mathf.Min(Time.unscaledDeltaTime, .1f);
             while (acc >= dt && grid != null)
             {
                 acc -= dt;
-                if (bot != null) { pad = bot.Read(dt); latchedJump = pad.jumpPressed; latchedRun = pad.runPressed; }
                 Sim(dt);
                 pad.jumpPressed = false; latchedJump = false; latchedRun = false;
             }
@@ -227,7 +269,7 @@ namespace Kfitsa
             {
                 pad = p; latchedJump = p.jumpPressed; latchedRun = p.runPressed;
                 Sim(1f / Tune.SimHz);
-                p.jumpPressed = false; p.runPressed = false;
+                p.jumpPressed = false; p.runPressed = false; p.throwPressed = false;
             }
         }
 
@@ -278,37 +320,40 @@ namespace Kfitsa
             }
 
             levelTime += dt;
-            foreach (var p in grid.Platforms)
-            {
-                p.Step(dt);
-                if (hero.on == p) { hero.MoveX(p.dx); hero.y += p.dy; }
-            }
-            hero.Step(dt, input);
+            int switchWas = world.sw;
+            World.Step(grid, ref world, hero, dt, input);
+            if (world.sw != switchWas) { Sound.Play("bump"); PaintGates(); }
             float wall = CamLeft + hero.w / 2;
             if (hero.x < wall) { hero.x = wall; if (hero.vx < 0) hero.vx = 0; }
             if (hero.grounded) stompChain = 0;
 
-            if (input.runPressed && hero.shooter) Throw();
+            if (input.runPressed && hero.shooter || input.throwPressed && hero.shooter) Throw();
             StepCamera(dt);
             StepEnemies(dt);
             StepBoss(dt);
             StepItems(dt);
-            StepDiscs(dt);
+            StepTops(dt);
+            input0 = input;
             StepCells();
+            StepCrumbles(dt);
+            StepRoom(dt);
             if (hero.y < -2.5f) Die();
+            if (!god && (World.Drowned(grid, world, hero) || World.Caught(grid, world, hero))) ForceDie();
             if (phase != Phase.Play) return;
 
-            if (grid.HasCheckpoint && !checkpointSet && hero.x >= grid.Checkpoint.x && !inRoom)
+            if (grid.HasCheckpoint && !checkpointSet && hero.x >= grid.Checkpoint.x && hero.y >= grid.Checkpoint.y - 1 && !inRoom)
             {
-                checkpointSet = true; lever.sprite = Art.Tile("lever_right"); Sound.Play("magic");
+                checkpointSet = true; flag.sprite = Art.Tile("flag_a"); Sound.Play("magic");
+                app.hud.Hint(2.5f, Rtl.V("נקודת ביקורת!"));
             }
             if (hero.grounded && input.down && !lastDown) TryDoor();
             lastDown = input.down;
             bool nearDoor = !inRoom ? grid.HasDoor && Mathf.Abs(hero.x - grid.Door.x) < 1.5f : grid.HasRoomDoor && Mathf.Abs(hero.x - grid.RoomDoor.x) < 1.5f;
-            if (nearDoor) app.hud.Hint(.5f, Rtl.V(TouchUi.Available ? "כפתור החץ - נכנסים לדלת" : "חץ למטה - נכנסים לדלת"));
+            if (nearDoor) app.hud.Hint(.5f, Rtl.V(TouchUi.Available && !GameInput.GamepadActive ? "כפתור החץ - נכנסים לדלת" : "חץ למטה - נכנסים לדלת"));
             TouchUi.Current?.ShowDoor(nearDoor);
+            TouchUi.Current?.ShowThrow(hero.shooter);
             bool gateOpen = boss == null || !boss.alive;
-            if (gateOpen && !inRoom && hero.x >= grid.GateX - .1f && hero.grounded) Win();
+            if (gateOpen && !inRoom && grid.AtGate(hero)) Win();
         }
 
         void TryDoor()
@@ -322,10 +367,14 @@ namespace Kfitsa
         public void UseDoor()
         {
             inRoom = !inRoom;
+            // The room runs on its own clock, so its moving parts always start the same way
+            if (inRoom) { mainClock = world.t; world.t = 0; } else world.t = mainClock;
             var to = inRoom ? grid.RoomDoor : grid.Door;
             hero.x = to.x; hero.y = to.y; hero.vx = 0; hero.vy = 0;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
+            camY = Mathf.Clamp(hero.y + 3, HalfH, camTop);
+            if (inRoom) RoomBegin(); else { app.hud.Timer(-1); roomOpen = false; }
         }
 
         void StepCamera(float dt)
@@ -335,8 +384,11 @@ namespace Kfitsa
             float target = hero.x + look;
             float next = camX + (target - camX) * (1 - Mathf.Exp(-Tune.CamFollow * dt));
             SetCamBounds();
-            float free = inRoom ? next : Mathf.Max(camX, next);   // forward only, except in a room
-            camX = Mathf.Clamp(free, camMin, camMax);
+            camX = Mathf.Clamp(next, camMin, camMax);   // free both ways, so a missed star can be gone back for
+            // Tall levels: keep the hero a little below the middle, and follow faster on the way down
+            float wantY = hero.y + 2.5f;
+            camY += (wantY - camY) * (1 - Mathf.Exp(-(wantY < camY ? 9f : 5f) * dt));
+            camY = Mathf.Clamp(camY, HalfH, camTop);
         }
 
         void Stomped()
@@ -346,6 +398,7 @@ namespace Kfitsa
             app.run.score += 100 << Mathf.Min(stompChain, 5);
             freeze = .035f;
             Sound.Play("stomp");
+            Haptics.Buzz(25, .5f);
         }
 
         void KillFlying(Enemy e, int by)
@@ -362,7 +415,7 @@ namespace Kfitsa
             for (int i = enemies.Count - 1; i >= 0; i--)
             {
                 var e = enemies[i];
-                if (!e.awake) { e.awake = e.x < wake; if (!e.awake) continue; }
+                if (!e.awake) { e.awake = e.x < wake && Mathf.Abs(e.y - camY) < HalfH + 3; if (!e.awake) continue; }
                 e.Step(dt, hero.x);
                 if (e.y < -3 || !e.alive && !e.flying && e.flat <= 0) { Destroy(e.view.gameObject); enemies.RemoveAt(i); continue; }
                 if (!e.alive) continue;
@@ -448,35 +501,31 @@ namespace Kfitsa
 
         void Throw()
         {
-            if (discs.Count >= 2 || throwT > simT) return;
-            throwT = simT + .18f;
-            var v = Art.Spawn("Disc", root, Art.Center("saw"), 9);
-            v.transform.localScale = new Vector3(.55f, .55f, 1);
-            discs.Add(new Disc { view = v, x = hero.x + hero.facing * .5f, y = hero.y + .45f, vx = hero.facing * 14f });
+            if (tops.Count >= 2 || throwT > simT) return;
+            throwT = simT + .22f;
+            var v = Art.Spawn("Sevivon", root, Art.Center("sevivon"), 9);
+            tops.Add(new Sevivon { grid = grid, view = v, x = hero.x + hero.facing * .5f, y = hero.y + Mathf.Min(.5f, hero.h / 2), w = .5f, h = .5f, dir = hero.facing, vy = 3f });
             heroThrow = .2f;
             Sound.Play("throw");
         }
 
-        float heroThrow;
+        float heroThrow, mainClock;
+        Pad input0;
 
-        void StepDiscs(float dt)
+        void StepTops(float dt)
         {
-            for (int i = discs.Count - 1; i >= 0; i--)
+            for (int i = tops.Count - 1; i >= 0; i--)
             {
-                var d = discs[i];
-                d.t += dt;
-                if (!d.back && (d.t > .42f || grid.Solid(Mathf.FloorToInt(d.x), Mathf.FloorToInt(d.y)))) d.back = true;
-                if (d.back)
-                {
-                    float toHero = hero.x - d.x;
-                    d.vx = Mathf.MoveTowards(d.vx, Mathf.Sign(toHero) * 16f, 70f * dt);
-                    d.y = Mathf.MoveTowards(d.y, hero.y + .45f, 8f * dt);
-                }
-                d.x += d.vx * dt;
+                var d = tops[i];
+                d.Step(dt);
                 foreach (var e in enemies)
-                    if (e.alive && e.awake && d.Hits(e)) { KillFlying(e, d.vx > 0 ? 1 : -1); d.back = true; }
-                if (boss != null && boss.alive && boss.awake && boss.hurt <= 0 && d.Hits(boss)) { DamageBoss(1); d.back = true; }
-                if (d.back && Mathf.Abs(hero.x - d.x) < .6f || d.t > 1.6f) { Destroy(d.view.gameObject); discs.RemoveAt(i); }
+                    if (e.alive && e.awake && d.Hits(e)) { KillFlying(e, d.dir); d.gone = true; break; }
+                if (boss != null && boss.alive && boss.awake && boss.hurt <= 0 && d.Hits(boss)) { DamageBoss(1); d.gone = true; }
+                if (d.gone)
+                {
+                    AddFx(Art.Center("sevivon"), new Vector2(d.x, d.y), new Vector2(-d.dir * 2, 6), .4f, 34, 9);
+                    Destroy(d.view.gameObject); tops.RemoveAt(i);
+                }
             }
         }
 
@@ -485,19 +534,34 @@ namespace Kfitsa
             for (int i = coinItems.Count - 1; i >= 0; i--)
             {
                 var c = coinItems[i];
+                if (!c.view.enabled) continue;
                 if (Mathf.Abs(c.at.x - hero.x) < hero.w / 2 + .35f && c.at.y > hero.y - .35f && c.at.y < hero.Top + .35f)
                 {
                     AddCoin();
-                    Destroy(c.view.gameObject);
-                    coinItems.RemoveAt(i);
+                    if (c.room && grid.RoomMode == "coins") c.view.enabled = false;   // comes back if the clock runs out
+                    else { Destroy(c.view.gameObject); coinItems.RemoveAt(i); }
                 }
+            }
+            for (int i = stars.Count - 1; i >= 0; i--)
+            {
+                var c = stars[i];
+                if (c.hidden || !(Mathf.Abs(c.at.x - hero.x) < hero.w / 2 + .35f && c.at.y > hero.y - .35f && c.at.y < hero.Top + .35f)) continue;
+                gotStars |= 1 << c.id;
+                SavedStars |= 1 << c.id;
+                app.save.Write();
+                app.run.score += 2000;
+                Sound.Play("gem"); Haptics.Buzz(40, .6f);
+                AddFx(Art.Center("star"), c.at, new Vector2(0, 8), .6f, 20, 8);
+                Destroy(c.view.gameObject); stars.RemoveAt(i);
+                app.hud.Stars(gotStars | SavedStars, grid.Stars.Count);
+                if (roomOpen && c.at.x >= grid.MainW) { roomOpen = false; app.hud.Timer(-1); }
             }
             for (int i = pickups.Count - 1; i >= 0; i--)
             {
                 var k = pickups[i];
                 k.Step(dt);
                 if (k.y < -3) { Destroy(k.view.gameObject); pickups.RemoveAt(i); continue; }
-                if (k.rise <= 0 && hero.Overlaps(k))
+                if (k.rise <= 0 && hero.Overlaps(k) && !tidy)
                 {
                     Destroy(k.view.gameObject); pickups.RemoveAt(i);
                     Collect(k.type);
@@ -512,10 +576,12 @@ namespace Kfitsa
             app.run.score += 1000;
             if (type == "life") { app.run.lives++; Sound.Play("gem"); return; }
             int want = type == "shoot" ? 2 : 1;
-            Sound.Play("power");
+            Sound.Play("power"); Haptics.Buzz(60, .7f);
             if (app.run.power >= want) return;
             ApplyPower(want);
             freeze = .5f; growFlash = .5f;
+            string how = !TouchUi.Available || GameInput.GamepadActive ? "כפתור הריצה זורק סביבון" : "כפתור הזריקה זורק סביבון";
+            app.hud.Hint(5f, Rtl.V(want == 1 ? "גדלת! קופסת קריאה נוספת תיתן סביבון" : "יש סביבון! " + how));
         }
 
         void ApplyPower(int p)
@@ -523,15 +589,18 @@ namespace Kfitsa
             app.run.power = p;
             hero.SetBig(p > 0);
             hero.shooter = p == 2;
+            app.hud.Power(p);
+            foreach (var (view, _) in powerHints) view.sprite = Art.Center(p == 0 ? "gem_blue" : "sevivon");
         }
 
         void StepCells()
         {
-            foreach (var s in springs)
-                if (hero.vy <= 0 && Mathf.Abs(hero.x - (s.c + .5f)) < .6f && hero.y < s.r + .6f && hero.y >= s.r - .1f)
-                {
-                    hero.Launch(22f); s.out_ = .25f; Sound.Play("spring");
-                }
+            int hit = World.SpringAt(grid, hero);
+            if (hit >= 0)
+            {
+                hero.Launch(World.SpringSpeed); springs[hit].out_ = .25f; Sound.Play("spring");
+                if (levelIndex == 0 && !input0.jumpHeld) app.hud.Hint(3f, Rtl.V("החזיקו קפיצה על הקפיץ כדי לעוף גבוה"));
+            }
             int c0 = Mathf.FloorToInt(hero.Left + .15f), c1 = Mathf.FloorToInt(hero.Right - .15f), r0 = Mathf.FloorToInt(hero.y + .1f), r1 = Mathf.FloorToInt(hero.Top - .1f);
             for (int r = r0; r <= r1; r++)
                 for (int c = c0; c <= c1; c++)
@@ -557,7 +626,7 @@ namespace Kfitsa
                 if (b.c != c || b.r != r) continue;
                 if (b.kind == BlockKind.Brick)
                 {
-                    if (hero.big)
+                    if (hero.big && !tidy)
                     {
                         grid.Clear(c, r);
                         Destroy(b.view.gameObject); blocks.Remove(b);
@@ -600,9 +669,10 @@ namespace Kfitsa
             if (hero.invuln > 0 || phase != Phase.Play) return;
             hits++;
             if (god) { hero.invuln = .3f; return; }
+            Haptics.Buzz(120, .9f);
             if (hero.big)
             {
-                ApplyPower(0);
+                ApplyPower(app.run.power - 1);    // one step at a time: sevivon, then big, then small
                 hero.invuln = Tune.Invulnerable;
                 freeze = .3f; growFlash = .3f;
                 Sound.Play("shrink");
@@ -619,6 +689,8 @@ namespace Kfitsa
             hero.dead = true; hero.vy = hero.y < 0 ? 17 : 13; hero.vx = 0;
             freeze = .25f;
             app.run.power = 0;
+            Haptics.Buzz(250, 1);
+            app.hud.Timer(-1);
             Sound.Music(null); Sound.Play("lose");
         }
 
@@ -634,7 +706,9 @@ namespace Kfitsa
             phase = Phase.Won; phaseT = 0;
             app.run.score += 1000 + (hero.big ? 500 : 0);
             Sound.Music(null); Sound.Play("win");
-            app.hud.Banner(Rtl.V($"השלב הושלם!\nניקוד {app.run.score}"));
+            int found = 0;
+            for (int b = gotStars | SavedStars; b != 0; b >>= 1) found += b & 1;
+            app.hud.Banner(Rtl.V($"השלב הושלם!\nניקוד {app.run.score}    כוכבים {found}/3"));
         }
 
         void AddFx(Sprite s, Vector2 at, Vector2 vel, float life, float gravity, int order, float scale = 1)
@@ -646,28 +720,35 @@ namespace Kfitsa
 
         void Draw()
         {
-            float dt = bot != null ? 1f / 60 : Time.unscaledDeltaTime;
+            float dt = Time.unscaledDeltaTime;
             shake = Mathf.Max(0, shake - dt);
             float wobble = shake > 0 ? Mathf.Sin(simT * 70) * .1f * shake / .3f : 0;
-            cam.transform.position = new Vector3(camX, HalfH + wobble, -10);
+            cam.transform.position = new Vector3(camX, camY + wobble, -10);
 
             // The sky drifts at a quarter of the camera speed and wraps
             const float w = 15f;
             float baseX = camX - HalfW - Mathf.Repeat((camX - HalfW) * .75f, w) - .01f;
-            for (int i = 0; i < sky.Count; i++) sky[i].transform.position = new Vector3(baseX + i * w, 0, 0);
+            for (int i = 0; i < sky.Count; i++) sky[i].transform.position = new Vector3(baseX + i * w, camY - HalfH, 0);
 
             DrawHero(dt);
             foreach (var e in enemies) e.Draw();
             boss?.Draw();
             foreach (var k in pickups) k.Draw(simT);
             foreach (var p in grid.Platforms) p.view.position = new Vector3(p.x, p.y, 0);
-            foreach (var d in discs) { d.view.transform.position = new Vector3(d.x, d.y, 0); d.view.transform.Rotate(0, 0, -1100 * dt); }
+            foreach (var d in tops)
+            {
+                d.view.transform.position = new Vector3(d.x, d.y + .25f, 0);
+                d.view.transform.localEulerAngles = new Vector3(0, 0, Mathf.Sin(d.spin * 26) * 14);    // wobbles upright as it spins
+                d.view.flipX = (int)(d.spin * 18) % 2 == 0;
+            }
+            DrawMechanics(dt);
 
             var coinSprite = Art.Center((int)(simT * 5) % 2 == 0 ? "coin_gold" : "coin_gold_side");
             foreach (var c in coinItems) c.view.sprite = coinSprite;
             foreach (var b in blocks)
                 b.view.transform.position = new Vector3(b.c, b.r + Mathf.Sin(b.bump / .16f * Mathf.PI) * .28f, 0);
             foreach (var s in springs) s.view.sprite = Art.Tile(s.out_ > 0 ? "spring_out" : "spring");
+            foreach (var c in stars) c.view.transform.position = c.at + new Vector2(0, Mathf.Sin(simT * 3 + c.id) * .08f);
             var torch = Art.Tile((int)(simT * 7) % 2 == 0 ? "torch_on_a" : "torch_on_b");
             foreach (var t in torches) t.sprite = torch;
 

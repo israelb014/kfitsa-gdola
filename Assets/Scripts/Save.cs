@@ -17,17 +17,28 @@ namespace Kfitsa
         public List<ScoreRow> scores = new List<ScoreRow>();
         public float music = .7f, sfx = .8f;
         public bool fullscreen = true;
+        public int[] stars = new int[Levels.All.Length];     // one bit per star found
+
+        // Touch controls
+        public float buttonAlpha = .8f, buttonSize = 1;
+        public bool leftHanded, haptics = true;
+        public int buttonColor, runMode;                     // runMode: see TouchUi.RunMode
+
+        /// Tests must never touch the player's real progress.
+        public static bool Sandbox;
 
         static string FilePath => Path.Combine(Application.persistentDataPath, "save.json");
 
         public static Save Load()
         {
+            if (Sandbox) return new Save();
             try
             {
                 if (File.Exists(FilePath))
                 {
                     var s = JsonUtility.FromJson<Save>(File.ReadAllText(FilePath));
                     if (s.best == null || s.best.Length != Levels.All.Length) s.best = new int[Levels.All.Length];
+                    if (s.stars == null || s.stars.Length != Levels.All.Length) s.stars = new int[Levels.All.Length];
                     return s;
                 }
             }
@@ -37,6 +48,7 @@ namespace Kfitsa
 
         public void Write()
         {
+            if (Sandbox) return;
             try { File.WriteAllText(FilePath, JsonUtility.ToJson(this)); }
             catch (Exception e) { Debug.LogWarning("Could not save: " + e.Message); }
         }

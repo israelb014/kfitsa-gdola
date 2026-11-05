@@ -1,146 +1,212 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 
 namespace Kfitsa
 {
-    /// Test driver (-bot): plays each level by simple rules at high speed, proving it can be finished.
-    /// Enemies cannot hurt it, so a failure means the route itself is impossible for these rules.
-    public class Bot
+    /// Plays the real game with the routes the reachability search finds (-playtest), so every promise the
+    /// search makes is proved in the game itself. It presses buttons only, through the normal simulation.
+    public class PlayTest
     {
-        readonly App app; readonly string dir; readonly StringWriter log = new StringWriter();
-        readonly int only;
-        int index, shots;
-        float hold, levelClock, nextShot, waitStuck, lastX;
-        bool wasAir, done;
-        public int StepsPerFrame = 16;
+        readonly App app; readonly StringWriter log = new StringWriter(); readonly string dir;
+        int fails;
         Game G => app.game;
 
-        public Bot(App a, string captureDir, string[] args)
+        PlayTest(App a, string d) { app = a; dir = d; }
+
+        public static void Run(App app, string dir, string only)
         {
-            app = a; dir = captureDir; Directory.CreateDirectory(dir);
-            int i = System.Array.IndexOf(args, "-level");
-            only = i >= 0 ? int.Parse(args[i + 1]) : -1;
-            if (only >= 0) index = only;
+            Directory.CreateDirectory(dir);
+            var t = new PlayTest(app, dir);
+            app.game.skipIntro = true;
+            foreach (var def in Levels.All)
+                if (only == null || def.file == only) t.Level(def);
+            t.Note(t.fails == 0 ? "ALL PLAYTESTS PASS" : t.fails + " PLAYTESTS FAILED");
         }
 
-        public void Begin() { QualitySettings.vSyncCount = 0; Application.targetFrameRate = 200; Next(); }
+        void Note(string s) { log.WriteLine(s); Console.WriteLine(s); File.WriteAllText(Path.Combine(dir, "playtest.txt"), log.ToString()); }
+        void Check(string what, bool ok, string detail = "") { if (!ok) fails++; Note((ok ? "PASS " : "FAIL ") + what + (detail == "" ? "" : "  (" + detail + ")")); }
 
-        void Next()
+        void Fresh(int level, int power, bool enemies)
         {
-            if (index >= Levels.All.Length || only >= 0 && index != only) { Finish(); return; }
-            app.run = new RunState { lives = 99, power = 2 };
-            G.god = true;
-            G.StartLevel(index);
-            levelClock = 0; nextShot = 2; hold = 0; lastX = 0; waitStuck = 0; shots = 0;
+            app.run = new RunState { lives = 99, power = power };
+            G.god = !enemies ? false : true;
+            G.tidy = !enemies;
+            G.StartLevel(level);
+            if (!enemies) G.RemoveEnemies();
         }
 
-        void Log(string line)
+        void Level(LevelDef def)
         {
-            log.WriteLine(line);
-            File.WriteAllText(Path.Combine(dir, "bot_levels.txt"), log.ToString());
-        }
-
-        void Finish() { Log("end"); done = true; Application.Quit(); }
-
-        public void LevelFinished()
-        {
-            Log($"{Levels.All[index].file}: finished time={G.levelTime:F1}s deaths={G.deaths} hits={G.hits} coins={G.levelCoins}");
-            G.deaths = 0; G.hits = 0; G.levelCoins = 0;
-            index++; Next();
-        }
-
-        public void Tick()
-        {
-            if (done || !G.Running) return;
-            if (levelClock > nextShot && shots < 3)
+            int index = Array.IndexOf(Levels.All, def);
+            Note("--- " + def.file + " " + def.Code);
+            foreach (bool big in new[] { false, true })
             {
-                ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"lvl_{Levels.All[index].file}_{shots}.png"));
-                shots++; nextShot = levelClock + 10;
+                string form = big ? "big" : "small";
+                var s = Reach.Start(def, big, false, false);
+                s.seconds = 60;
+                s.stopAfterHits = s.goals.Count(q => q.kind != "coin");
+                s.Run();
+                foreach (var q in s.goals)
+                {
+                    if (q.kind != "gate" && q.kind != "star" && q.kind != "box" && q.kind != "secret" && q.kind != "door" && q.kind != "flag") continue;
+                    Fresh(index, big ? 1 : 0, false);
+                    bool done = q.hit && Replay(s.Route(q), q);
+                    Check($"{def.file} {form}: {q} is reached in the real game", done, q.hit ? $"{G.levelTime:F1}s" : "no route");
+                }
+            }
+            Room(def, index);
+            Flag(def, index);
+            Full(def, index);
+        }
+
+        System.Collections.Generic.List<(int tick, float x, float y)> marks;
+
+        /// Plays a route, and asks the game itself whether the goal happened.
+        bool Replay(System.Collections.Generic.List<Pad> route, Goal q)
+        {
+            int deaths = G.deaths;
+            int step = 0;
+            foreach (var p in route)
+            {
+                float x = G.hero.x, y = G.hero.y;
+                G.TestStep(1, p); step++;
+                if (marks != null)
+                    foreach (var m in marks)
+                        if (m.tick == step && (Mathf.Abs(m.x - G.hero.x) > .05f || Mathf.Abs(m.y - G.hero.y) > .05f))
+                        {
+                            Note($"     left the route at tick {step}: game {G.hero.x:F2},{G.hero.y:F2} vx {G.hero.vx:F1} on {G.hero.on != null}, search {m.x:F2},{m.y:F2}, was at {x:F2},{y:F2}");
+                            marks = null; break;
+                        }
+                if (G.deaths != deaths) { Note($"     died at tick {step} of {route.Count}, from {x:F2},{y:F2} vy {G.hero.vy:F1}"); return false; }
+            }
+            var h = G.hero; var g = G.grid;
+            if (q.kind == "gate" && !g.AtGate(h)) Note($"     ended at {h.x:F2},{h.y:F2} grounded {h.grounded}, wanted {g.GateX:F1},{g.GateY:F1}, tick {step}");
+            switch (q.kind)
+            {
+                case "gate": return g.AtGate(h) || G.Won;
+                case "star": return (G.GotStars & 1 << StarId(g, q)) != 0;
+                case "door": return Mathf.Abs(h.x - g.Door.x) < .9f;
+                case "flag": return G.CheckpointReached;
+                default: return G.blocks.Exists(b => b.c == q.c && b.r == q.r && b.used);
             }
         }
 
-        public Pad Read(float dt)
+        static int StarId(Grid2 g, Goal q) => g.Stars.FindIndex(p => Mathf.Abs(p.x - q.x) < .1f && Mathf.Abs(p.y - q.y) < .1f);
+
+        /// Finds a way from where the hero stands now to the first goal the test wants, and plays it.
+        bool Drive(LevelDef def, Func<Goal, bool> want, bool room, double seconds = 40)
         {
-            levelClock += dt;
-            var p = new Pad { x = 1, run = true };
-            var h = G.hero;
-            if (levelClock > 150)
-            {
-                Log($"{Levels.All[index].file}: STUCK x={h.x:F1} y={h.y:F1} deaths={G.deaths}");
-                G.deaths = 0; G.hits = 0; G.levelCoins = 0;
-                index++; Next(); return p;
-            }
-            if (G.Won) { p.jumpPressed = true; return p; }
-            if (h.grounded && wasAir) hold = 0;
-            wasAir = !h.grounded;
-            int feet = Mathf.FloorToInt(h.y + .01f);
-            int ahead = Mathf.FloorToInt(h.Right + .5f + Mathf.Abs(h.vx) * .05f);
-
-            bool pit = true;
-            for (int r = 0; r < feet; r++) pit &= !G.grid.Solid(ahead, r);
-            if (feet == 0) pit = false;
-            bool wall = false;
-            for (int r = feet; r <= feet + 1; r++) wall |= G.grid.Solid(ahead, r) || G.grid.Hazard(ahead, r);
-            for (int r = feet - 1; r <= feet; r++) wall |= G.grid.Deadly(ahead, r);
-
-            // A wide pit: ride a moving platform across if there is one
-            int land = Landing(ahead, feet);
-            Platform ride = null; float best = 99;
-            foreach (var m in G.grid.Platforms)
-            {
-                float d = m.x - h.x;
-                if (d > -1 && d < best && d < 16) { best = d; ride = m; }
-            }
-            bool jump = pit || wall;
-            if (h.on != null)
-            {
-                // Stay on until the far side is within reach
-                int c = Mathf.FloorToInt(h.x);
-                int far = Landing(c + 1, feet);
-                bool nextRide = false;
-                foreach (var m in G.grid.Platforms)
-                    if (m != h.on && m.x > h.x && m.Left - h.Right < 5 && m.Top < h.y + 3.5f) nextRide = true;
-                p.run = false;
-                if (far - c <= 5 || nextRide) { jump = true; }
-                else { p.x = Mathf.Clamp(h.on.x - h.x, -1, 1); jump = false; }
-            }
-            else if (pit && h.grounded && land - ahead > 8 && ride != null)
-            {
-                // wait at the edge until the ledge comes close
-                bool near = ride.Left - h.Right < 4.5f && ride.Top < h.y + 3.5f;
-                jump = near; if (!near) { p.x = 0; p.run = false; }
-            }
-
-            if (G.boss != null && G.boss.alive && G.boss.awake)
-            {
-                p.x = Mathf.Sign(G.boss.x - h.x); p.run = false;
-                jump = Mathf.Abs(G.boss.x - h.x) < 3.5f;
-                p.runPressed = levelClock % 1f < dt;
-            }
-
-            // Stuck against something: a full jump usually clears it, then back off and retry
-            if (Mathf.Abs(h.x - lastX) < .02f && p.x != 0) waitStuck += dt; else waitStuck = 0;
-            lastX = h.x;
-            if (waitStuck > .4f) jump = true;
-            if (waitStuck > 1.5f) { p.x = -1; }
-            if (waitStuck > 2.2f) waitStuck = 0;
-
-            if (h.grounded && jump && hold <= 0) { p.jumpPressed = true; hold = .5f; }
-            if (hold > 0) { p.jumpHeld = true; hold -= dt; }
-            return p;
+            for (int i = 0; i < 240 && G.Running && !G.hero.grounded; i++) G.TestStep(1, default);
+            var s = Reach.From(def, G.hero, G.world, room);
+            s.seconds = seconds;
+            foreach (var q in s.goals) if (!want(q)) q.hit = true;
+            s.stopAfterHits = 1;
+            s.Run();
+            var goal = s.goals.Find(q => q.node >= 0);
+            if (goal == null) return false;
+            int deaths = G.deaths;
+            foreach (var p in s.Route(goal)) { G.TestStep(1, p); if (G.deaths != deaths || !G.Running || G.Won) break; }
+            return G.deaths == deaths;
         }
 
-        /// First column at or after c with standing room near the given height.
-        int Landing(int c, int feet)
+        /// Walks back to the door if the route ended at a run, then presses down.
+        void PressDoor()
         {
-            for (int k = 0; k < 30; k++)
-                for (int r = feet + 3; r >= Mathf.Max(0, feet - 8); r--)
-                    if (G.grid.Solid(c + k, r)) return c + k;
-            return c + 30;
+            var g = G.grid; var at = G.inRoom ? g.RoomDoor : g.Door;
+            for (int i = 0; i < 900; i++)
+            {
+                float d = at.x - G.hero.x;
+                if (G.hero.grounded && Mathf.Abs(d) < .4f && Mathf.Abs(G.hero.vx) < 1) break;
+                G.TestStep(1, new Pad { x = Mathf.Abs(d) < .3f ? 0 : Mathf.Sign(d) });
+            }
+            G.TestStep(1, default);
+            G.TestStep(1, new Pad { down = true });
+            G.TestStep(80, default);
+        }
+
+        void Room(LevelDef def, int index)
+        {
+            Fresh(index, 0, false);
+            var s = Reach.Start(def, false, false, false);
+            foreach (var q in s.goals) if (q.kind != "door") q.hit = true;
+            s.stopAfterHits = 1; s.seconds = 60; s.Run();
+            var door = s.goals.Find(q => q.kind == "door");
+            bool at = door.node >= 0 && Replay(s.Route(door), door);
+            PressDoor();
+            Check($"{def.file}: the door opens the bonus room", at && G.inRoom);
+            if (!G.inRoom) return;
+            var g = G.grid; float clock = G.levelTime; string mode = g.RoomMode; int star = g.Stars.FindIndex(p => p.x >= g.MainW);
+            if (mode == "coins")
+                for (int i = 0; i < 40 && G.RoomCoinsLeft > 0; i++) Drive(def, q => q.kind == "coin" && G.RoomCoinAt(q.x, q.y), true, 10);
+            if (mode == "lights")
+                for (int i = 0; i < 6 && !G.RoomSolved; i++) Drive(def, q => q.kind == "lamp" && !G.LampLit(q.x, q.y), true, 10);
+            if (mode == "stomp")
+            {
+                app.run.power = 2; G.ApplyPowerForTest(2);
+                for (int i = 0; i < 2400 && !G.RoomSolved; i++)
+                {
+                    var e = G.enemies.Find(x => x.alive && x.x >= g.MainW);
+                    int dir = e == null ? 0 : e.x > G.hero.x ? 1 : -1;
+                    G.TestStep(1, new Pad { x = dir, run = true, runPressed = i % 40 == 0 });
+                }
+            }
+            if (mode == "puzzle" || mode == "pool") Drive(def, q => q.kind == "star", true, 60);
+            else Drive(def, q => q.kind == "star", true, 20);
+            for (int i = 0; i < 240; i++) if ((G.GotStars >> star & 1) == 0) G.TestStep(1, default);
+            float took = G.levelTime - clock;
+            Check($"{def.file}: bonus room ({mode}) is solved and pays its star", (G.GotStars >> star & 1) != 0, $"{took:F1}s of {g.RoomSeconds:F0}s");
+            bool back = Drive(def, q => q.kind == "room exit", true, 20);
+            PressDoor();
+            Check($"{def.file}: the way out of the room works", !G.inRoom);
+        }
+
+        void Flag(LevelDef def, int index)
+        {
+            foreach (bool big in new[] { false, true })
+            {
+                Fresh(index, big ? 1 : 0, false);
+                var s = Reach.Start(def, big, false, true);
+                foreach (var q in s.goals) if (q.kind != "gate") q.hit = true;
+                s.stopAfterHits = 1; s.seconds = 60; s.Run();
+                var gate = s.goals.Find(q => q.kind == "gate");
+                G.RestartAtFlag();
+                marks = gate.node >= 0 ? s.Marks(gate) : null;
+                bool ok = gate.node >= 0 && Replay(s.Route(gate), gate);
+                marks = null;
+                Check($"{def.file} {(big ? "big" : "small")}: finish from the checkpoint in the real game", ok, $"{G.levelTime:F1}s");
+            }
+        }
+
+        /// The whole level with enemies on. They cannot hurt the bot, but they bump it off its route, so it replans.
+        void Full(LevelDef def, int index)
+        {
+            Fresh(index, 0, true);
+            int plans = 0;
+            while (G.Running && !G.Won && G.levelTime < 400 && plans < 120)
+            {
+                plans++;
+                if (G.boss != null && G.boss.alive && G.hero.x > G.boss.x - 24) { FightBoss(); continue; }
+                Drive(def, q => q.kind == "gate", false, 30);
+                if (G.grid != null && G.grid.AtGate(G.hero) && G.boss != null && G.boss.alive) { FightBoss(); }
+                G.TestStep(30, default);
+            }
+            Check($"{def.file}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes");
+        }
+
+        void FightBoss()
+        {
+            app.run.power = 2; G.ApplyPowerForTest(2);
+            for (int i = 0; i < 12000 && G.boss.alive; i++)
+            {
+                var b = G.boss;
+                float dx = b.x - G.hero.x;
+                G.TestStep(1, new Pad { x = Mathf.Abs(dx) > 3 ? Mathf.Sign(dx) : -Mathf.Sign(dx), run = true, runPressed = i % 30 == 0, jumpPressed = i % 70 == 0, jumpHeld = i % 70 < 30 });
+            }
         }
     }
 
@@ -148,7 +214,7 @@ namespace Kfitsa
     public class ScreenTour : MonoBehaviour
     {
         App app; string dir; int step; float t; bool shot;
-        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "level1", "room", "boss", "desert", "ending", "pause" };
+        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls" };
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
 
@@ -161,18 +227,38 @@ namespace Kfitsa
             if (!shot) { ScreenCapture.CaptureScreenshot(Path.Combine(dir, "screen_" + Names[step] + ".png")); shot = true; t = .2f; return; }
             shot = false;
             step++;
+            var G = app.game;
+            void At(int level, float x, float y, int power = 0)
+            {
+                if (G.Running) G.Unload();
+                G.skipIntro = true; app.run = new RunState { power = power };
+                app.Enter(level);
+                G.paused = false; G.god = true;
+                G.hero.x = x; G.hero.y = y; G.TestStep(1, default);
+                G.SnapCamera();
+            }
             switch (step)
             {
-                case 1: app.save.unlocked = 4; app.run = new RunState(); app.ShowMap(); break;
+                case 1: app.save.unlocked = 4; app.save.stars[0] = 7; app.save.stars[1] = 3; app.save.stars[2] = 1; app.run = new RunState(); app.ShowMap(); break;
                 case 2: app.save.AddScore(12400, "הגיע לשלב 1-2"); app.save.AddScore(8300, "הגיע לשלב 1-1"); app.ShowScores(app.ShowTitle); break;
                 case 3: app.ShowSettings(app.ShowTitle); break;
                 case 4: app.ShowCreditsForTour(); break;
-                case 5: app.Enter(0); t = 2.6f; break;
-                case 6: app.game.hero.x = app.game.grid.Door.x; app.game.hero.y = app.game.grid.Door.y; app.game.UseDoor(); t = .6f; break;
-                case 7: app.game.Unload(); app.run.power = 2; app.Enter(6); t = 3; app.game.hero.x = 36; break;
-                case 8: app.game.Unload(); app.Enter(3); t = 2.5f; break;
-                case 9: app.game.Unload(); app.ShowEndingForTour(); break;
-                case 10: app.Enter(0); app.ShowPause(); break;
+                case 5: app.ShowEndingForTour(); break;
+                case 6: app.Enter(0); app.ShowPause(); break;
+                case 7: G.paused = false; app.ResumeForTour(); At(0, 30, 2); break;
+                case 8: At(0, 112.5f, 2); G.UseDoor(); G.SnapCamera(); break;
+                case 9: At(1, 42, 6); break;
+                case 10: At(2, 10, 15); break;
+                case 11: At(2, 22, 58); break;
+                case 12: At(3, 34, 2); break;
+                case 13: At(4, 34, 2); G.world.t = 7.5f; break;
+                case 14: At(4, 168, 12); G.world.t = 20; G.world.floodAt = 8; break;
+                case 15: At(5, 22, 2); break;
+                case 16: At(5, 151, 4, 1); break;
+                case 17: At(6, 40, 3); G.world.t = 20; G.world.chaseAt = 14.2f; break;
+                case 18: At(6, 168, 2, 2); G.TestStep(30, new Pad { x = 1, run = true }); G.TestStep(1, new Pad { runPressed = true }); G.TestStep(18, default); break;
+                case 19: At(1, 11, 2, 1); break;
+                case 20: if (TouchUi.Available) { G.Unload(); app.ShowTitle(); app.ShowControls(app.ShowTitle); } else Application.Quit(); break;
             }
         }
     }
@@ -293,6 +379,95 @@ namespace Kfitsa
             Check("door button enters the room", app.game.inRoom);
             ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_room.png"));
             yield return Wait(.3f);
+
+            // Back on open ground for the settings
+            app.game.skipIntro = true; app.game.StartLevel(-1); yield return Wait(.2f); app.game.god = true;
+            var save = app.save;
+            void Settings() => Ui.Configure(save);
+            IEnumerator Run(float seconds) { H.x = 5; H.y = 2; H.vx = 0; right = Ui.Spot("right"); Down(1, right); yield return Wait(seconds); }
+
+            // Run modes
+            save.runMode = (int)RunMode.Auto; Settings();
+            Check("automatic run hides the run button", !Ui.RunShown);
+            yield return Run(1.1f);
+            Check("automatic run: one finger reaches run speed", Mathf.Abs(H.vx - Tune.RunSpeed) < .2f, $"vx {H.vx:F2}");
+            Up(1, right); yield return Wait(.6f);
+
+            save.runMode = (int)RunMode.Toggle; Settings(); yield return Wait(.1f);
+            run = Ui.Spot("run");
+            yield return Run(1f);
+            Check("toggle run: walks until locked", Mathf.Abs(H.vx - Tune.WalkSpeed) < .2f, $"vx {H.vx:F2}");
+            yield return Tap(run);
+            H.x = 5; yield return Wait(.9f);
+            Check("toggle run: one tap locks running on", Ui.RunLocked && Mathf.Abs(H.vx - Tune.RunSpeed) < .2f, $"locked {Ui.RunLocked}, vx {H.vx:F2}");
+            var lit = Ui.FaceColor("run");
+            Check("toggle run: locked button is lit", lit.r > .9f && lit.g > .7f && lit.b < .4f, lit.ToString());
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_locked.png"));
+            yield return Tap(run);
+            H.x = 5; yield return Wait(1f);
+            Check("toggle run: a second tap turns it off", !Ui.RunLocked && Mathf.Abs(H.vx - Tune.WalkSpeed) < .2f, $"locked {Ui.RunLocked}, vx {H.vx:F2}");
+            Up(1, right); yield return Wait(.6f);
+
+            save.runMode = (int)RunMode.Hold; Settings(); yield return Wait(.1f);
+            run = Ui.Spot("run");
+            yield return Run(.3f); Down(2, run); yield return Wait(1f);
+            Check("hold run: fast while held", Mathf.Abs(H.vx - Tune.RunSpeed) < .2f, $"vx {H.vx:F2}");
+            Up(2, run); H.x = 5; yield return Wait(.9f);
+            Check("hold run: back to walking when released", Mathf.Abs(H.vx - Tune.WalkSpeed) < .3f, $"vx {H.vx:F2}");
+            Up(1, right); yield return Wait(.6f);
+
+            // Look of the buttons
+            float wide = Ui.ButtonWidth("jump"); save.buttonSize = 1.4f; Settings();
+            Check("size setting grows the buttons", Ui.ButtonWidth("jump") > wide * 1.3f);
+            save.buttonSize = 1; save.buttonAlpha = .3f; Settings(); float faint = Ui.FaceColor("jump").a;
+            save.buttonAlpha = 1; Settings();
+            Check("opacity setting changes the buttons", faint < .35f && Ui.FaceColor("jump").a > .95f);
+            save.buttonAlpha = .8f; var before = Ui.FaceColor("jump"); save.buttonColor = 2; Settings();
+            Check("colour setting changes the buttons", Ui.FaceColor("jump") != before);
+            save.buttonColor = 0; save.leftHanded = true; Settings(); yield return Wait(.1f);
+            Check("left hand mode swaps the sides", Ui.Spot("jump").x < Screen.width / 2f && Ui.Spot("left").x > Screen.width / 2f);
+            float gy = H.y; Down(1, Ui.Spot("jump")); yield return Wait(.3f);
+            Check("left hand mode: the jump button works where it now is", H.y > gy + .5f, $"height {H.y - gy:F2}");
+            Up(1, Ui.Spot("jump")); yield return Wait(.9f);
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_left.png"));
+            yield return Wait(.2f);
+            save.leftHanded = false; Settings(); yield return Wait(.1f);
+
+            // Weapon
+            app.game.ApplyPowerForTest(2); yield return Wait(.2f);
+            Check("throw button appears with the sevivon", Ui.ThrowShown);
+            yield return Tap(Ui.Spot("throw"));
+            Check("throw button throws", app.game.TopsInAir > 0);
+            app.game.ApplyPowerForTest(0); yield return Wait(.2f);
+
+            // Settings screen with a real finger
+            app.ShowPause(); yield return Wait(.2f);
+            app.ShowControls(app.ShowPause); yield return Wait(.2f);
+            Check("buttons show behind the settings as a preview", !Ui.Visible);
+            save.buttonAlpha = .8f;
+            float rowY = mid.y + 240 * app.hud.Scale;
+            yield return Tap(new Vector2(mid.x - 330 * app.hud.Scale, rowY));
+            Check("tapping the left end of the opacity slider lowers it", save.buttonAlpha < .35f, $"{save.buttonAlpha:F2}");
+            Down(9, new Vector2(mid.x - 330 * app.hud.Scale, rowY)); yield return Wait(.1f); Move(9, new Vector2(mid.x + 50 * app.hud.Scale, rowY)); yield return Wait(.15f); Up(9, new Vector2(mid.x + 50 * app.hud.Scale, rowY)); yield return Wait(.2f);
+            Check("dragging the slider raises it", save.buttonAlpha > .9f, $"{save.buttonAlpha:F2}");
+            yield return Tap(new Vector2(mid.x + (-340 + 2 * 78) * app.hud.Scale, mid.y + 40 * app.hud.Scale));
+            Check("tapping a colour chooses it", save.buttonColor == 2, $"{save.buttonColor}");
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_settings.png"));
+            yield return Wait(.3f);
+            save.buttonColor = 0; save.buttonAlpha = .8f; Settings();
+            app.ShowPause(); yield return Wait(.1f);
+            yield return Tap(resume); yield return Wait(.2f);
+
+            // A gamepad takes over from the touch buttons
+            var gp = InputSystem.AddDevice<Gamepad>(); yield return Wait(.1f);
+            Check("a connected but unused gamepad keeps the buttons", Ui.Visible);
+            H.x = 5; float px = H.x; InputSystem.QueueStateEvent(gp, new GamepadState { leftStick = new Vector2(1, 0) }); yield return Wait(.5f);
+            Check("using the gamepad hides the buttons", !Ui.Visible);
+            Check("the gamepad moves the hero", H.x > px + .5f, $"moved {H.x - px:F2}");
+            InputSystem.QueueStateEvent(gp, new GamepadState()); yield return Wait(.3f);
+            yield return Tap(mid); yield return Wait(.2f);
+            Check("touching the screen brings the buttons back", Ui.Visible);
+            InputSystem.RemoveDevice(gp);
             Note("end");
             Application.Quit();
         }
@@ -338,91 +513,114 @@ namespace Kfitsa
     }
 
     /// Exercises every mechanic through the real simulation (-selftest) and writes PASS or FAIL lines.
+    /// Runs on the "test" level, so a redesign of the real levels cannot break it.
     public static class SelfTest
     {
         static StringWriter w; static int fails;
         static void Check(string name, bool ok) { w.WriteLine((ok ? "PASS " : "FAIL ") + name); if (!ok) fails++; }
 
-        static Game Fresh(App app, int level, int power = 0)
+        static Game Fresh(App app, int power = 0)
         {
             app.run = new RunState { lives = 9, power = power };
-            app.game.StartLevel(level);
+            app.game.StartLevel(-1);
             return app.game;
         }
 
         static void Above(Player h, Body e) { h.x = e.x; h.y = e.Top + .4f; h.vy = -6; h.vx = 0; h.grounded = false; }
+        static void Under(Game g, float x, float y) { g.hero.x = x; g.hero.y = y; g.hero.vy = 16; g.hero.vx = 0; g.hero.grounded = false; }
 
         public static void Run(App app, string dir)
         {
             Directory.CreateDirectory(dir); w = new StringWriter();
             var g = app.game; g.skipIntro = true; var none = new Pad();
 
-            g = Fresh(app, 0); var e = g.TestEnemy('e', 8, 2); Above(g.hero, e); int s0 = app.run.score; bool bounced = false;
+            g = Fresh(app); var e = g.TestEnemy('e', 8, 2); Above(g.hero, e); int s0 = app.run.score; bool bounced = false;
             for (int i = 0; i < 30; i++) { g.TestStep(1, none); bounced |= g.hero.vy > 5; }
             Check("stomp slime squashes it, scores and bounces", !e.alive && app.run.score > s0 && bounced);
 
-            g = Fresh(app, 0); e = g.TestEnemy('n', 12, 2); Above(g.hero, e); g.TestStep(30, none);
+            g = Fresh(app); e = g.TestEnemy('n', 12, 2); Above(g.hero, e); g.TestStep(30, none);
             Check("stomp snail hides it in the shell", e.state == 1 && e.alive);
             g.hero.x = e.x - 1.2f; g.hero.y = 2; g.hero.vy = 0; g.hero.invuln = 0; g.TestStep(90, new Pad { x = 1 });
             Check("touching the shell kicks it", e.state == 2);
             var other = g.TestEnemy('e', e.x + 1.5f, 2); other.dir = -1; g.TestStep(60, none);
             Check("sliding shell knocks out another enemy", !other.alive);
 
-            g = Fresh(app, 0, 1); e = g.TestEnemy('p', 8, 2); Above(g.hero, e); g.TestStep(30, none);
+            g = Fresh(app, 1); e = g.TestEnemy('p', 8, 2); Above(g.hero, e); g.TestStep(30, none);
             Check("spike slime cannot be stomped and costs the power", e.alive && app.run.power == 0 && g.deaths == 0);
             Check("hero survives one hit when big", g.hero.invuln > 0);
 
-            g = Fresh(app, 0); e = g.TestEnemy('y', 8, 3); g.TestStep(2, none); Above(g.hero, e); g.TestStep(30, none);
+            g = Fresh(app, 2); e = g.TestEnemy('p', 8, 2); Above(g.hero, e); g.TestStep(30, none);
+            Check("a hit takes the sevivon first and leaves the hero big", app.run.power == 1 && g.hero.big && !g.hero.shooter);
+
+            g = Fresh(app); e = g.TestEnemy('y', 8, 3); g.TestStep(2, none); Above(g.hero, e); g.TestStep(30, none);
             Check("stomp fly drops it", !e.alive);
 
-            g = Fresh(app, 0); e = g.TestEnemy('j', 14, 2); float x0 = e.x; bool leapt = false;
+            g = Fresh(app); e = g.TestEnemy('j', 14, 2); float x0 = e.x; bool leapt = false;
             for (int i = 0; i < 300; i++) { g.TestStep(1, none); leapt |= !e.grounded && e.y > 2.3f; }
             Check("frog hops", leapt && e.x != x0);
 
-            g = Fresh(app, 0, 2); e = g.TestEnemy('p', g.hero.x + 3, 2); g.TestStep(2, none); g.hero.facing = 1; g.TestStep(50, new Pad { runPressed = true });
-            Check("thrown disc takes out a spike slime", !e.alive);
+            g = Fresh(app, 2); e = g.TestEnemy('p', g.hero.x + 6, 2); g.TestStep(2, none); g.hero.facing = 1; float high = 0; g.TestStep(1, new Pad { runPressed = true });
+            for (int i = 0; i < 200 && g.TopsInAir > 0; i++) { g.TestStep(1, none); high = Mathf.Max(high, g.TopHeight); }
+            Check("thrown sevivon hops along the ground", high > 2.4f);
+            Check("thrown sevivon takes out a spike slime", !e.alive);
+            g = Fresh(app, 2); g.hero.x = 62; g.hero.facing = 1; g.TestStep(2, none); g.TestStep(1, new Pad { throwPressed = true }); bool cameBack = false;
+            for (int i = 0; i < 300 && g.TopsInAir > 0; i++) { g.TestStep(1, none); cameBack |= g.TopDir < 0; }
+            Check("sevivon turns back off a wall", cameBack);
 
-            g = Fresh(app, 1, 1); g.hero.x = 13.5f; g.hero.y = 4.2f; g.hero.vy = 9; g.hero.grounded = false; g.TestStep(30, none);
-            Check("big hero breaks a brick", !g.grid.Solid(13, 6));
-            g = Fresh(app, 1, 0); g.hero.x = 13.5f; g.hero.y = 4.2f; g.hero.vy = 9; g.hero.grounded = false; g.TestStep(30, none);
-            Check("small hero only bumps a brick", g.grid.Solid(13, 6));
+            g = Fresh(app, 1); Under(g, 20.5f, 3.5f); g.TestStep(30, none);
+            Check("big hero breaks a brick", !g.grid.Solid(20, 6));
+            g = Fresh(app, 0); Under(g, 20.5f, 3.5f); g.TestStep(30, none);
+            Check("small hero only bumps a brick", g.grid.Solid(20, 6));
 
-            g = Fresh(app, 0); Check("hidden block starts open", !g.grid.Solid(63, 10));
-            g.hero.x = 63.5f; g.hero.y = 8.4f; g.hero.vy = 9; g.hero.grounded = false; int c0 = app.run.coins; g.TestStep(30, none);
-            Check("hidden block appears when hit from below", g.grid.Solid(63, 10) && app.run.coins > c0 && app.run.secrets == 1);
+            g = Fresh(app); Check("hidden block starts open", !g.grid.Solid(32, 6));
+            Under(g, 32.5f, 3.5f); int c0 = app.run.coins; g.TestStep(30, none);
+            Check("hidden block appears when hit from below", g.grid.Solid(32, 6) && app.run.coins > c0 && app.run.secrets == 1);
 
-            g = Fresh(app, 0); c0 = app.run.coins; g.hero.x = 17.5f; g.hero.y = 4.2f; g.hero.vy = 13; g.hero.grounded = false; g.TestStep(30, none);
+            g = Fresh(app); c0 = app.run.coins; Under(g, 24.5f, 3.5f); g.TestStep(30, none);
             Check("coin block pays out", app.run.coins == c0 + 1);
 
-            g = Fresh(app, 0); g.hero.x = 60.5f; g.hero.y = 4.2f; g.hero.vy = 13; g.hero.grounded = false; g.TestStep(40, none);
-            Check("power block releases a gem", g.pickups.Count == 1);
+            g = Fresh(app); Under(g, 28.5f, 3.5f); g.TestStep(40, none);
+            Check("power box releases a gem", g.pickups.Count == 1 && g.pickups[0].type == "grow");
             for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
             g.TestStep(90, none);
-            Check("gem makes the hero big", app.run.power == 1 && g.hero.big);
-            g = Fresh(app, 0, 1); g.hero.x = 60.5f; g.hero.y = 4.2f; g.hero.vy = 9; g.hero.grounded = false; g.TestStep(120, none);
-            Check("power block gives the red gem to a big hero", g.pickups.Count == 1 && g.pickups[0].type == "shoot");
+            Check("first power-up makes the hero big", app.run.power == 1 && g.hero.big);
+            g = Fresh(app, 1); Under(g, 28.5f, 3.5f); g.TestStep(120, none);
+            Check("second power-up, taken while big, is the sevivon", g.pickups.Count == 1 && g.pickups[0].type == "shoot");
+            for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
+            g.TestStep(90, none);
+            Check("sevivon power-up gives the throw", app.run.power == 2 && g.hero.shooter);
 
-            g = Fresh(app, 0); g.hero.x = g.grid.Door.x; g.hero.y = g.grid.Door.y; g.TestStep(4, none); g.TestStep(80, new Pad { down = true });
+            g = Fresh(app); g.hero.x = g.grid.Door.x; g.hero.y = g.grid.Door.y; g.TestStep(4, none); g.TestStep(80, new Pad { down = true });
             Check("secret door leads to the bonus room", g.inRoom);
             g.TestStep(4, none); g.TestStep(80, new Pad { down = true });
             Check("room door leads back", !g.inRoom && Mathf.Abs(g.hero.x - g.grid.Door.x) < .6f);
 
-            g = Fresh(app, 0); g.hero.x = g.grid.Checkpoint.x + .5f; g.hero.y = g.grid.Checkpoint.y; g.TestStep(4, none); g.hero.y = -3; g.TestStep(420, none);
+            g = Fresh(app); g.hero.x = g.grid.Checkpoint.x + .5f; g.hero.y = g.grid.Checkpoint.y; g.TestStep(4, none); g.hero.y = -3; g.TestStep(420, none);
             Check("death returns to the checkpoint", g.Running && Mathf.Abs(g.hero.x - g.grid.Checkpoint.x) < .1f && app.run.lives == 8);
 
-            g = Fresh(app, 1); g.hero.x = 48.5f; g.hero.y = 2; g.TestStep(3, none);
+            g = Fresh(app); g.hero.x = 36.5f; g.hero.y = 2; g.TestStep(3, none);
             Check("spring launches", g.hero.vy > 15);
 
-            g = Fresh(app, 4); g.hero.x = 30.5f; g.hero.y = .4f; g.TestStep(3, none);
-            Check("lava kills", g.deaths > 0 || g.hero.dead);
+            g = Fresh(app); g.hero.x = 41.5f; g.hero.y = 3; g.hero.vy = 0; g.TestStep(20, none); bool solid = g.grid.Solid(41, 2);
+            g.TestStep(90, none);
+            Check("crumbling block holds, then gives way", solid && !g.grid.Solid(41, 2));
+            g.hero.x = 10; g.hero.y = 2; g.TestStep(120 * 5, none);
+            Check("crumbling block comes back", g.grid.Solid(41, 2));
 
-            g = Fresh(app, 1); var m = g.grid.Platforms[0]; g.hero.x = m.x; g.hero.y = m.Top + .02f; g.hero.vy = 0; g.TestStep(180, none);
-            Check("moving platform carries the hero", Mathf.Abs(g.hero.x - m.x) < .3f && g.hero.on == m);
+            g = Fresh(app); g.hero.x = 48; g.hero.y = 2; float bx = g.hero.x; g.TestStep(60, none);
+            Check("conveyor carries the hero", g.hero.x > bx + 1);
 
-            g = Fresh(app, 6, 1); g.hero.x = 44; g.TestStep(2, none); g.TestStep(10, none);
-            var b = g.boss; Check("boss wakes", b != null && b.awake);
-            for (int i = 0; i < 4; i++) { Above(g.hero, b); g.hero.vy = -8; g.hero.invuln = 2; g.TestStep(20, none); g.TestStep(180, none); }
-            Check("four stomps defeat the boss", !b.alive);
+            g = Fresh(app); g.hero.x = 54.5f; g.hero.y = 2; g.TestStep(4, none); g.hero.x = 56.5f; g.TestStep(4, none); g.hero.x = 58.5f; g.TestStep(4, none);
+            Check("three stars are saved for the level map", g.GotStars == 7);
+
+            int buzz = Haptics.Count; Haptics.On = true;
+            g = Fresh(app); e = g.TestEnemy('e', 8, 2); Above(g.hero, e); g.TestStep(30, none); int afterStomp = Haptics.Count;
+            g = Fresh(app, 1); e = g.TestEnemy('p', 8, 2); Above(g.hero, e); g.TestStep(30, none); int afterHit = Haptics.Count;
+            g.hero.y = -3; g.TestStep(40, none);
+            Check("vibration on stomp, hit and death", afterStomp > buzz && afterHit > afterStomp && Haptics.Count > afterHit);
+            Haptics.On = false; int off = Haptics.Count; g = Fresh(app); e = g.TestEnemy('e', 8, 2); Above(g.hero, e); g.TestStep(30, none);
+            Check("vibration can be turned off", Haptics.Count == off);
+            Haptics.On = true;
 
             w.WriteLine(fails == 0 ? "ALL PASS" : fails + " FAILED");
             File.WriteAllText(Path.Combine(dir, "selftest.txt"), w.ToString());

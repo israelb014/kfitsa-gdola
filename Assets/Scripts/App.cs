@@ -27,9 +27,15 @@ namespace Kfitsa
         readonly List<GameObject> screenObjects = new List<GameObject>();
         readonly List<Text> rows = new List<Text>();
         List<MenuItem> items; int cursor; Action backAction;
-        Bot bot;
 
-        class MenuItem { public Func<string> label; public Action ok; public Action<int> adjust; }
+        class MenuItem
+        {
+            public Func<string> label; public Action ok; public Action<int> adjust;
+            public Func<float> value; public Action<float> set;       // a slider
+            public Color[] chips; public Func<int> chip; public Action<int> pick;   // a row of colours
+            public RectTransform fill, knob; public List<Image> marks;
+        }
+
 
         void Start()
         {
@@ -42,25 +48,34 @@ namespace Kfitsa
             Hud.SafeOverride = ParseRect(Arg(args, "-safearea"));
             if (Array.IndexOf(args, "-feeltest") >= 0) { FeelTest.Run(Arg(args, "-captureDir")); Application.Quit(); return; }
 
-            if (Array.IndexOf(args, "-solve") >= 0) { Solver.Run(Arg(args, "-captureDir")); Application.Quit(); return; }
+            if (Array.IndexOf(args, "-levelsDir") >= 0) Levels.Folder = Arg(args, "-levelsDir");
+            if (Array.IndexOf(args, "-validate") >= 0)
+            {
+                string one = Array.IndexOf(args, "-level") >= 0 ? Arg(args, "-level") : null;
+                if (Array.IndexOf(args, "-seconds") >= 0) Reach.Seconds = double.Parse(Arg(args, "-seconds"));
+                bool ok = false;
+                try { ok = Reach.ValidateAll(System.IO.Path.Combine(Arg(args, "-captureDir"), "reach_report.txt"), one); }
+                catch (Exception e) { Debug.LogError(e); }
+                Application.Quit(ok ? 0 : 3); return;
+            }
 
+            foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
             save = Save.Load();
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
             if (!save.fullscreen && !Application.isMobilePlatform) UnityEngine.Screen.SetResolution(1280, 720, false);
+            Haptics.On = save.haptics;
             hud = new Hud();
+            hud.Touch.Configure(save);
             game = gameObject.AddComponent<Game>();
             game.Init(this);
             mapCursor = Mathf.Min(save.unlocked, Levels.All.Length - 1);
 
-            if (Array.IndexOf(args, "-bot") >= 0)
+            if (Array.IndexOf(args, "-playtest") >= 0)
             {
-                bot = new Bot(this, Arg(args, "-captureDir"), args);
-                game.bot = bot;
-                screen = Screen.Playing;
-                hud.Show(true);
-                bot.Begin();
-                return;
+                hud.Show(true); screen = Screen.Playing;
+                try { PlayTest.Run(this, Arg(args, "-captureDir"), Array.IndexOf(args, "-level") >= 0 ? Arg(args, "-level") : null); } catch (Exception e) { Debug.LogError(e); }
+                Application.Quit(); return;
             }
             if (Array.IndexOf(args, "-selftest") >= 0) { try { SelfTest.Run(this, Arg(args, "-captureDir")); } catch (Exception e) { Debug.LogError(e); } Application.Quit(); return; }
             if (Array.IndexOf(args, "-inputtest") >= 0) { gameObject.AddComponent<InputTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
@@ -95,7 +110,7 @@ namespace Kfitsa
 
         public void Backgrounded()
         {
-            if (bot != null || save == null) return;
+            if (save == null) return;
             save.Write();
             if (screen == Screen.Playing) ShowPause();
         }
@@ -115,9 +130,9 @@ namespace Kfitsa
 
             if (hud == null) return;
             hud.Tick();
-            if (bot != null) { bot.Tick(); return; }
             bool playing = screen == Screen.Playing;
-            hud.Touch.SetVisible(playing && TouchUi.Available);
+            GameInput.Tick();
+            hud.Touch.SetVisible(playing && TouchUi.Available && !GameInput.GamepadActive);
             if (Application.isMobilePlatform) UnityEngine.Screen.sleepTimeout = playing ? SleepTimeout.NeverSleep : SleepTimeout.SystemSetting;
             if (screen == Screen.Playing)
             {
@@ -128,6 +143,8 @@ namespace Kfitsa
             var tap = hud.Touch.Tap;
             if (screen == Screen.Map) { if (tap != null) MapTap(tap.Value); MapInput(m); return; }
             if (items == null) return;
+            if (dragging && hud.Touch.Finger is Vector2 held) { Drag(held); return; }
+            dragging = false;
             if (tap != null && MenuTap(tap.Value)) return;
             if (m.y != 0) { cursor = (cursor - m.y + items.Count) % items.Count; Sound.Play("select", .5f); PaintMenu(); }
             if (m.x != 0 && items[cursor].adjust != null) { items[cursor].adjust(m.x); PaintMenu(); }
@@ -145,9 +162,16 @@ namespace Kfitsa
             for (int i = 0; i < rows.Count; i++)
             {
                 Vector2 c = rows[i].rectTransform.position;
+                if (items[i].set != null || items[i].pick != null) c.x -= 290 * px;    // these rows sit to one side of the middle
                 if (Mathf.Abs(at.y - c.y) > TouchRowStep / 2 * px || Mathf.Abs(at.x - c.x) > 560 * px) continue;
                 cursor = i;
                 var item = items[i];
+                if (item.set != null) { dragging = true; Drag(at); return true; }
+                if (item.pick != null)
+                {
+                    int chip = Mathf.RoundToInt(((at.x - c.x) / px - BarLeft) / ChipStep);
+                    if (chip >= 0 && chip < item.chips.Length) { item.pick(chip); PaintMenu(); return true; }
+                }
                 if (item.ok == null && item.adjust != null) { item.adjust(at.x < c.x ? -1 : 1); PaintMenu(); return true; }
                 PaintMenu();
                 if (item.ok != null) { Sound.Play("select"); item.ok(); }
@@ -156,8 +180,21 @@ namespace Kfitsa
             return false;
         }
 
+        const float BarLeft = -340, BarRight = 60, ChipStep = 78;
+        bool dragging;
+
+        void Drag(Vector2 at)
+        {
+            var item = items[cursor];
+            if (item.set == null) { dragging = false; return; }
+            float k = ((at.x - rows[cursor].rectTransform.position.x + 290 * hud.Scale) / hud.Scale - BarLeft) / (BarRight - BarLeft);
+            item.set(Mathf.Clamp01(k));
+            PaintMenu();
+        }
+
         void ClearScreen()
         {
+            hud.Touch.Preview(false); hud.SafeInFront(false); dragging = false;
             foreach (var o in screenObjects) Destroy(o);
             screenObjects.Clear(); rows.Clear(); items = null; backAction = null; cursor = 0;
         }
@@ -188,8 +225,43 @@ namespace Kfitsa
             Line(title, 92, titleY ?? top + 190);
             items = list; backAction = back; if (screen != Screen.Paused) screen = Screen.Menu;
             bool touch = TouchUi.Available;
-            for (int i = 0; i < list.Count; i++) rows.Add(Line("", touch ? 60 : 54, top - i * (touch ? TouchRowStep : 78)));
+            for (int i = 0; i < list.Count; i++)
+            {
+                var row = Line("", touch ? 60 : 54, top - i * (touch ? TouchRowStep : 78));
+                rows.Add(row);
+                if (list[i].set != null || list[i].pick != null) { row.rectTransform.anchoredPosition += new Vector2(290, 0); row.fontSize = 46; WideRow(list[i], row.rectTransform.anchoredPosition.y); }
+            }
             PaintMenu();
+        }
+
+        /// Draws the slider or the colour chips beside the label.
+        void WideRow(MenuItem m, float y)
+        {
+            Image Box(Color c, float x, Vector2 size)
+            {
+                var o = new GameObject("Bar", typeof(Image)); o.transform.SetParent(hud.Canvas, false);
+                var i = o.GetComponent<Image>(); i.color = c; i.raycastTarget = false; i.sprite = hud.RoundSprite;
+                i.rectTransform.anchorMin = i.rectTransform.anchorMax = new Vector2(.5f, .5f); i.rectTransform.anchoredPosition = new Vector2(x, y); i.rectTransform.sizeDelta = size;
+                screenObjects.Add(o);
+                return i;
+            }
+            if (m.set != null)
+            {
+                float w = BarRight - BarLeft;
+                var back = Box(new Color(.12f, .14f, .22f, .95f), (BarLeft + BarRight) / 2, new Vector2(w + 12, 24));
+                back.sprite = null;
+                var fill = Box(new Color(1, .86f, .3f), BarLeft, new Vector2(w, 12)); fill.sprite = null;
+                fill.rectTransform.pivot = new Vector2(0, .5f);
+                m.fill = fill.rectTransform;
+                m.knob = Box(Color.white, BarLeft, new Vector2(52, 52)).rectTransform;
+                return;
+            }
+            m.marks = new List<Image>();
+            for (int i = 0; i < m.chips.Length; i++)
+            {
+                m.marks.Add(Box(Color.white, BarLeft + i * ChipStep, new Vector2(70, 70)));
+                Box(m.chips[i], BarLeft + i * ChipStep, new Vector2(56, 56));
+            }
         }
 
         void PaintMenu()
@@ -200,6 +272,15 @@ namespace Kfitsa
                 string s = items[i].label();
                 rows[i].text = Rtl.V(on ? "< " + s + " >" : s);
                 rows[i].color = on ? new Color(1, .86f, .3f) : Color.white;
+                var m = items[i];
+                if (m.fill != null)
+                {
+                    float k = m.value(), w = BarRight - BarLeft;
+                    m.fill.sizeDelta = new Vector2(w * k, 12);
+                    m.knob.anchoredPosition = new Vector2(BarLeft + w * k, m.knob.anchoredPosition.y);
+                }
+                if (m.marks != null)
+                    for (int c = 0; c < m.marks.Count; c++) m.marks[c].color = c == m.chip() ? Color.white : new Color(.1f, .12f, .2f, .9f);
             }
         }
 
@@ -251,7 +332,8 @@ namespace Kfitsa
                 Item("חזרה", () => { save.Write(); back(); }),
             };
             if (Application.isMobilePlatform) list.RemoveAt(2);
-            Menu("הגדרות", list, () => { save.Write(); back(); }, 120, .35f, !overGame);
+            if (TouchUi.Available) list.Insert(list.Count - 1, Item("שליטה", () => { save.Write(); ShowControls(() => ShowSettings(back)); }));
+            Menu("הגדרות", list, () => { save.Write(); back(); }, TouchUi.Available ? 210 : 120, .35f, !overGame);
             var help = new Color(.85f, .9f, 1);
             if (TouchUi.Available)
             {
@@ -262,8 +344,43 @@ namespace Kfitsa
             }
             Line("חצים ימינה ושמאלה משנים ערך", 34, -320, help);
             Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -380, help);
-            Line("דלת סודית: חץ למטה", 34, -430, help);
+            Line("דלת סודית: חץ למטה    כוכבים: שלושה בכל שלב, אחד בחדר הסודי", 34, -430, help);
         }
+
+        static readonly string[] RunModes = { "החזק לריצה", "ריצה אוטומטית", "נגיעה לריצה" };
+        static readonly string[] RunHelp =
+        {
+            "ריצה רק בזמן שמחזיקים את הכפתור", "הגיבור תמיד רץ, ואין כפתור ריצה", "נגיעה נועלת את הריצה וגורמת לכפתור להאיר, נגיעה נוספת משחררת",
+        };
+
+        /// Touch settings. Every change shows at once on the buttons around the menu.
+        public void ShowControls(Action back)
+        {
+            bool overGame = screen == Screen.Paused;
+            void Live() { hud.Touch.Configure(save); helpLine.text = Rtl.V(RunHelp[save.runMode]); }
+            void Cycle(int d) { save.runMode = (save.runMode + d + 3) % 3; Live(); }
+            var colors = new Color[TouchUi.Themes.Length];
+            for (int i = 0; i < colors.Length; i++) colors[i] = TouchUi.Themes[i].color;
+            var list = new List<MenuItem>
+            {
+                new MenuItem { label = () => "שקיפות  " + Mathf.RoundToInt(save.buttonAlpha * 100) + "%", value = () => Mathf.InverseLerp(.25f, 1, save.buttonAlpha),
+                    set = k => { save.buttonAlpha = Mathf.Lerp(.25f, 1, k); Live(); }, adjust = d => { save.buttonAlpha = Mathf.Clamp(save.buttonAlpha + d * .05f, .25f, 1); Live(); } },
+                new MenuItem { label = () => "גודל  " + Mathf.RoundToInt(save.buttonSize * 100) + "%", value = () => Mathf.InverseLerp(.7f, 1.4f, save.buttonSize),
+                    set = k => { save.buttonSize = Mathf.Lerp(.7f, 1.4f, k); Live(); }, adjust = d => { save.buttonSize = Mathf.Clamp(save.buttonSize + d * .05f, .7f, 1.4f); Live(); } },
+                new MenuItem { label = () => "צבע  " + TouchUi.Themes[save.buttonColor].name, chips = colors, chip = () => save.buttonColor,
+                    pick = c => { save.buttonColor = c; Live(); }, adjust = d => { save.buttonColor = (save.buttonColor + d + colors.Length) % colors.Length; Live(); } },
+                new MenuItem { label = () => "מצב יד שמאל  " + (save.leftHanded ? "כן" : "לא"), ok = () => { save.leftHanded = !save.leftHanded; Live(); }, adjust = d => { save.leftHanded = !save.leftHanded; Live(); } },
+                new MenuItem { label = () => "ריצה: " + RunModes[save.runMode], ok = () => Cycle(1), adjust = Cycle },
+                new MenuItem { label = () => "רטט  " + (save.haptics ? "כן" : "לא"), ok = () => { save.haptics = Haptics.On = !save.haptics; Haptics.Buzz(60, .7f); }, adjust = d => { save.haptics = Haptics.On = !save.haptics; Haptics.Buzz(60, .7f); } },
+                Item("חזרה", () => { save.Write(); back(); }),
+            };
+            Menu("שליטה", list, () => { save.Write(); back(); }, 240, .45f, !overGame, 400);
+            helpLine = Line(RunHelp[save.runMode], 34, -470, new Color(.85f, .9f, 1));
+            hud.SafeInFront(true);
+            hud.Touch.Preview(true);
+        }
+
+        Text helpLine;
 
         void ToggleFull()
         {
@@ -335,6 +452,12 @@ namespace Kfitsa
                 screenObjects.Add(n.gameObject);
                 var t = hud.Label(40, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Nodes[i] + new Vector2(0, -92), new Vector2(240, 60));
                 t.text = Rtl.V(Levels.All[i].Code); screenObjects.Add(t.gameObject);
+                for (int k = 0; k < 3; k++)
+                {
+                    var star = hud.Picture("star", new Vector2(.5f, .5f), Nodes[i] + new Vector2((k - 1) * 40, -146), new Vector2(40, 40));
+                    star.color = (save.stars[i] >> k & 1) != 0 ? Color.white : new Color(.12f, .14f, .22f, .75f);
+                    screenObjects.Add(star.gameObject);
+                }
             }
             mapHero = hud.Picture(run.power == 0 ? "hero_s_stand" : "hero_b_stand", new Vector2(.5f, .5f), Nodes[mapCursor] + new Vector2(0, 110), new Vector2(100, 120));
             screenObjects.Add(mapHero.gameObject);
@@ -351,7 +474,9 @@ namespace Kfitsa
             var d = Levels.All[mapCursor];
             mapHero.rectTransform.anchoredPosition = Nodes[mapCursor] + new Vector2(0, 110);
             mapInfo.text = Rtl.V($"{d.Code}: {d.name}");
-            mapStats.text = Rtl.V($"שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}");
+            int total = 0;
+            foreach (int bits in save.stars) for (int b = bits; b != 0; b >>= 1) total += b & 1;
+            mapStats.text = Rtl.V($"כוכבים: {total}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}");
         }
 
         void MapTap(Vector2 at)
@@ -384,6 +509,7 @@ namespace Kfitsa
         public string ScreenName => screen.ToString();
         public int MapCursor => mapCursor;
         public void ShowCreditsForTour() => ShowCredits();
+        public void ResumeForTour() => Resume();
         public void ShowEndingForTour() { run.score = 45200; run.secrets = 5; ShowEnding(); }
         public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; game.StartLevel(level); }
 
@@ -392,10 +518,10 @@ namespace Kfitsa
         public void LevelDone()
         {
             int i = game.levelIndex;
+            if (i < 0) return;
             save.best[i] = Mathf.Max(save.best[i], run.score);
             save.unlocked = Mathf.Max(save.unlocked, Mathf.Min(i + 1, Levels.All.Length - 1));
             save.Write();
-            if (bot != null) { bot.LevelFinished(); return; }
             hud.Banner("");
             game.Unload();
             if (Levels.All[i].boss) { ShowEnding(); return; }
@@ -417,7 +543,6 @@ namespace Kfitsa
 
         public void GameOver()
         {
-            if (bot != null) { run.lives = 3; game.StartLevel(game.levelIndex, true); return; }
             game.Unload(); hud.Show(false); hud.Fade(0);
             Sound.Music(null); Sound.Play("gameover");
             int rank = save.AddScore(run.score, "הגיע לשלב " + Levels.All[mapCursor].Code);
@@ -432,7 +557,8 @@ namespace Kfitsa
     {
         readonly Transform canvas;
         readonly GameObject stats;
-        readonly Text scoreText, coinText, lifeText, bannerText, bossName, hintText;
+        readonly Text scoreText, coinText, lifeText, bannerText, bossName, hintText, timerText;
+        readonly Image[] starIcons = new Image[3], powerIcons = new Image[3];
         float hintT;
         readonly Image fade, bossFill; readonly GameObject bossBar;
         readonly Font font;
@@ -443,6 +569,8 @@ namespace Kfitsa
         /// For tests on a PC: pretend the phone reports this safe area, in pixels.
         public static Rect? SafeOverride;
         public TouchUi Touch { get; }
+        public Transform Canvas => canvas;
+        public Sprite RoundSprite { get; }
         /// Screen pixels per canvas unit.
         public float Scale => UnityEngine.Screen.width * 9 >= UnityEngine.Screen.height * 16 ? UnityEngine.Screen.height / 1080f : UnityEngine.Screen.width / 1920f;
         public float Width => UnityEngine.Screen.width / Scale;
@@ -473,6 +601,11 @@ namespace Kfitsa
             Picture("hud_heart", new Vector2(1, 1), new Vector2(-970, -54), new Vector2(60, 60), stats.transform);
             lifeText = Label(46, TextAnchor.UpperLeft, new Vector2(1, 1), new Vector2(-810, -24), new Vector2(120, 70), stats.transform, new Vector2(1, 1));
 
+            for (int i = 0; i < 3; i++) starIcons[i] = Picture("star", new Vector2(1, 1), new Vector2(-1050 - i * 62, -54), new Vector2(56, 56), stats.transform);
+            string[] forms = { "hero_s_stand", "hero_b_stand", "sevivon" };
+            for (int i = 0; i < 3; i++) powerIcons[i] = Picture(forms[i], new Vector2(0, 1), new Vector2(170 + i * 74, -58), new Vector2(64, 64), stats.transform);
+            timerText = Label(70, TextAnchor.MiddleCenter, new Vector2(.5f, 1), new Vector2(0, -130), new Vector2(400, 90), stats.transform);
+
             hintText = Label(34, TextAnchor.LowerCenter, new Vector2(.5f, 0), new Vector2(0, 36), new Vector2(1800, 60), stats.transform, new Vector2(.5f, 0));
 
             bossBar = new GameObject("BossBar", typeof(RectTransform));
@@ -491,6 +624,7 @@ namespace Kfitsa
             fade.gameObject.name = "Fade";
             BossBar(-1);
             Touch = new TouchUi(this, safe, () => Scale);
+            RoundSprite = TouchUi.RoundDisc;
         }
 
         /// The canvas is always at least 1920x1080: wider phones gain width and every layout keeps its height.
@@ -539,6 +673,25 @@ namespace Kfitsa
             var r = i.rectTransform; r.anchorMin = r.anchorMax = anchor; r.anchoredPosition = pos; r.sizeDelta = size;
             return i;
         }
+
+        public void Stars(int bits, int count)
+        {
+            for (int i = 0; i < 3; i++) starIcons[i].color = (bits >> i & 1) != 0 ? Color.white : new Color(.12f, .14f, .22f, .55f);
+        }
+
+        /// The steps of the power ladder, with the current one lit.
+        public void Power(int level)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                powerIcons[i].color = i == level ? Color.white : new Color(.2f, .22f, .3f, .55f);
+                powerIcons[i].rectTransform.localScale = Vector3.one * (i == level ? 1.15f : .85f);
+            }
+        }
+
+        public void Timer(float seconds) => timerText.text = seconds < 0 ? "" : Mathf.CeilToInt(seconds).ToString();
+
+        public void SafeInFront(bool on) { if (on) safe.SetAsLastSibling(); else safe.SetAsFirstSibling(); }
 
         public void Show(bool on) { stats.SetActive(on); if (!on) { Banner(""); Fade(0); Hint(0, ""); } }
         public void Hint(float seconds, string text) { hintT = seconds; hintText.text = seconds > 0 ? text : ""; }

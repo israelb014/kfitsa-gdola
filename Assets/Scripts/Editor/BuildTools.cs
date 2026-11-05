@@ -101,7 +101,9 @@ namespace Kfitsa.EditorTools
 
         public static void BuildLinux() => Build("Builds/linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64);
         public static void BuildWindows() => Build("Builds/windows/KfitsaGdola.exe", BuildTarget.StandaloneWindows64);
-        public static void BuildLinuxTest() => Build("Builds/test-linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64);
+        /// For trying things out only; never published, so it may skip the level check while levels are being drawn.
+        public static void BuildLinuxTest() { skipCheck = true; Build("Builds/test-linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64); }
+        static bool skipCheck;
 
 #if UNITY_ANDROID
         /// Unity writes these into the manifest with no setting to change them.
@@ -123,6 +125,7 @@ namespace Kfitsa.EditorTools
                 xml = Need(xml, "android:enableOnBackInvokedCallback=\"true\"", "android:enableOnBackInvokedCallback=\"false\"");
                 xml = Need(xml, "android:name=\"com.unity3d.player.UnityPlayerGameActivity\"", "android:name=\"com.ibfix.kfitsagdola.GameMain\"");
                 xml = Need(xml, "android:name=\"unity.run-without-focus\" android:value=\"true\"", "android:name=\"unity.run-without-focus\" android:value=\"false\"");
+                if (!xml.Contains("android.permission.VIBRATE")) xml = xml.Replace("<application", "<uses-permission android:name=\"android.permission.VIBRATE\" />\n  <application");
                 File.WriteAllText(file, xml);
             }
         }
@@ -132,8 +135,8 @@ namespace Kfitsa.EditorTools
         {
             var id = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(id, "com.ibfix.kfitsagdola");
-            PlayerSettings.bundleVersion = "1.1.0";
-            PlayerSettings.Android.bundleVersionCode = 2;
+            PlayerSettings.bundleVersion = "1.2.0";
+            PlayerSettings.Android.bundleVersionCode = 3;
             PlayerSettings.SetScriptingBackend(id, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(id, ManagedStrippingLevel.Minimal);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -172,8 +175,21 @@ namespace Kfitsa.EditorTools
         }
 #endif
 
+        /// Run by every build: a level with anything unreachable stops it.
+        public static void Validate()
+        {
+            Levels.Folder = "Assets/Resources/Levels";
+            bool ok = Reach.ValidateAll("verification/v1.2/reach_report.txt");
+            Levels.Folder = null;
+            Debug.Log("VALIDATE " + (ok ? "OK" : "FAILED, see verification/v1.2/reach_report.txt"));
+            if (!ok) throw new BuildFailedException("Levels failed the reachability check, see verification/v1.2/reach_report.txt");
+        }
+
         static void Build(string path, BuildTarget target)
         {
+            try { if (!skipCheck) Validate(); }
+            catch (BuildFailedException e) { Debug.LogError(e.Message); EditorApplication.Exit(1); return; }
+            PlayerSettings.bundleVersion = "1.2.0";
             var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, locationPathName = path, target = target, options = BuildOptions.None });
             Debug.Log("BUILD " + r.summary.result + " size=" + r.summary.totalSize);
             if (r.summary.result != BuildResult.Succeeded) EditorApplication.Exit(1);

@@ -2,30 +2,30 @@ using UnityEngine;
 
 namespace Kfitsa
 {
-    /// A 3-tile moving ledge you can land on from above.
+    /// A moving ledge you can land on from above. Its position depends only on the clock.
     public class Platform
     {
-        const float HalfW = 1.5f, Range = 3f, Speed = .9f;
         public float x, y, dx, dy;
-        readonly float baseX, baseY;
-        readonly bool sideways;
-        float t;
+        public readonly float baseX, baseY, halfW, moveX, moveY, period, phase;
         public Transform view;
 
-        public float Left => x - HalfW;
-        public float Right => x + HalfW;
+        public float Left => x - halfW;
+        public float Right => x + halfW;
         public float Top => y;
 
-        public Platform(float cx, float top, bool horizontal) { x = baseX = cx; y = baseY = top; sideways = horizontal; }
+        public Platform(float cx, float top, bool horizontal) : this(cx, top, horizontal ? 3 : 0, horizontal ? 0 : 3, 7, 0, 3) { }
 
-        public void Step(float dt) => At(t + dt);
+        public Platform(float cx, float top, float rangeX, float rangeY, float seconds, float start, float width)
+        {
+            x = baseX = cx; y = baseY = top; moveX = rangeX; moveY = rangeY; period = seconds; phase = start; halfW = width / 2;
+            At(0); dx = dy = 0;
+        }
 
         /// Jumps to a moment in the cycle; dx and dy hold the move from the previous moment.
         public void At(float time)
         {
-            t = time;
-            float o = Mathf.Sin(t * Speed) * Range;
-            float nx = sideways ? baseX + o : baseX, ny = sideways ? baseY : baseY + o;
+            float o = Mathf.Sin((time / period + phase) * 2 * Mathf.PI);
+            float nx = baseX + o * moveX, ny = baseY + o * moveY;
             dx = nx - x; dy = ny - y; x = nx; y = ny;
         }
     }
@@ -162,7 +162,7 @@ namespace Kfitsa
         public void Step(float dt)
         {
             if (rise > 0) { rise -= dt; y += dt / .55f; return; }
-            if (type == "shoot") return;     // stays put on its block
+            if (type == "shoot") return;     // stays put on its box, so it can never be lost
             vy = Mathf.Max(vy - 40f * dt, -Tune.MaxFall);
             if (MoveX(dir * 3.2f * dt)) dir = -dir;
             MoveY(vy * dt);
@@ -171,14 +171,30 @@ namespace Kfitsa
         public void Draw(float t) => view.transform.position = new Vector3(x, y + .5f + Mathf.Sin(t * 8) * .05f, 0);
     }
 
-    /// The shooter's weapon: a spinning disc that flies out and comes back.
-    public class Disc
+    /// The thrown sevivon: hops along the ground, turns back once off a wall, and topples when it runs out of spin.
+    public class Sevivon : Body
     {
+        public const float Speed = 10.5f, Hop = 8.5f, Gravity = 42f, Life = 2.6f;
         public SpriteRenderer view;
-        public float x, y, vx, t;
-        public bool back;
+        public float t, spin;
+        public bool turned, gone;
+        public int dir;
 
-        public bool Hits(Body b) => Mathf.Abs(x - b.x) < b.w / 2 + .25f && y > b.y - .25f && y < b.Top + .25f;
+        public void Step(float dt)
+        {
+            t += dt; spin += dt;
+            vy = Mathf.Max(vy - Gravity * dt, -14f);
+            if (MoveX(dir * Speed * dt))
+            {
+                if (turned) gone = true;
+                turned = true; dir = -dir;
+            }
+            MoveY(vy * dt);
+            if (grounded) vy = Hop;
+            if (t > Life || y < -2) gone = true;
+        }
+
+        public bool Hits(Body b) => Left - .1f < b.Right && Right + .1f > b.Left && y - .1f < b.Top && Top + .1f > b.y;
     }
 
     public class Block
@@ -191,6 +207,8 @@ namespace Kfitsa
     }
 
     public class Spring { public int c, r; public float out_; public SpriteRenderer view; }
-    public class CoinItem { public Vector2 at; public SpriteRenderer view; }
+    public class CoinItem { public Vector2 at; public SpriteRenderer view; public bool room; }
+    public class Star { public Vector2 at; public int id; public SpriteRenderer view; public bool hidden; }
+    public class Crumble { public int c, r; public float t; public bool down; public SpriteRenderer view; }
     public class Fx { public SpriteRenderer view; public Vector2 at, vel; public float life, gravity, spin; }
 }

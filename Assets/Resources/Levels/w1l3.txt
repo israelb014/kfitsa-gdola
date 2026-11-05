@@ -1,15 +1,89 @@
-                                                                                                                                                                                                                                                 ggggggggggggggggggggggggggggg
-                                                                                                                                                                                                                                                 ggggggggggggggggggggggggggggg
-                                                                                                                                                       oooooooo                                                                                  g                           g
-                                                                    y  o  y                                                                            bbbbbbbb                                                                                  g          o                g
-                    !                 ooooo         h                 ###                                                       ooooooooo                                                                                                        g         o o               g
-                                      #####                                               b?b                                                                                                           ooooooooo                                g        ggggg              g
-                                                                ###         ###                                                                            *                                                                                     g                           g
-                                                                                                                    V        D      j    n                                                                                                       g      ooooooooooooooooooo  g
-                      e   r                     j      n                                                                  #####################                                           #######                                                g                           g
-                X############                 ###############                       C     ^^     p    e                   #####################                                           #######       p     e  e                               g      ooooooooooooooooooo  g
-               XX############  T              ###############                     #########################               #####################   T                           #########   #######   ###################                          g                           g
-              XXX##################           ###############                     #########################               #############################             ^^  e     #########   #######   ###################                          g      ooooooooooooooooooo  g
-   S      ,  XXXX##################           ###############                     ###############################         #############################           #########   #########   #######   ###################           G      %       g  E                        g
-###################################           ###############                     ###############################         #############################           #########   #########   #######   #############################################ggggggggggggggggggggggggggggg
-###################################           ###############                     ###############################         #############################           #########   #########   #######   #############################################Rgggggggggggggggggggggggggggg
+@idea climb
+@plat 32.5 31 0 3 6 0 3
+@plat 18.5 36 3 0 6 0 3
+@plat 12.5 66 0 2.5 6 0 3
+@room hidden 0
+                                    g
+                                    g
+                                    g
+                                    g
+                                    g
+                                    g
+                                    g
+                                    g
+                                    g
+          uuuu               ##|#G#,g
+                                    g
+                      uuuuu         g
+                                    g
+                  T                 g
+                ####                g
+                                    g
+                                    g
+ s                                  g
+###                                 g
+                                    g
+     uuu                            g
+                                    g
+                                    g
+         uuu                        g
+                                    g
+                                    g
+              ##e##                 g
+                                    g
+                     uuu            g
+                                    g
+                                    g
+                         uuu        g
+                                    g
+                                    g
+                             uuu    g
+                                    g
+                                    g
+                       b!b       uuug
+                                    g
+                                    g
+      ######,#C###############p#####g
+                                    g
+ D                                  g
+####                                g
+                                    g
+                                    g
+       ##n###                       g
+                                    g
+                                    g
+                        ooooo       g
+                        #####       g
+                                    g
+                                    g
+                                    g
+    b!b                             g
+                                    g
+                                    g
+   #################e#########,#####g
+                                    g
+                                    g
+   ######                           g
+                                    g
+                                    g
+           #####                    g
+                                    g
+                                    g
+                  #####        #####g
+                              Q     g
+                              Qooos g
+######n#################    ####%###gggggggggggggggggggggg
+                                    gggggggggggggggggggggg
+                         oo         g            ggggggggg
+                               #####g            ggggggggg
+                                    g      uuu   Q       g
+                                    g            Q       g
+                        ######      g            Qooooos g
+                                    g          uuggggggggg
+                                    g            ggggggggg
+        !  ?    ######              g            ggggggggg
+                                    g      uuu   ggggggggg
+                                    g            ggggggggg
+    S    ,    e                     g E          ggggggggg
+####################################gggggggggggggggggggggg
+####################################Rggggggggggggggggggggg
