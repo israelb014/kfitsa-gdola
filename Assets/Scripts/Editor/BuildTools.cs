@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -100,6 +101,76 @@ namespace Kfitsa.EditorTools
 
         public static void BuildLinux() => Build("Builds/linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64);
         public static void BuildWindows() => Build("Builds/windows/KfitsaGdola.exe", BuildTarget.StandaloneWindows64);
+        public static void BuildLinuxTest() => Build("Builds/test-linux/KfitsaGdola.x86_64", BuildTarget.StandaloneLinux64);
+
+#if UNITY_ANDROID
+        /// Unity writes these into the manifest with no setting to change them.
+        class AndroidManifestFix : UnityEditor.Android.IPostGenerateGradleAndroidProject
+        {
+            public int callbackOrder => 0;
+
+            public void OnPostGenerateGradleAndroidProject(string path)
+            {
+                string file = Path.Combine(path, "src/main/AndroidManifest.xml");
+                string xml = File.ReadAllText(file);
+                string Need(string text, string from, string to)
+                {
+                    if (text.Contains(to)) return text;   // an incremental build keeps the patched file
+                    if (!text.Contains(from)) throw new BuildFailedException("Manifest has no " + from);
+                    return text.Replace(from, to);
+                }
+                // Predictive back would close the app without ever telling it
+                xml = Need(xml, "android:enableOnBackInvokedCallback=\"true\"", "android:enableOnBackInvokedCallback=\"false\"");
+                xml = Need(xml, "android:name=\"com.unity3d.player.UnityPlayerGameActivity\"", "android:name=\"com.ibfix.kfitsagdola.GameMain\"");
+                xml = Need(xml, "android:name=\"unity.run-without-focus\" android:value=\"true\"", "android:name=\"unity.run-without-focus\" android:value=\"false\"");
+                File.WriteAllText(file, xml);
+            }
+        }
+
+        /// Run with -buildTarget Android. The keystore password comes only from the environment, see tools/build_android.sh.
+        public static void BuildAndroid()
+        {
+            var id = NamedBuildTarget.Android;
+            PlayerSettings.SetApplicationIdentifier(id, "com.ibfix.kfitsagdola");
+            PlayerSettings.bundleVersion = "1.1.0";
+            PlayerSettings.Android.bundleVersionCode = 2;
+            PlayerSettings.SetScriptingBackend(id, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetManagedStrippingLevel(id, ManagedStrippingLevel.Minimal);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            // 34 keeps the Back key reaching the game: from 36 the system takes it over for predictive back
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel34;
+            PlayerSettings.Android.startInFullscreen = true;
+            PlayerSettings.Android.renderOutsideSafeArea = true;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            EditorUserBuildSettings.buildAppBundle = false;
+            SetIcons(id);
+
+            string pass = Environment.GetEnvironmentVariable("KFITSA_KEYSTORE_PASS");
+            if (string.IsNullOrEmpty(pass)) { Debug.LogError("KFITSA_KEYSTORE_PASS is not set"); EditorApplication.Exit(1); return; }
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystoreName = "Keystore/kfitsa-gdola.keystore";
+            PlayerSettings.Android.keyaliasName = "kfitsagdola";
+            PlayerSettings.Android.keystorePass = pass;
+            PlayerSettings.Android.keyaliasPass = pass;
+            Directory.CreateDirectory("Builds/android");
+            AssetDatabase.SaveAssets();
+            Build("Builds/android/KfitsaGdola-android.apk", BuildTarget.Android);
+            PlayerSettings.Android.keystorePass = ""; PlayerSettings.Android.keyaliasPass = "";
+        }
+
+        static void SetIcons(NamedBuildTarget id)
+        {
+            Texture2D Load(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Icons/" + name + ".png");
+            var adaptive = PlayerSettings.GetPlatformIcons(id, UnityEditor.Android.AndroidPlatformIconKind.Adaptive);
+            foreach (var i in adaptive) i.SetTextures(Load("icon_bg"), Load("icon_fg"));
+            PlayerSettings.SetPlatformIcons(id, UnityEditor.Android.AndroidPlatformIconKind.Adaptive, adaptive);
+        }
+#endif
 
         static void Build(string path, BuildTarget target)
         {

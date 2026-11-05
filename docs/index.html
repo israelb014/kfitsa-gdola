@@ -17,15 +17,19 @@ h1{font-size:clamp(44px,10vw,76px);line-height:1.1;margin:0;font-weight:800}
 .downloads{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:40px}
 .btn{display:block;padding:16px 20px;border-radius:12px;color:#fff;text-decoration:none;text-align:center;font-weight:700;font-size:20px;line-height:1.35;box-shadow:0 5px 0 var(--grass-dark);background:var(--grass)}
 .btn.win{background:var(--brick);box-shadow:0 5px 0 var(--brick-dark)}
+.btn.phone{background:#2b6cb0;box-shadow:0 5px 0 #1f4f85}
 .btn:hover{filter:brightness(1.07)}
 .btn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--grass-dark)}
 .btn.win:active{box-shadow:0 2px 0 var(--brick-dark)}
+.btn.phone:active{box-shadow:0 2px 0 #1f4f85}
 .btn:focus-visible,a:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
 .btn span{display:block}
 .btn small{display:block;font-weight:400;font-size:15px}
 .note{margin:12px 0 0;font-size:15px;color:var(--muted);text-align:center}
 .shots{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:40px}
 .shots img{display:block;width:100%;height:auto;border-radius:10px;background:#9cc9e6}
+ol{margin:0 0 40px;padding-inline-start:24px}
+li{margin-bottom:6px}
 .eyebrow{margin:0;font-weight:700;color:var(--grass-dark);text-align:right}
 h2{margin:0 0 12px;font-size:28px}
 pre{margin:0;padding:16px;background:var(--code);color:#eaf4fb;border-radius:10px;overflow-x:auto;font:15px/1.7 ui-monospace,Consolas,monospace;direction:ltr;text-align:left}
@@ -41,10 +45,14 @@ footer a{color:inherit}
 
 <section class="downloads" aria-label="הורדה">
 <div>
-<a class="btn" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-linux.tar.gz"><span>הורדה</span><span dir="ltr">Linux</span><small>45 מגה-בייט</small></a>
+<a class="btn phone" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.1.0/KfitsaGdola-android.apk"><span>הורדה</span><span dir="ltr">Android</span><small>47 מגה-בייט</small></a>
+<p class="note">נבדק באמולטור, עדיין לא בטלפון אמיתי.</p>
 </div>
 <div>
-<a class="btn win" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-windows.zip"><span>הורדה</span><span dir="ltr">Windows</span><small>48 מגה-בייט</small></a>
+<a class="btn" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.1.0/KfitsaGdola-linux.tar.gz"><span>הורדה</span><span dir="ltr">Linux</span><small>45 מגה-בייט</small></a>
+</div>
+<div>
+<a class="btn win" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v1.1.0/KfitsaGdola-windows.zip"><span>הורדה</span><span dir="ltr">Windows</span><small>48 מגה-בייט</small></a>
 <p class="note">הגרסה הזו נבנתה, אבל עדיין לא נבדקה בהרצה.</p>
 </div>
 </section>
@@ -57,9 +65,21 @@ footer a{color:inherit}
 </section>
 
 <section>
+<p class="eyebrow" dir="ltr">Android</p>
+<h2>התקנה בטלפון</h2>
+<ol>
+<li>פותחים את הדף הזה בטלפון ולוחצים על כפתור ההורדה.</li>
+<li>כשההורדה מסתיימת, פותחים את הקובץ.</li>
+<li>אם ההתקנה נחסמת, נכנסים להגדרות שהטלפון מציע ומאשרים התקנה ממקור לא ידוע עבור הדפדפן.</li>
+<li>חוזרים אחורה ולוחצים על "התקן".</li>
+<li>אם מופיעה אזהרת אבטחה, בוחרים "פרטים נוספים" ואז "התקן בכל זאת".</li>
+</ol>
+</section>
+
+<section>
 <p class="eyebrow" dir="ltr">Linux</p>
 <h2>הרצה מהטרמינל</h2>
-<pre><code>curl -LO https://github.com/israelb014/kfitsa-gdola/releases/download/v1.0.0/KfitsaGdola-linux.tar.gz
+<pre><code>curl -LO https://github.com/israelb014/kfitsa-gdola/releases/download/v1.1.0/KfitsaGdola-linux.tar.gz
 tar xzf KfitsaGdola-linux.tar.gz
 cd linux
 ./KfitsaGdola.x86_64</code></pre>

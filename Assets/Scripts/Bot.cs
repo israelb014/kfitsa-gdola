@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -146,7 +148,7 @@ namespace Kfitsa
     public class ScreenTour : MonoBehaviour
     {
         App app; string dir; int step; float t; bool shot;
-        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "level1", "room", "boss", "desert", "ending" };
+        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "level1", "room", "boss", "desert", "ending", "pause" };
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
 
@@ -170,7 +172,129 @@ namespace Kfitsa
                 case 7: app.game.Unload(); app.run.power = 2; app.Enter(6); t = 3; app.game.hero.x = 36; break;
                 case 8: app.game.Unload(); app.Enter(3); t = 2.5f; break;
                 case 9: app.game.Unload(); app.ShowEndingForTour(); break;
+                case 10: app.Enter(0); app.ShowPause(); break;
             }
+        }
+    }
+
+    /// Feeds real touch events through the Input System and compares them with the keyboard (-touchtest).
+    public class TouchTour : MonoBehaviour
+    {
+        App app; string dir; Touchscreen ts; readonly StringWriter w = new StringWriter();
+        TouchUi Ui => app.hud.Touch;
+        Player H => app.game.hero;
+
+        public void Begin(App a, string d) { app = a; dir = d; Directory.CreateDirectory(d); ts = Touchscreen.current; StartCoroutine(Run()); }
+
+        void Note(string s) { w.WriteLine(s); File.WriteAllText(Path.Combine(dir, "touch_test.txt"), w.ToString()); }
+        void Check(string what, bool ok, string detail = "") => Note((ok ? "PASS " : "FAIL ") + what + (detail == "" ? "" : "  (" + detail + ")"));
+        void Finger(int id, UnityEngine.InputSystem.TouchPhase phase, Vector2 at) =>
+            InputSystem.QueueStateEvent(ts, new TouchState { touchId = id, phase = phase, position = at });
+        void Down(int id, Vector2 at) => Finger(id, UnityEngine.InputSystem.TouchPhase.Began, at);
+        void Move(int id, Vector2 at) => Finger(id, UnityEngine.InputSystem.TouchPhase.Moved, at);
+        void Up(int id, Vector2 at) => Finger(id, UnityEngine.InputSystem.TouchPhase.Ended, at);
+        static WaitForSecondsRealtime Wait(float s) => new WaitForSecondsRealtime(s);
+
+        IEnumerator Tap(Vector2 at) { Down(9, at); yield return Wait(.1f); Up(9, at); yield return Wait(.25f); }
+
+        float peak;
+        IEnumerator Jump(Action press, Action release, float hold)
+        {
+            float start = H.y; peak = 0;
+            press();
+            for (float t = 0; t < 1.4f; t += Time.unscaledDeltaTime)
+            {
+                if (t >= hold && release != null) { release(); release = null; }
+                peak = Mathf.Max(peak, H.y - start);
+                yield return null;
+            }
+        }
+
+        IEnumerator Run()
+        {
+            yield return Wait(1f);
+            var mid = new Vector2(Screen.width, Screen.height) / 2;
+            Check("controls hidden on the title screen", !Ui.Visible);
+            Vector2 first = mid + new Vector2(0, (90 + 0) * app.hud.Scale * 1) ;
+            yield return Tap(first);
+            Check("tap on the first menu row opens the map", app.ScreenName == "Map", app.ScreenName);
+            Vector2 node = mid + new Vector2(720, -120) * app.hud.Scale;
+            yield return Tap(node);
+            if (app.ScreenName == "Map") { Down(9, node); Up(9, node); yield return Wait(.3f); }   // down and up between two frames
+            Check("instant tap on the selected level starts it", app.ScreenName == "Playing", app.ScreenName);
+            app.game.god = true;
+            yield return Wait(2.6f);
+            Check("controls visible while playing", Ui.Visible);
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_idle.png"));
+            yield return Wait(.2f);
+
+            Vector2 jump = Ui.Spot("jump"), run = Ui.Spot("run"), right = Ui.Spot("right"), left = Ui.Spot("left");
+
+            var kb = Keyboard.current;
+            yield return Jump(() => InputSystem.QueueStateEvent(kb, new KeyboardState(Key.Space)), () => InputSystem.QueueStateEvent(kb, new KeyboardState()), .08f);
+            float keyShort = peak;
+            yield return Jump(() => InputSystem.QueueStateEvent(kb, new KeyboardState(Key.Space)), () => InputSystem.QueueStateEvent(kb, new KeyboardState()), .7f);
+            float keyLong = peak;
+            yield return Jump(() => Down(1, jump), () => Up(1, jump), .08f);
+            float touchShort = peak;
+            yield return Jump(() => Down(1, jump), () => Up(1, jump), .7f);
+            float touchLong = peak;
+            Check("short tap jumps lower than a long hold", touchShort < touchLong - 1, $"{touchShort:F2} / {touchLong:F2} tiles");
+            Check("short touch jump matches the keyboard", Mathf.Abs(touchShort - keyShort) < .25f, $"touch {touchShort:F2}, keyboard {keyShort:F2}");
+            Check("full touch jump matches the keyboard", Mathf.Abs(touchLong - keyLong) < .05f, $"touch {touchLong:F2}, keyboard {keyLong:F2}");
+
+            Down(1, right); yield return Wait(.25f); Down(2, run);
+            yield return Wait(1.1f);
+            Check("two fingers: move and run reach run speed", Mathf.Abs(H.vx - Tune.RunSpeed) < .2f, $"vx {H.vx:F2}");
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_held.png"));
+            float y0 = H.y; Down(3, jump);
+            yield return Wait(.25f);
+            Check("three fingers: move, run and jump together", H.jumping || H.y > y0 + .5f, $"height {H.y - y0:F2}, vx {H.vx:F2}");
+            Check("run speed kept during the jump", H.vx > Tune.RunSpeed - .5f, $"vx {H.vx:F2}");
+            Up(3, jump); Up(2, run); yield return Wait(.9f);
+            Move(1, left); yield return Wait(.7f);
+            Check("sliding a finger across switches direction", H.vx < -1, $"vx {H.vx:F2}");
+            Up(1, left); yield return Wait(.8f);
+            Check("all fingers up stops the hero", Mathf.Abs(H.vx) < .1f, $"vx {H.vx:F2}");
+
+            Vector2 between = (jump + run) / 2;
+            Down(1, between); yield return Wait(.15f);
+            var both = GameInput.Read();
+            Check("thumb between jump and run presses both", both.jumpHeld && both.run);
+            Up(1, between); yield return Wait(1.2f);
+
+            yield return Tap(Ui.Spot("pause"));
+            Check("pause button opens the pause menu", app.ScreenName == "Paused", app.ScreenName);
+            Check("controls hidden in the pause menu", !Ui.Visible);
+            float y1 = H.y;
+            Vector2 resume = mid + new Vector2(30, 120 * app.hud.Scale);
+            Down(9, resume); yield return Wait(.5f);
+            Check("tap on Resume continues", app.ScreenName == "Playing", app.ScreenName);
+            Check("the finger left on Resume does not jump", Mathf.Abs(H.y - y1) < .01f, $"moved {H.y - y1:F3}");
+            Up(9, resume); yield return Wait(.2f);
+
+            app.Backgrounded(); yield return Wait(.2f);
+            Check("going to the background pauses", app.ScreenName == "Paused", app.ScreenName);
+            InputSystem.QueueStateEvent(kb, new KeyboardState(Key.Escape)); yield return Wait(.15f);
+            InputSystem.QueueStateEvent(kb, new KeyboardState()); yield return Wait(.2f);
+            Check("back (Esc) resumes from the pause menu", app.ScreenName == "Playing", app.ScreenName);
+            InputSystem.QueueStateEvent(kb, new KeyboardState(Key.Escape)); yield return Wait(.15f);
+            InputSystem.QueueStateEvent(kb, new KeyboardState()); yield return Wait(.2f);
+            Check("back (Esc) pauses during play", app.ScreenName == "Paused", app.ScreenName);
+            yield return Tap(resume);
+
+            var door = app.game.grid.Door; H.x = door.x; H.y = door.y; H.vx = 0;
+            yield return Wait(.3f);
+            Check("door button appears next to a door", Ui.DoorShown);
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_door.png"));
+            yield return Wait(.2f);
+            yield return Tap(Ui.Spot("door"));
+            yield return Wait(1.2f);
+            Check("door button enters the room", app.game.inRoom);
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_room.png"));
+            yield return Wait(.3f);
+            Note("end");
+            Application.Quit();
         }
     }
 

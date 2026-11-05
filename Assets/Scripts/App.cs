@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
@@ -34,7 +36,10 @@ namespace Kfitsa
             cam = Camera.main; ppc = cam.GetComponent<PixelPerfectCamera>();
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 1;
+            if (Application.isMobilePlatform) PhoneSetup();
             string[] args = Environment.GetCommandLineArgs();
+            if (Array.IndexOf(args, "-touchui") >= 0 || Array.IndexOf(args, "-touchtest") >= 0) InputSystem.AddDevice<Touchscreen>();
+            Hud.SafeOverride = ParseRect(Arg(args, "-safearea"));
             if (Array.IndexOf(args, "-feeltest") >= 0) { FeelTest.Run(Arg(args, "-captureDir")); Application.Quit(); return; }
 
             if (Array.IndexOf(args, "-solve") >= 0) { Solver.Run(Arg(args, "-captureDir")); Application.Quit(); return; }
@@ -42,7 +47,7 @@ namespace Kfitsa
             save = Save.Load();
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
-            if (!save.fullscreen) UnityEngine.Screen.SetResolution(1280, 720, false);
+            if (!save.fullscreen && !Application.isMobilePlatform) UnityEngine.Screen.SetResolution(1280, 720, false);
             hud = new Hud();
             game = gameObject.AddComponent<Game>();
             game.Init(this);
@@ -59,8 +64,40 @@ namespace Kfitsa
             }
             if (Array.IndexOf(args, "-selftest") >= 0) { try { SelfTest.Run(this, Arg(args, "-captureDir")); } catch (Exception e) { Debug.LogError(e); } Application.Quit(); return; }
             if (Array.IndexOf(args, "-inputtest") >= 0) { gameObject.AddComponent<InputTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
+            if (Array.IndexOf(args, "-touchtest") >= 0) { gameObject.AddComponent<TouchTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
             if (Array.IndexOf(args, "-shots") >= 0) { gameObject.AddComponent<ScreenTour>().Begin(this, Arg(args, "-captureDir")); return; }
             ShowTitle();
+        }
+
+        /// 60 fps and nothing the 2D art does not use, to save battery.
+        void PhoneSetup()
+        {
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 60;
+            QualitySettings.antiAliasing = 0;
+            cam.allowHDR = false; cam.allowMSAA = false;
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp) { urp.supportsHDR = false; urp.msaaSampleCount = 1; urp.renderScale = 1; }
+        }
+
+        static Rect? ParseRect(string s)
+        {
+            var v = s.Split(',');
+            if (v.Length != 4) return null;
+            return new Rect(float.Parse(v[0]), float.Parse(v[1]), float.Parse(v[2]), float.Parse(v[3]));
+        }
+
+        // The phone sends the app to the background: stop the level, keep progress.
+        void OnApplicationPause(bool paused) { if (paused && Application.isMobilePlatform) Backgrounded(); }
+        void OnApplicationFocus(bool focus) { if (!focus && Application.isMobilePlatform) Backgrounded(); }
+
+        /// Called by name from GameMain.java.
+        public void OnSystemBack(string unused) => GameInput.SystemBack();
+
+        public void Backgrounded()
+        {
+            if (bot != null || save == null) return;
+            save.Write();
+            if (screen == Screen.Playing) ShowPause();
         }
 
         static string Arg(string[] a, string name)
@@ -76,16 +113,22 @@ namespace Kfitsa
             if (ppc != null && ppc.enabled != whole) ppc.enabled = whole;
             if (!whole) cam.orthographicSize = 7.5f;
 
+            if (hud == null) return;
             hud.Tick();
             if (bot != null) { bot.Tick(); return; }
+            bool playing = screen == Screen.Playing;
+            hud.Touch.SetVisible(playing && TouchUi.Available);
+            if (Application.isMobilePlatform) UnityEngine.Screen.sleepTimeout = playing ? SleepTimeout.NeverSleep : SleepTimeout.SystemSetting;
             if (screen == Screen.Playing)
             {
                 if (GameInput.PausePressed) ShowPause();
                 return;
             }
             var m = GameInput.Menu();
-            if (screen == Screen.Map) { MapInput(m); return; }
+            var tap = hud.Touch.Tap;
+            if (screen == Screen.Map) { if (tap != null) MapTap(tap.Value); MapInput(m); return; }
             if (items == null) return;
+            if (tap != null && MenuTap(tap.Value)) return;
             if (m.y != 0) { cursor = (cursor - m.y + items.Count) % items.Count; Sound.Play("select", .5f); PaintMenu(); }
             if (m.x != 0 && items[cursor].adjust != null) { items[cursor].adjust(m.x); PaintMenu(); }
             if (m.ok && items[cursor].ok != null) { Sound.Play("select"); items[cursor].ok(); }
@@ -93,6 +136,25 @@ namespace Kfitsa
         }
 
         // ---- generic menu ----
+
+        const float TouchRowStep = 100;
+
+        bool MenuTap(Vector2 at)
+        {
+            float px = hud.Scale;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                Vector2 c = rows[i].rectTransform.position;
+                if (Mathf.Abs(at.y - c.y) > TouchRowStep / 2 * px || Mathf.Abs(at.x - c.x) > 560 * px) continue;
+                cursor = i;
+                var item = items[i];
+                if (item.ok == null && item.adjust != null) { item.adjust(at.x < c.x ? -1 : 1); PaintMenu(); return true; }
+                PaintMenu();
+                if (item.ok != null) { Sound.Play("select"); item.ok(); }
+                return true;
+            }
+            return false;
+        }
 
         void ClearScreen()
         {
@@ -102,7 +164,8 @@ namespace Kfitsa
 
         void Backdrop(float dim)
         {
-            var b = hud.Picture("bg_hills", new Vector2(.5f, .5f), Vector2.zero, new Vector2(1920, 1920 * 1f));
+            float side = Mathf.Max(1920, hud.Width);
+            var b = hud.Picture("bg_hills", new Vector2(.5f, .5f), Vector2.zero, new Vector2(side, side));
             screenObjects.Add(b.gameObject);
             b.transform.SetAsFirstSibling();
             var d = hud.Panel(new Color(.08f, .1f, .18f, dim));
@@ -124,7 +187,8 @@ namespace Kfitsa
             if (withBackdrop) Backdrop(dim); else { var d = hud.Panel(new Color(.05f, .06f, .12f, .7f)); screenObjects.Add(d.gameObject); }
             Line(title, 92, titleY ?? top + 190);
             items = list; backAction = back; if (screen != Screen.Paused) screen = Screen.Menu;
-            for (int i = 0; i < list.Count; i++) rows.Add(Line("", 54, top - i * 78));
+            bool touch = TouchUi.Available;
+            for (int i = 0; i < list.Count; i++) rows.Add(Line("", touch ? 60 : 54, top - i * (touch ? TouchRowStep : 78)));
             PaintMenu();
         }
 
@@ -186,10 +250,19 @@ namespace Kfitsa
                 new MenuItem { label = () => "מסך מלא  " + (save.fullscreen ? "כן" : "לא"), ok = ToggleFull, adjust = d => ToggleFull() },
                 Item("חזרה", () => { save.Write(); back(); }),
             };
+            if (Application.isMobilePlatform) list.RemoveAt(2);
             Menu("הגדרות", list, () => { save.Write(); back(); }, 120, .35f, !overGame);
-            Line("חצים ימינה ושמאלה משנים ערך", 34, -320, new Color(.85f, .9f, 1));
-            Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -380, new Color(.85f, .9f, 1));
-            Line("דלת סודית: חץ למטה", 34, -430, new Color(.85f, .9f, 1));
+            var help = new Color(.85f, .9f, 1);
+            if (TouchUi.Available)
+            {
+                Line("הקשה בצד ימין של השורה מגבירה, בצד שמאל מחלישה", 34, -250, help);
+                Line("משמאל זזים    מימין קופצים, רצים וזורקים", 34, -310, help);
+                Line("דלת סודית: כפתור החץ שמופיע ליד הדלת", 34, -370, help);
+                return;
+            }
+            Line("חצים ימינה ושמאלה משנים ערך", 34, -320, help);
+            Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -380, help);
+            Line("דלת סודית: חץ למטה", 34, -430, help);
         }
 
         void ToggleFull()
@@ -215,9 +288,10 @@ namespace Kfitsa
             for (int i = 0; i < text.Length; i++) Line(text[i], 44, 230 - i * 80);
         }
 
-        void ShowPause()
+        public void ShowPause()
         {
             screen = Screen.Paused; game.paused = true; Sound.Duck(true); Sound.Play("select");
+            hud.Banner("");
             var list = new List<MenuItem>
             {
                 Item("המשך", Resume),
@@ -266,7 +340,7 @@ namespace Kfitsa
             screenObjects.Add(mapHero.gameObject);
             mapInfo = Line("", 52, -320);
             mapStats = Line("", 40, -395);
-            Line("רווח - משחקים    Esc - תפריט", 34, -470, new Color(.9f, .95f, 1));
+            Line(TouchUi.Available ? "הקשה על שלב בוחרת אותו, הקשה נוספת משחקת    כפתור חזור - תפריט" : "רווח - משחקים    Esc - תפריט", 34, -470, new Color(.9f, .95f, 1));
             PaintMap();
         }
 
@@ -280,6 +354,19 @@ namespace Kfitsa
             mapStats.text = Rtl.V($"שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}");
         }
 
+        void MapTap(Vector2 at)
+        {
+            var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
+            int last = Mathf.Min(save.unlocked, Levels.All.Length - 1);
+            for (int i = 0; i <= last; i++)
+            {
+                if (Vector2.Distance(at, mid + Nodes[i] * hud.Scale) > 115 * hud.Scale) continue;
+                if (i == mapCursor) { Enter(i); return; }
+                mapCursor = i; Sound.Play("select", .5f); PaintMap();
+                return;
+            }
+        }
+
         void MapInput((int x, int y, bool ok, bool back) m)
         {
             // Left moves forward, because the path runs right to left
@@ -289,11 +376,13 @@ namespace Kfitsa
                 int to = Mathf.Clamp(mapCursor + d, 0, Mathf.Min(save.unlocked, Levels.All.Length - 1));
                 if (to != mapCursor) { mapCursor = to; Sound.Play("select", .5f); PaintMap(); }
             }
+            if (screen != Screen.Map) return;
             if (m.ok) Enter(mapCursor);
             else if (m.back) ShowTitle();
         }
 
         public string ScreenName => screen.ToString();
+        public int MapCursor => mapCursor;
         public void ShowCreditsForTour() => ShowCredits();
         public void ShowEndingForTour() { run.score = 45200; run.secrets = 5; ShowEnding(); }
         public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; game.StartLevel(level); }
@@ -347,20 +436,35 @@ namespace Kfitsa
         float hintT;
         readonly Image fade, bossFill; readonly GameObject bossBar;
         readonly Font font;
+        readonly CanvasScaler scaler;
+        readonly RectTransform safe;
+        Rect appliedSafe; Vector2Int appliedSize;
+
+        /// For tests on a PC: pretend the phone reports this safe area, in pixels.
+        public static Rect? SafeOverride;
+        public TouchUi Touch { get; }
+        /// Screen pixels per canvas unit.
+        public float Scale => UnityEngine.Screen.width * 9 >= UnityEngine.Screen.height * 16 ? UnityEngine.Screen.height / 1080f : UnityEngine.Screen.width / 1920f;
+        public float Width => UnityEngine.Screen.width / Scale;
 
         public Hud()
         {
             var o = new GameObject("Hud", typeof(Canvas), typeof(CanvasScaler));
             canvas = o.transform;
             o.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = o.GetComponent<CanvasScaler>();
+            scaler = o.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = .5f;
             font = Resources.Load<Font>("Fonts/Rubik");
 
+            // HUD and touch buttons stay clear of the notch; menus are centered and backgrounds run edge to edge
+            var so = new GameObject("Safe", typeof(RectTransform));
+            so.transform.SetParent(canvas, false);
+            safe = (RectTransform)so.transform;
+            FitScreen();
+
             stats = new GameObject("Stats", typeof(RectTransform));
-            stats.transform.SetParent(canvas, false);
+            stats.transform.SetParent(safe, false);
             var sr = (RectTransform)stats.transform; sr.anchorMin = Vector2.zero; sr.anchorMax = Vector2.one; sr.offsetMin = sr.offsetMax = Vector2.zero;
             // Right to left: score, coins, lives
             scoreText = Label(46, TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-40, -24), new Vector2(520, 70), stats.transform, new Vector2(1, 1));
@@ -386,6 +490,20 @@ namespace Kfitsa
             fade = Panel(Color.clear);
             fade.gameObject.name = "Fade";
             BossBar(-1);
+            Touch = new TouchUi(this, safe, () => Scale);
+        }
+
+        /// The canvas is always at least 1920x1080: wider phones gain width and every layout keeps its height.
+        void FitScreen()
+        {
+            var size = new Vector2Int(UnityEngine.Screen.width, UnityEngine.Screen.height);
+            var area = SafeOverride ?? UnityEngine.Screen.safeArea;
+            if (size == appliedSize && area == appliedSafe) return;
+            appliedSize = size; appliedSafe = area;
+            scaler.matchWidthOrHeight = size.x * 9 >= size.y * 16 ? 1 : 0;
+            safe.anchorMin = new Vector2(area.xMin / size.x, area.yMin / size.y);
+            safe.anchorMax = new Vector2(area.xMax / size.x, area.yMax / size.y);
+            safe.offsetMin = safe.offsetMax = Vector2.zero;
         }
 
         static void Stretch(RectTransform r) { r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one; r.offsetMin = r.offsetMax = Vector2.zero; }
@@ -424,7 +542,7 @@ namespace Kfitsa
 
         public void Show(bool on) { stats.SetActive(on); if (!on) { Banner(""); Fade(0); Hint(0, ""); } }
         public void Hint(float seconds, string text) { hintT = seconds; hintText.text = seconds > 0 ? text : ""; }
-        public void Tick() { if (hintT > 0 && (hintT -= Time.unscaledDeltaTime) <= 0) hintText.text = ""; }
+        public void Tick() { FitScreen(); if (hintT > 0 && (hintT -= Time.unscaledDeltaTime) <= 0) hintText.text = ""; }
         public void Banner(string s) { bannerText.text = s; bannerText.transform.SetAsLastSibling(); }
         public void Fade(float a) { fade.color = new Color(0, 0, 0, a); fade.transform.SetAsLastSibling(); }
 

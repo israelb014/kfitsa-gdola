@@ -123,7 +123,8 @@ namespace Kfitsa
             app.hud.Fade(0);
             app.hud.Banner(phase == Phase.Intro ? Rtl.V($"שלב {Def.Code}\n{Def.name}") : "");
             app.hud.BossBar(-1);
-            app.hud.Hint(index == 0 && bot == null ? 10f : 0, Rtl.V("חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה"));
+            app.hud.Hint(index == 0 && bot == null ? 10f : 0, Rtl.V(TouchUi.Available ? "משמאל זזים    מימין קופצים ורצים" : "חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה"));
+            TouchUi.Current?.ShowDoor(false);
             Sound.Music(Def.music);
             paused = false;
         }
@@ -185,6 +186,11 @@ namespace Kfitsa
                     s.transform.position = new Vector3(c, r, 0);
                     s.transform.localScale = new Vector3(3f * Art.PPU / 256f, 3f * Art.PPU / 256f, 1);
                 }
+            // A room narrower than a wide phone screen: the wall simply continues past the edge
+            int extra = Mathf.CeilToInt(2 * HalfW - (grid.W - grid.RoomStart));
+            for (int c = 0; c < extra; c++)
+                for (int r = 0; r < 15; r++)
+                    Art.Spawn("RoomWall", root, Art.Tile("t_stone_block_center"), -40).transform.position = new Vector3(grid.W + c, r, 0);
         }
 
         void SetCamBounds()
@@ -299,7 +305,8 @@ namespace Kfitsa
             if (hero.grounded && input.down && !lastDown) TryDoor();
             lastDown = input.down;
             bool nearDoor = !inRoom ? grid.HasDoor && Mathf.Abs(hero.x - grid.Door.x) < 1.5f : grid.HasRoomDoor && Mathf.Abs(hero.x - grid.RoomDoor.x) < 1.5f;
-            if (nearDoor) app.hud.Hint(.5f, Rtl.V("חץ למטה - נכנסים לדלת"));
+            if (nearDoor) app.hud.Hint(.5f, Rtl.V(TouchUi.Available ? "כפתור החץ - נכנסים לדלת" : "חץ למטה - נכנסים לדלת"));
+            TouchUi.Current?.ShowDoor(nearDoor);
             bool gateOpen = boss == null || !boss.alive;
             if (gateOpen && !inRoom && hero.x >= grid.GateX - .1f && hero.grounded) Win();
         }

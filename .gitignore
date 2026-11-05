@@ -10,3 +10,5 @@ verification/
 *.csproj
 *.sln
 __pycache__/
+Keystore/
+.utmp/

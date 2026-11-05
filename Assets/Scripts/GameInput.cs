@@ -9,7 +9,7 @@ namespace Kfitsa
         public bool down, run, runPressed, jumpHeld, jumpPressed;
     }
 
-    /// Keyboard and gamepad, read straight from the devices. Stick input is digital, like a D-pad.
+    /// Keyboard, gamepad and touch, read straight from the devices. Stick input is digital, like a D-pad.
     public static class GameInput
     {
         public static Pad Read()
@@ -37,12 +37,20 @@ namespace Kfitsa
                 p.jumpHeld |= g.buttonSouth.isPressed || g.buttonEast.isPressed;
                 p.jumpPressed |= g.buttonSouth.wasPressedThisFrame || g.buttonEast.wasPressedThisFrame;
             }
+            TouchUi.Current?.Merge(ref p);
             p.x = Mathf.Clamp(p.x, -1, 1);
             return p;
         }
 
-        public static bool PausePressed => Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame
-            || Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame;
+        static bool systemBack;
+
+        /// The Android Back button, sent by the GameMain activity. Whichever screen reads it first uses it.
+        public static void SystemBack() => systemBack = true;
+        static bool TakeSystemBack() { bool b = systemBack; systemBack = false; return b; }
+
+        public static bool PausePressed => TakeSystemBack() || Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame
+            || Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame
+            || TouchUi.Current != null && TouchUi.Current.PausePressed;
 
         static float nextRepeat;
         static int heldX, heldY;
@@ -69,6 +77,7 @@ namespace Kfitsa
                 ok |= g.buttonSouth.wasPressedThisFrame || g.startButton.wasPressedThisFrame;
                 back |= g.buttonEast.wasPressedThisFrame;
             }
+            back |= TakeSystemBack();
             x = Mathf.Clamp(x, -1, 1); y = Mathf.Clamp(y, -1, 1);
             float now = Time.unscaledTime;
             bool changed = x != heldX || y != heldY;
