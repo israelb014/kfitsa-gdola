@@ -5,8 +5,11 @@ namespace Kfitsa
     /// Game's view of the level mechanics: building them, drawing them, and running the bonus room.
     public partial class Game
     {
+        bool chaseOver;
+
         void BuildMechanics()
         {
+            chaseOver = checkpointSet;
             int starId = 0;
             foreach (var at in grid.Stars)
             {
@@ -196,6 +199,11 @@ namespace Kfitsa
             {
                 float front = World.ChaseAt(grid, world);
                 chaser.enabled = front > -50 && front < grid.Chase.end;
+                if (front >= grid.Chase.end && !chaseOver)
+                {
+                    chaseOver = true; shake = .3f; Sound.Play("brick");
+                    app.hud.Hint(3f, Rtl.V("המלך נעצר! הוא מחכה בזירה"));
+                }
                 chaser.transform.position = new Vector3(front - 1.3f, hero.y > 2 ? Mathf.Max(ChaserFloor(front), 2) : 2, 0);
                 chaser.sprite = Art.Feet((int)(simT * 8) % 2 == 0 ? "boss_walk_a" : "boss_walk_b");
                 chaser.flipX = true;

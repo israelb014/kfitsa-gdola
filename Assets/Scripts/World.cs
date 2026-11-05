@@ -149,8 +149,8 @@ namespace Kfitsa
             return (d, z);
         }
 
-        /// The crumbling ledge under the feet, as a key, or -1. A ledge counts as one piece, which is
-        /// stricter than the game, where each block falls on its own.
+        /// The crumbling ledge under the feet, as a key, or -1. Every three blocks count as one piece, which is
+        /// stricter than the game, where each block falls on its own, but still lets a hero run along a bridge.
         public static int CrumbleUnder(Grid2 g, Player h)
         {
             if (!h.grounded || h.on != null) return -1;
@@ -161,7 +161,7 @@ namespace Kfitsa
                 if (g.At(c, row) != 'u') { if (g.Solid(c, row)) return -1; continue; }
                 int left = c;
                 while (g.At(left - 1, row) == 'u') left--;
-                key = row * 4096 + left;
+                key = row * 4096 + left + (c - left) / 3 * 3;
             }
             return key;
         }

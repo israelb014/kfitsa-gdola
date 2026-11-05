@@ -54,7 +54,7 @@ def w1l1():
     """Springs. Met on open ground, then the only way up a wall, then chained over pits; the twist is a tower of springs."""
     l = L(214, idea='springs')
     # Met safely: flat ground, nothing to lose
-    l.ground(0, 42, 2); l.put(3, 2, 'S'); l.put(6, 2, '>'); l.put(11, 2, ',')
+    l.ground(0, 42, 2); l.put(9, 2, 'S'); l.put(6, 2, '>'); l.put(11, 2, ',')
     l.put(13, 5, '?'); l.put(16, 5, '!'); l.put(19, 5, '?'); l.put(24, 2, 'e')
     l.put(30, 2, 'T'); l.col(30, 5, 10); l.row(33, 38, 8); l.line(33, 38, 9); l.put(37, 2, '%')
     # The wall: a spring is the only way over. A false wall on the far side hides the first star
@@ -84,7 +84,7 @@ def w1l1():
 def w1l2():
     """Moving platforms. Met over a shallow ditch, then over pits and as lifts; the twist is a relay out of step."""
     l = L(244, idea='moving')
-    l.ground(0, 34, 2); l.put(3, 2, 'S'); l.put(7, 2, '%')
+    l.ground(0, 34, 2); l.put(9, 2, 'S'); l.put(7, 2, '%')
     # Two power boxes right at the start: big, then the sevivon
     l.put(11, 5, '!'); l.put(12, 5, 'b'); l.put(13, 5, 'b'); l.put(14, 5, '!'); l.put(22, 2, 'e'); l.put(26, 2, 'e'); l.put(30, 2, 'n')
     # Met safely: a ditch you can walk out of
@@ -113,7 +113,7 @@ def w1l3():
     W, H = 58, 84
     l = L(W, H, 'climb')
     M = 36
-    l.ground(0, M-1, 2, '#'); l.put(4, 2, 'S'); l.put(9, 2, ','); l.put(14, 2, 'e')
+    l.ground(0, M-1, 2, '#'); l.put(11, 2, 'S'); l.put(9, 2, ','); l.put(14, 2, 'e')
     def slab(y, gap0, gap1):
         l.row(0, gap0-1, y); l.row(gap1+1, M-1, y)
     # Met safely: wide steps, a slab under every part of the climb
@@ -147,7 +147,7 @@ def w1l3():
 def w2l1():
     """Wind. Felt on safe ground, then gaps that need a calm or a tailwind; the twist is rising air that lifts you."""
     l = L(246, idea='wind')
-    l.ground(0, 44, 2); l.put(3, 2, 'S'); l.put(7, 2, 'k'); l.put(12, 5, '!'); l.put(15, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(22, 2, 'e')
+    l.ground(0, 44, 2); l.put(9, 2, 'S'); l.put(7, 2, 'k'); l.put(12, 5, '!'); l.put(15, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(22, 2, 'e')
     # Met safely: a headwind on flat ground
     l.note('wind 26 44 0 15 -5 3 3'); l.put(30, 2, 'k'); l.line(28, 42, 3); l.put(38, 2, 'n')
     # Gaps: the same gust now decides whether a jump lands
@@ -177,7 +177,7 @@ def w2l2():
     W, H = 240, 34
     l = L(W, H, 'water')
     M = 214
-    l.ground(0, 26, 2); l.put(3, 2, 'S'); l.put(8, 2, 'r'); l.put(11, 5, '!'); l.put(14, 5, '!'); l.put(12, 5, 'b'); l.put(13, 5, 'b')
+    l.ground(0, 26, 2); l.put(9, 2, 'S'); l.put(8, 2, 'r'); l.put(11, 5, '!'); l.put(14, 5, '!'); l.put(12, 5, 'b'); l.put(13, 5, 'b')
     l.note('tide -1 5.2 10 27 150')
     # Rocks stand above the high tide; the ground between them drowns
     def rock(x0, x1, top=6):
@@ -209,7 +209,7 @@ def w2l3():
     """Darkness. Torches light the first steps; then they thin out; the twist is conveyors in the dark."""
     l = L(262, idea='dark')
     l.note('dark 5.5')
-    l.ground(0, 40, 2); l.put(3, 2, 'S'); l.fill(0, 40, 13, 14, '#')
+    l.ground(0, 40, 2); l.put(9, 2, 'S'); l.fill(0, 40, 13, 14, '#')
     for x in (6, 14, 22, 30, 38): l.put(x, 2, '|')
     l.put(10, 5, '!'); l.put(13, 5, '!'); l.put(11, 5, 'b'); l.put(12, 5, 'b'); l.put(19, 2, 'e'); l.put(27, 2, 'n')
     # Met safely: a pit only where a torch shows it
@@ -239,8 +239,8 @@ def w2l3():
 def boss():
     """A chase. The king runs you down the road first; the flag stops him; then you fight him on crumbling ground."""
     l = L(236, idea='chase')
-    l.note('chase 9 -6 6.6 124')
-    l.ground(0, 34, 2); l.put(3, 2, 'S'); l.put(8, 2, '|')
+    l.note('chase 14 -4 6.6 124')
+    l.ground(0, 34, 2); l.put(9, 2, 'S'); l.put(8, 2, '|')
     # Met safely: nothing but open road for a few seconds
     l.put(20, 5, '!'); l.put(23, 5, '!'); l.put(21, 5, 'b'); l.put(22, 5, 'b')
     l.ground(38, 54, 3); l.put(46, 3, 'e'); l.line(40, 52, 6)

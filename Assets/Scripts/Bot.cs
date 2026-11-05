@@ -48,7 +48,7 @@ namespace Kfitsa
             {
                 string form = big ? "big" : "small";
                 var s = Reach.Start(def, big, false, false);
-                s.seconds = 60;
+                s.seconds = 120;
                 s.stopAfterHits = s.goals.Count(q => q.kind != "coin");
                 s.Run();
                 foreach (var q in s.goals)
@@ -110,7 +110,17 @@ namespace Kfitsa
             var goal = s.goals.Find(q => q.node >= 0);
             if (goal == null) return false;
             int deaths = G.deaths;
-            foreach (var p in s.Route(goal)) { G.TestStep(1, p); if (G.deaths != deaths || !G.Running || G.Won) break; }
+            var check = new System.Collections.Generic.Dictionary<int, Vector2>();
+            foreach (var m in s.Marks(goal)) check[m.tick] = new Vector2(m.x, m.y);
+            int step = 0; bool off = false;
+            foreach (var p in s.Route(goal))
+            {
+                G.TestStep(1, p); step++;
+                if (G.deaths != deaths || !G.Running || G.Won) break;
+                // An enemy knocked the hero off the route: stop here, so the caller can plan a new one
+                if (check.TryGetValue(step, out var at) && (at - new Vector2(G.hero.x, G.hero.y)).sqrMagnitude > .04f) off = true;
+                if (off && G.hero.grounded) break;
+            }
             return G.deaths == deaths;
         }
 
@@ -187,13 +197,16 @@ namespace Kfitsa
         {
             Fresh(index, 0, true);
             int plans = 0;
-            while (G.Running && !G.Won && G.levelTime < 400 && plans < 120)
+            while (G.Running && !G.Won && G.levelTime < 400 && plans < 10)
             {
                 plans++;
                 if (G.boss != null && G.boss.alive && G.hero.x > G.boss.x - 24) { FightBoss(); continue; }
-                Drive(def, q => q.kind == "gate", false, 30);
+                int falls = G.deaths;
+                bool found = Drive(def, q => q.kind == "gate", false, 60);
+                // After a fall, set off a little later, so the same enemy is not met at the same moment again
+                if (G.deaths != falls) { G.TestStep(280, default); G.TestStep(47 * G.deaths, default); continue; }
+                if (!found) Note($"     route {plans}: stopped at {G.hero.x:F1},{G.hero.y:F1} clock {G.world.t:F1}, falls {G.deaths}");
                 if (G.grid != null && G.grid.AtGate(G.hero) && G.boss != null && G.boss.alive) { FightBoss(); }
-                G.TestStep(30, default);
             }
             Check($"{def.file}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes");
         }

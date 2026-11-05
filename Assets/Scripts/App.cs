@@ -408,7 +408,7 @@ namespace Kfitsa
         public void ShowPause()
         {
             screen = Screen.Paused; game.paused = true; Sound.Duck(true); Sound.Play("select");
-            hud.Banner("");
+            hud.Banner(""); hud.Hint(0, "");
             var list = new List<MenuItem>
             {
                 Item("המשך", Resume),

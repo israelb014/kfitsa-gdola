@@ -178,11 +178,26 @@ namespace Kfitsa.EditorTools
         /// Run by every build: a level with anything unreachable stops it.
         public static void Validate()
         {
+            // A passed check holds until a level or a rule changes, so the three platform builds run it once
+            string stamp = "Library/reach_passed.txt", now = Fingerprint();
+            if (File.Exists(stamp) && File.ReadAllText(stamp) == now) { Debug.Log("VALIDATE OK (nothing changed since it last passed)"); return; }
             Levels.Folder = "Assets/Resources/Levels";
             bool ok = Reach.ValidateAll("verification/v1.2/reach_report.txt");
             Levels.Folder = null;
             Debug.Log("VALIDATE " + (ok ? "OK" : "FAILED, see verification/v1.2/reach_report.txt"));
             if (!ok) throw new BuildFailedException("Levels failed the reachability check, see verification/v1.2/reach_report.txt");
+            File.WriteAllText(stamp, now);
+        }
+
+        static string Fingerprint()
+        {
+            using var md5 = System.Security.Cryptography.MD5.Create();
+            var all = new System.Text.StringBuilder();
+            var files = new System.Collections.Generic.List<string>(Directory.GetFiles("Assets/Resources/Levels", "*.txt"));
+            foreach (string name in new[] { "Tune", "Player", "Body", "Grid", "World", "Reach", "Actors" }) files.Add("Assets/Scripts/" + name + ".cs");
+            files.Sort(StringComparer.Ordinal);
+            foreach (string f in files) all.Append(f).Append(BitConverter.ToString(md5.ComputeHash(File.ReadAllBytes(f))));
+            return all.ToString();
         }
 
         static void Build(string path, BuildTarget target)

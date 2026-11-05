@@ -74,7 +74,7 @@ namespace Kfitsa
         float camMin, camMax, camTop;
         int stompChain;
         bool checkpointSet, pendingDoor, lastDown;
-        Pad pad; bool latchedJump, latchedRun;
+        Pad pad; bool latchedJump, latchedRun, latchedThrow;
 
         public void Init(App a) { app = a; cam = Camera.main; }
 
@@ -249,6 +249,7 @@ namespace Kfitsa
             var live = GameInput.Read();
             latchedJump |= live.jumpPressed;
             latchedRun |= live.runPressed;
+            latchedThrow |= live.throwPressed;
             pad = live;
 
             const float dt = 1f / Tune.SimHz;
@@ -257,7 +258,7 @@ namespace Kfitsa
             {
                 acc -= dt;
                 Sim(dt);
-                pad.jumpPressed = false; latchedJump = false; latchedRun = false;
+                pad.jumpPressed = false; latchedJump = false; latchedRun = false; latchedThrow = false;
             }
             if (grid != null) Draw();
         }
@@ -267,7 +268,7 @@ namespace Kfitsa
         {
             for (int i = 0; i < steps && grid != null; i++)
             {
-                pad = p; latchedJump = p.jumpPressed; latchedRun = p.runPressed;
+                pad = p; latchedJump = p.jumpPressed; latchedRun = p.runPressed; latchedThrow = p.throwPressed;
                 Sim(1f / Tune.SimHz);
                 p.jumpPressed = false; p.runPressed = false; p.throwPressed = false;
             }
@@ -283,7 +284,7 @@ namespace Kfitsa
         void Sim(float dt)
         {
             simT += dt;
-            var input = pad; input.jumpPressed = latchedJump; input.runPressed = latchedRun;
+            var input = pad; input.jumpPressed = latchedJump; input.runPressed = latchedRun; input.throwPressed = latchedThrow;
 
             if (phase == Phase.Intro)
             {
