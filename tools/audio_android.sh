@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: tools/audio_android.sh ; plays the built APK on the emulator and fails if sound does not work there.
-cd "$(dirname "$0")/.."; V=$PWD/verification/v1.2.1; mkdir -p "$V"; R=$V/audio_android.txt
+cd "$(dirname "$0")/.."; V=$PWD/verification/v1.2.2; mkdir -p "$V"; R=$V/audio_android.txt
 export PATH=~/work/_tools/android-emu/platform-tools:$PATH
 P=com.ibfix.kfitsagdola; A=$P/.GameMain
 if [ "$(adb get-state 2>/dev/null)" != device ]; then
@@ -21,6 +21,16 @@ for i in $(seq 90); do sleep 1; adb logcat -d -s Unity:I | grep -qE "AUDIO (ALL 
 adb logcat -d -s Unity:I | grep -E " AUDIO " | sed 's/.* AUDIO //' > "$V/audio_android_test.txt"
 grep -vE "^PASS (clip|effect|music)" "$V/audio_android_test.txt" | cut -c1-90 | tee -a "$R"
 grep -q "^ALL PASS" "$V/audio_android_test.txt" || fail "audio test in the APK"
+sleep 3
+
+# 1b. The sandstorm test inside the APK, with pictures of the real screen while it runs
+adb logcat -c
+adb shell am start -n $A -e unity "-stormtest" > /dev/null
+for i in $(seq 1 18); do sleep 2; adb exec-out screencap -p > "$V/android_storm_$i.png"; done
+for i in $(seq 120); do adb logcat -d -s Unity:I | grep -qE "STORM (ALL PASS|[0-9]+ FAILED)" && break; sleep 1; done
+adb logcat -d -s Unity:I | grep -E " STORM " | sed 's/.* STORM //' > "$V/storm_android_test.txt"
+grep -vE "^PASS shelter" "$V/storm_android_test.txt" | cut -c1-110 | tee -a "$R"
+grep -q "^ALL PASS" "$V/storm_android_test.txt" || fail "storm test in the APK"
 sleep 3
 
 # 2. A normal launch: the phone must see the game playing on the media stream, and it must stop and come back

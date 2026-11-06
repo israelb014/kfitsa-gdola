@@ -138,8 +138,8 @@ namespace Kfitsa.EditorTools
         {
             var id = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(id, "com.ibfix.kfitsagdola");
-            PlayerSettings.bundleVersion = "1.2.1";
-            PlayerSettings.Android.bundleVersionCode = 4;
+            PlayerSettings.bundleVersion = "1.2.2";
+            PlayerSettings.Android.bundleVersionCode = 5;
             PlayerSettings.SetScriptingBackend(id, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(id, ManagedStrippingLevel.Minimal);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -207,7 +207,7 @@ namespace Kfitsa.EditorTools
         {
             try { if (!skipCheck) { Validate(); AudioBefore(); } }
             catch (BuildFailedException e) { Debug.LogError(e.Message); EditorApplication.Exit(1); return; }
-            PlayerSettings.bundleVersion = "1.2.1";
+            PlayerSettings.bundleVersion = "1.2.2";
             var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, locationPathName = path, target = target, options = BuildOptions.None });
             Debug.Log("BUILD " + r.summary.result + " size=" + r.summary.totalSize);
             if (r.summary.result != BuildResult.Succeeded) { EditorApplication.Exit(1); return; }
@@ -215,7 +215,7 @@ namespace Kfitsa.EditorTools
             catch (BuildFailedException e) { Debug.LogError("AUDIO FAILED: " + e.Message); EditorApplication.Exit(1); }
         }
 
-        const string AudioDir = "Assets/Resources/Audio", AudioStamp = "Library/audio_passed.txt", AudioReport = "verification/v1.2.1";
+        const string AudioDir = "Assets/Resources/Audio", AudioStamp = "Library/audio_passed.txt", AudioReport = "verification/v1.2.2";
 
         static string[] AudioFiles() => Directory.GetFiles(AudioDir).Where(f => !f.EndsWith(".meta")).Select(f => f.Replace('\\', '/')).OrderBy(f => f, StringComparer.Ordinal).ToArray();
 
@@ -271,20 +271,26 @@ namespace Kfitsa.EditorTools
             }
 
             Directory.CreateDirectory(AudioReport);
-            string dir = Path.GetFullPath(AudioReport), report_ = Path.Combine(dir, "audio_report.txt");
+            PlayerTest(path, "-audiotest", "audio_report.txt", "music started", "sfx started", "ALL PASS");
+            PlayerTest(path, "-stormtest", "storm_report.txt", "ALL PASS");
+            File.WriteAllText(AudioStamp, now);
+            Debug.Log("AUDIO play test passed");
+        }
+
+        static void PlayerTest(string path, string flag, string reportName, params string[] needs)
+        {
+            string dir = Path.GetFullPath(AudioReport), report_ = Path.Combine(dir, reportName);
             File.Delete(report_);
-            var run = new System.Diagnostics.ProcessStartInfo(Path.GetFullPath(path), $"-batchmode -nographics -audiotest -captureDir \"{dir}\" -logFile \"{dir}/audio_player.log\"") { UseShellExecute = false };
+            var run = new System.Diagnostics.ProcessStartInfo(Path.GetFullPath(path), $"-batchmode -nographics {flag} -captureDir \"{dir}\" -logFile \"{dir}/{flag.Substring(1)}_player.log\"") { UseShellExecute = false };
             run.Environment["PULSE_SERVER"] = "/nonexistent";   // the measurement is inside the player, so the build need not play through the speakers
             using (var player = System.Diagnostics.Process.Start(run))
             {
-                if (!player.WaitForExit(90000)) { player.Kill(); throw new BuildFailedException("The audio play test did not finish"); }
+                if (!player.WaitForExit(120000)) { player.Kill(); throw new BuildFailedException(flag + " did not finish"); }
                 string text = File.Exists(report_) ? File.ReadAllText(report_) : "";
-                foreach (string need in new[] { "music started", "sfx started", "ALL PASS" })
-                    if (!text.Contains(need)) throw new BuildFailedException("The audio play test did not log \"" + need + "\", see " + report_);
-                if (player.ExitCode != 0) throw new BuildFailedException("The audio play test failed, see " + report_);
+                foreach (string need in needs)
+                    if (!text.Contains(need)) throw new BuildFailedException(flag + " did not log \"" + need + "\", see " + report_);
+                if (player.ExitCode != 0) throw new BuildFailedException(flag + " failed, see " + report_);
             }
-            File.WriteAllText(AudioStamp, now);
-            Debug.Log("AUDIO play test passed");
         }
 
         /// Opens the built files, because this Unity leaves the build report's asset list empty. On desktop a clip's
@@ -328,7 +334,7 @@ namespace Kfitsa.EditorTools
             using var md5 = System.Security.Cryptography.MD5.Create();
             var all = new System.Text.StringBuilder();
             var files = new List<string>(AudioFiles()) { "ProjectSettings/AudioManager.asset", Scene };
-            foreach (string name in new[] { "Sound", "AudioTest", "App", "Save" }) files.Add("Assets/Scripts/" + name + ".cs");
+            foreach (string name in new[] { "Sound", "AudioTest", "App", "Save", "StormView", "StormTest", "World", "Grid", "Game", "Mechanics" }) files.Add("Assets/Scripts/" + name + ".cs");
             foreach (string f in files) all.Append(f).Append(BitConverter.ToString(md5.ComputeHash(File.ReadAllBytes(f))));
             return all.ToString();
         }

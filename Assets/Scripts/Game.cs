@@ -18,6 +18,7 @@ namespace Kfitsa
         public int levelIndex, deaths, hits, levelCoins;
         public float levelTime;
         public bool paused, god, inRoom, skipIntro;
+        public bool windless;       // tests only: the level without its storm
         public bool Won => phase == Phase.Won;
         public bool Running => grid != null;
         public LevelDef Def => levelIndex < 0 ? Levels.Test : Levels.All[levelIndex];
@@ -64,6 +65,8 @@ namespace Kfitsa
         readonly List<(SpriteRenderer view, Block box)> powerHints = new List<(SpriteRenderer, Block)>();
         readonly List<(Vector2 at, SpriteRenderer view, bool lit)> lights = new List<(Vector2, SpriteRenderer, bool)>();
         Darkness dark; WaterView water; WindView wind;
+        public StormView storm;
+        public Grid2 Level => grid;
         SpriteRenderer chaser;
         public WorldState world;
         int gotStars; float roomTimer; bool roomOpen, roomDone; bool crumbleShaking;
@@ -85,6 +88,7 @@ namespace Kfitsa
             Unload();
             root = new GameObject("Level").transform;
             grid = Grid2.Parse(Levels.Text(Def.file));
+            if (windless) grid.Calm();
             world = WorldState.Fresh;
             grid.BuildTilemaps(root, Def.terrain);
             BuildSky();
@@ -174,7 +178,8 @@ namespace Kfitsa
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; flag = null; dark = null; water = null; wind = null; chaser = null;
+            root = null; grid = null; boss = null; flag = null; dark = null; water = null; wind = null; storm = null; chaser = null;
+            Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
         }
@@ -791,6 +796,8 @@ namespace Kfitsa
             float gone = phase == Phase.Won ? 1 - heroGone : 1;
             heroView.transform.localScale = new Vector3(sx * gone, sy * gone, 1);
             heroView.transform.position = new Vector3(hero.x, hero.y, 0);
+            heroView.transform.localEulerAngles = new Vector3(0, 0, storm != null ? storm.HeroTilt : 0);
+            heroView.sortingOrder = storm != null ? storm.HeroOrder : 10;
             heroView.enabled = hero.invuln <= 0 || (int)(simT * 14) % 2 == 0;
         }
     }

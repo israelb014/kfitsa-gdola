@@ -59,7 +59,7 @@ namespace Kfitsa
                 Application.Quit(ok ? 0 : 3); return;
             }
 
-            foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots", "-audiotest" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
+            foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots", "-audiotest", "-stormtest" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
             save = Save.Load();
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
@@ -81,6 +81,7 @@ namespace Kfitsa
             if (Array.IndexOf(args, "-inputtest") >= 0) { gameObject.AddComponent<InputTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
             if (Array.IndexOf(args, "-touchtest") >= 0) { gameObject.AddComponent<TouchTour>().Begin(this, Arg(args, "-captureDir")); ShowTitle(); return; }
             if (Array.IndexOf(args, "-audiotest") >= 0) { ShowTitle(); gameObject.AddComponent<AudioTest>().Begin(this, Arg(args, "-captureDir")); return; }
+            if (Array.IndexOf(args, "-stormtest") >= 0) { gameObject.AddComponent<StormTest>().Begin(this, Arg(args, "-captureDir")); return; }
             if (Array.IndexOf(args, "-shots") >= 0) { gameObject.AddComponent<ScreenTour>().Begin(this, Arg(args, "-captureDir")); return; }
             ShowTitle();
         }
@@ -721,6 +722,53 @@ namespace Kfitsa
             scoreText.text = Rtl.V("ניקוד " + score.ToString("000000"));
             coinText.text = "x" + coins.ToString("00");
             lifeText.text = "x" + lives;
+        }
+
+        GameObject stormBox; Image stormDisc, stormRing, stormIcon, stormArrow; Text stormText; readonly Image[] stormPips = new Image[3];
+        public Weather StormShown { get; private set; }
+        public float StormArrowSide { get; private set; }
+
+        /// The storm panel, under the top row. left: 1 to 0 through the phase. side: the wind's push here, sign is its direction.
+        public void StormShow(Weather w, float left, float side, float strength, bool safe)
+        {
+            StormShown = w; StormArrowSide = w == Weather.Storm ? side : 0;
+            if (stormBox == null)
+            {
+                if (w == Weather.Calm) return;
+                stormBox = new GameObject("Storm", typeof(RectTransform));
+                stormBox.transform.SetParent(stats.transform, false);
+                var b = (RectTransform)stormBox.transform; b.anchorMin = b.anchorMax = new Vector2(.5f, 1); b.anchoredPosition = new Vector2(0, -170); b.sizeDelta = new Vector2(10, 10);
+                var mid = new Vector2(.5f, .5f);
+                stormDisc = Picture("storm_disc", mid, Vector2.zero, new Vector2(190, 190), stormBox.transform);
+                stormRing = Picture("storm_ring", mid, Vector2.zero, new Vector2(214, 214), stormBox.transform);
+                stormRing.type = Image.Type.Filled; stormRing.fillMethod = Image.FillMethod.Radial360; stormRing.fillOrigin = 2; stormRing.fillClockwise = false;
+                stormIcon = Picture("storm_icon", mid, Vector2.zero, new Vector2(112, 112), stormBox.transform);
+                stormArrow = Picture("storm_arrow", mid, Vector2.zero, new Vector2(320, 170), stormBox.transform);
+                for (int i = 0; i < 3; i++) stormPips[i] = Picture("px", mid, new Vector2(-36 + i * 36, -72), new Vector2(28, 14), stormBox.transform);
+                stormText = Label(44, TextAnchor.MiddleCenter, mid, new Vector2(0, -136), new Vector2(600, 60), stormBox.transform);
+            }
+            stormBox.SetActive(w != Weather.Calm);
+            if (w == Weather.Calm) return;
+
+            bool storm = w == Weather.Storm, shield = storm && safe;
+            var hot = storm ? new Color(1, .3f, .12f) : new Color(1, .68f, .2f);
+            var good = new Color(.35f, .95f, .55f);
+            stormRing.fillAmount = Mathf.Clamp01(left);
+            stormRing.color = shield ? good : hot;
+            stormIcon.gameObject.SetActive(!storm || shield);
+            stormIcon.sprite = Art.Center(shield ? "shelter" : "storm_icon");
+            stormIcon.color = shield ? Color.white : hot;
+            stormArrow.gameObject.SetActive(storm && !shield);
+            float size = .62f + strength * .4f;
+            stormArrow.rectTransform.localScale = new Vector3(side < 0 ? -size : size, size, 1);
+            stormArrow.color = new Color(1, .86f, .3f);
+            for (int i = 0; i < 3; i++)
+            {
+                stormPips[i].gameObject.SetActive(storm && !shield);
+                stormPips[i].color = strength * 3 >= i + .5f ? new Color(1, .3f, .12f) : new Color(.2f, .18f, .2f, .8f);
+            }
+            stormText.text = Rtl.V(shield ? "במחסה" : storm ? "סופה!" : "סופה מתקרבת");
+            stormText.color = shield ? good : new Color(1, .93f, .5f);
         }
 
         /// Fraction below zero hides the bar.

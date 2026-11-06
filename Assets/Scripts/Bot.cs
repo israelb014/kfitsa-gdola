@@ -44,21 +44,25 @@ namespace Kfitsa
         {
             int index = Array.IndexOf(Levels.All, def);
             Note("--- " + def.file + " " + def.Code);
-            foreach (bool big in new[] { false, true })
+            bool stormy = Grid2.Parse(Levels.Text(def.file)).Storm != null;
+            foreach (var (big, calm) in new[] { (false, false), (true, false), (false, true), (true, true) })
             {
-                string form = big ? "big" : "small";
-                var s = Reach.Start(def, big, false, false);
+                if (calm && !stormy) continue;
+                G.windless = calm;
+                string form = (big ? "big" : "small") + (calm ? " without wind" : "");
+                var s = Reach.Start(def, big, false, false, calm: calm);
                 s.seconds = 120;
                 s.stopAfterHits = s.goals.Count(q => q.kind != "coin");
                 s.Run();
                 foreach (var q in s.goals)
                 {
-                    if (q.kind != "gate" && q.kind != "star" && q.kind != "box" && q.kind != "secret" && q.kind != "door" && q.kind != "flag") continue;
+                    if (q.kind != "gate" && q.kind != "star" && q.kind != "box" && q.kind != "secret" && q.kind != "door" && q.kind != "flag" && q.kind != "shelter") continue;
                     Fresh(index, big ? 1 : 0, false);
                     bool done = q.hit && Replay(s.Route(q), q);
                     Check($"{def.file} {form}: {q} is reached in the real game", done, q.hit ? $"{G.levelTime:F1}s" : "no route");
                 }
             }
+            G.windless = false;
             Room(def, index);
             Flag(def, index);
             Full(def, index);
@@ -92,6 +96,7 @@ namespace Kfitsa
                 case "star": return (G.GotStars & 1 << StarId(g, q)) != 0;
                 case "door": return Mathf.Abs(h.x - g.Door.x) < .9f;
                 case "flag": return G.CheckpointReached;
+                case "shelter": return World.Sheltered(g, h.x, h.y) || Mathf.Abs(h.x - q.x) < 1.5f && Mathf.Abs(h.y - q.y) < 2;
                 default: return G.blocks.Exists(b => b.c == q.c && b.r == q.r && b.used);
             }
         }

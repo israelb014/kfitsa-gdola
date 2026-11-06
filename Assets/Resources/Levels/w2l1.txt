@@ -1,25 +1,36 @@
 @idea wind
-@wind 26 44 0 15 -5 3 3
-@wind 45 82 0 15 -4.5 2.5 3.5
-@wind 112 130 0 15 7 4 2
-@wind 152 156 0 15 0 3.5 2.5 62
-@wind 173 178 0 15 0 3 3 62
-@wind 173 196 7 15 6 3 3
+@storm 6 2 4
+@gust 0 45 0 15 -3.5
+@gust 45 112 0 15 -5.5
+@gust 112 227 0 15 6
+@gust 152 158 0 15 0 62
+@gust 173 178 0 15 0 62
+@shelter 21 24 2 4
+@shelter 39 42 2 4
+@shelter 52 55 2 4
+@shelter 64 67 3 5
+@shelter 76 79 3 5
+@shelter 93 96 2 4
+@shelter 107 110 2 4
+@shelter 133 138 2 4
+@shelter 163 166 9 11
+@shelter 191 194 4 6
+@shelter 210 213 2 4
 @room puzzle 0
-@wind 232 239 0 13 8 1 0 0 0
-@wind 232 239 0 13 -8 1 0 0 1
+@wind 232 239 0 13 8 0
+@wind 232 239 0 13 -8 1
                                                                                                                                                                                                                                    ggggggggggggggggggg
                                                                                                                                                                                         s                                          ggggggggggggggggggg
                                                                                                                                                                                       #####                                        g                 g
-                                                                                                                                                                                                                                   g  s              g
-                                                                                                                                                                 oooooooooo                                                        ggggg             g
-                                                                       o                                                                                             e    k                                                        g                 g
+                                                                                                                                                                  g                                                                g  s              g
+                                                                                                                                                                  g oooooooo    XX                                                 ggggg             g
+                                                                       o                                                                                          g     e kF                                                       g                 g
                                                            o          o o                                               y                                       #############                                                      g                 g
                                                           o o        o   o                                                                                      #############                                                      g                 g
-                                                         o   o                                                     ooooooooooooo                                #############                                                      g                 g
-            !bb!                                                                           b!b                                       #######                    #############                           ooooooooo                  g E            1  g
-                                                                                                                                                                #############                     e                                ggggg        gggggg
-                            ooooooooooooooo                       j                                                                                             #############                 #########                            ggggg        gggggg
-       k S            e       k       n                       #######     #######  k C            p     D                             e s        n        >     #############                 #########                  G     k   ggggg T      gggggg
-#############################################     #######     #######     ####### ###############################              ###############################  #############                 #####################################ggggggggggggggggggg
-#############################################     #######     #######     ####### ###############################              ###############################  #############                 #####################################Rgggggggggggggggggg
+                                                         o   o                                                    ooooooooooooo                                 #############                 g                                    g                 g
+            !bb!                                                   g           g           b!b                                      gggggggg                    #############                 g         oooooooo                   g E            1  g
+                        g                 g            g           g           g                g             g                     g                           #############                 g     e            g                 ggggg        gggggg
+                        g   ooooooooooooo g            g       j   g       F   g                g             g                     g                           #############                 #########          g                 ggggg        gggggg
+    P  k S F      P     g  F  ek  P n     g       P    g      #######     #######  k C P        g   Fp  D     g         F       P   g   s     P   e n    > T    #############                 #########      P   g     P G     k   ggggg T      gggggg
+#############################################     #######     #######     ####### ###############################     #####    ################################ #############                 #####################################ggggggggggggggggggg
+#############################################     #######     #######     ####### ###############################     #####    ################################ #############                 #####################################Rgggggggggggggggggg

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes Assets/Resources/Levels/*.txt. Rows are top first; y counts up from the bottom row (0).
 Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life block, h/H hidden coin/life,
-o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
+P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
 { } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp.
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
@@ -145,30 +145,43 @@ def w1l3():
     return l
 
 def w2l1():
-    """Wind. Felt on safe ground, then gaps that need a calm or a tailwind; the twist is rising air that lifts you."""
+    """Sandstorm. One clock for the whole level: calm, warning, storm. Met on flat ground with a shelter close by, then
+    islands where it decides each jump; past the flag it turns around and throws you forward, and rising air opens a short way up.
+    Everything can also be reached in the calm, so the storm is a threat to read and never a lock."""
     l = L(246, idea='wind')
-    l.ground(0, 44, 2); l.put(9, 2, 'S'); l.put(7, 2, 'k'); l.put(12, 5, '!'); l.put(15, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(22, 2, 'e')
-    # Met safely: a headwind on flat ground
-    l.note('wind 26 44 0 15 -5 3 3'); l.put(30, 2, 'k'); l.line(28, 42, 3); l.put(38, 2, 'n')
-    # Gaps: the same gust now decides whether a jump lands
-    l.ground(50, 56, 2); l.ground(62, 68, 3); l.ground(74, 80, 3)
-    l.note('wind 45 82 0 15 -4.5 2.5 3.5'); l.arc(57, 6, 5); l.arc(69, 7, 5); l.put(66, 3, 'j')
-    # A tailwind carries you over a gap too wide to jump; a star waits under a ledge past it
-    l.ground(82, 112, 2); l.put(85, 2, 'C'); l.put(83, 2, 'k'); l.put(92, 5, '!'); l.put(91, 5, 'b'); l.put(93, 5, 'b'); l.put(98, 2, 'p'); l.put(104, 2, 'D')
-    l.note('wind 112 130 0 15 7 4 2'); l.line(115, 127, 6); l.put(120, 8, 'y')
-    l.ground(127, 150, 2); l.row(133, 139, 5); l.put(136, 2, 's'); l.put(134, 2, 'e'); l.put(145, 2, 'n')
-    # The twist: rising air. Stand in the column and let it take you up to a ledge
-    l.note('wind 152 156 0 15 0 3.5 2.5 62'); l.ground(151, 157, 2); l.put(154, 2, '>')
-    l.ground(160, 172, 9); l.put(165, 9, 'e'); l.put(170, 9, 'k'); l.line(161, 170, 10)
-    l.note('wind 173 178 0 15 0 3 3 62'); l.note('wind 173 196 7 15 6 3 3')
-    l.row(182, 186, 12); l.put(184, 13, 's'); l.ground(190, 198, 4); l.put(194, 4, 'e')
-    l.ground(198, 226, 2); l.line(200, 208, 5); l.put(217, 2, 'G'); l.put(223, 2, 'k')
+    l.note('storm 6 2 4')
+    l.note('gust 0 45 0 15 -3.5'); l.note('gust 45 112 0 15 -5.5'); l.note('gust 112 227 0 15 6')
+    l.note('gust 152 158 0 15 0 62'); l.note('gust 173 178 0 15 0 62')
+    def lee(x, top, side):
+        """A stone windbreak at x, three blocks tall; the safe spot is on the side away from the wind."""
+        l.fill(x, x, top, top+2, 'g')
+        l.note(f'shelter {x-3 if side < 0 else x+1} {x if side < 0 else x+4} {top} {top+2}')
+    # Met safely: flat ground, and the first storm is weak
+    l.ground(0, 44, 2); l.put(9, 2, 'S'); l.put(7, 2, 'k'); l.put(12, 5, '!'); l.put(15, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b')
+    l.put(4, 2, 'P'); l.put(18, 2, 'P'); l.put(11, 2, 'F')
+    lee(24, 2, -1); l.put(30, 2, 'e'); l.put(31, 2, 'k'); l.put(27, 2, 'F'); l.line(28, 40, 3); l.put(36, 2, 'n'); l.put(34, 2, 'P'); lee(42, 2, -1)
+    # Islands: each has a windbreak, and the storm decides whether a jump lands
+    l.ground(50, 56, 2); lee(55, 2, -1); l.put(50, 2, 'P'); l.ground(62, 68, 3); lee(67, 3, -1); l.ground(74, 80, 3); lee(79, 3, -1); l.put(75, 3, 'F')
+    l.arc(57, 6, 5); l.arc(69, 7, 5); l.put(63, 3, 'j')
+    # The flag; then the wind turns around at the end of this ground
+    l.ground(82, 112, 2); l.put(85, 2, 'C'); l.put(83, 2, 'k'); l.put(87, 2, 'P'); l.put(92, 5, '!'); l.put(91, 5, 'b'); l.put(93, 5, 'b')
+    lee(96, 2, -1); l.put(101, 2, 'p'); l.put(100, 2, 'F'); l.put(104, 2, 'D'); lee(110, 2, -1)
+    # Tailwind: over two gaps, and under an overhang that keeps the storm off a star
+    l.ground(118, 122, 2); l.line(114, 126, 6); l.put(120, 8, 'y'); l.put(120, 2, 'F')
+    l.ground(127, 150, 2); l.put(128, 2, 'P'); l.fill(132, 132, 2, 5, 'g'); l.row(133, 139, 5, 'g'); l.note('shelter 133 138 2 4'); l.put(136, 2, 's')
+    l.put(146, 2, 'e'); l.put(148, 2, 'n'); l.put(142, 2, 'P')
+    # The twist: rising air, only in the storm, is a quick way up; a spring does the same job in the calm
+    l.ground(151, 158, 2); l.put(153, 2, '>'); l.put(155, 2, 'T')
+    l.ground(160, 172, 9); lee(162, 9, 1); l.put(168, 9, 'e'); l.put(170, 9, 'k'); l.line(164, 171, 10); l.put(171, 9, 'F')
+    l.row(176, 177, 10, 'X')
+    l.row(182, 186, 12); l.put(184, 13, 's'); l.ground(190, 198, 4); lee(190, 4, 1); l.put(196, 4, 'e')
+    l.ground(198, 226, 2); l.line(200, 207, 5); lee(209, 2, 1); l.put(205, 2, 'P'); l.put(217, 2, 'G'); l.put(223, 2, 'k'); l.put(215, 2, 'P')
     x0, x1 = l.box(227)
     # Bonus room: a switch turns the wind around. Across on the tailwind, flip it, and ride back to the high ledge
     l.note('room puzzle 0')
     l.put(x0+1, 5, 'E'); l.ground(x0, x0+3, 5, 'g'); l.put(x0+2, 11, 's'); l.row(x0, x0+3, 10, 'g')
     l.ground(x1-4, x1, 5, 'g'); l.put(x1-2, 5, '1')
-    l.note(f'wind {x0+4} {x1-5} 0 13 8 1 0 0 0'); l.note(f'wind {x0+4} {x1-5} 0 13 -8 1 0 0 1')
+    l.note(f'wind {x0+4} {x1-5} 0 13 8 0'); l.note(f'wind {x0+4} {x1-5} 0 13 -8 1')
     l.put(x0+5, 2, 'T')
     return l
 

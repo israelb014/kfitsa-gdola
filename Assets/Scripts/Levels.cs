@@ -33,7 +33,7 @@ namespace Kfitsa
             new LevelDef { file = "w1l3", name = "מעלה ההר", terrain = "dirt", sky = "hills", music = "m_world1", world = 1, stage = 3,
                 tip = "מטפסים למעלה. אבנים עם סימן אזהרה מתמוטטות", roomTip = "יש כאן דרך נסתרת" },
             new LevelDef { file = "w2l1", name = "סופת החול", terrain = "sand", sky = "desert", music = "m_world2", world = 2, stage = 1,
-                tip = "הרוח באה במשבים: חכו שתירגע, או נצלו אותה", roomTip = "המתג הופך את כיוון הרוח" },
+                tip = "שמיים כתומים? סופה בדרך. רוצו למחסה עם המגן הירוק", roomTip = "המתג הופך את כיוון הרוח" },
             new LevelDef { file = "w2l2", name = "ערוץ השיטפון", terrain = "sand", sky = "dusk", music = "m_world2", world = 2, stage = 2,
                 tip = "המים עולים ויורדים. עלו למקום גבוה בזמן", roomTip = "המתג מרוקן את הבריכה ומחליף את הקוביות" },
             new LevelDef { file = "w2l3", name = "מצודת הלילה", terrain = "stone", sky = "night", music = "m_world2", world = 2, stage = 3,

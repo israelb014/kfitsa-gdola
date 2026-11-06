@@ -21,7 +21,7 @@ for f in sorted(Path(sys.argv[1]).glob('*.txt')):
             cx, top, dx, dy, per, ph, wd = map(float, a[1:8]); y = (h-top)*K
             d.rectangle([(cx-wd/2)*K, y, (cx+wd/2)*K, y+K-1], fill=(0,200,160))
             d.line([(cx-dx)*K, y+4-dy*K, (cx+dx)*K, y+4+dy*K], fill=(0,120,100))
-        if a[0] == 'wind':
+        if a[0] in ('wind', 'gust', 'shelter'):
             x0,x1,y0,y1 = map(float,a[1:5]); d.rectangle([x0*K,(h-y1)*K,x1*K,(h-y0)*K], outline=(120,120,255))
     seg = 130*K; parts = (w*K + seg - 1)//seg
     sheet = Image.new('RGB', (seg, parts*(h*K+6)), 'white')

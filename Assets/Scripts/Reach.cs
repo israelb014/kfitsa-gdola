@@ -91,7 +91,7 @@ namespace Kfitsa
         {
             var periods = new List<float>();
             foreach (var p in g.Platforms) periods.Add(p.period);
-            foreach (var w in g.Winds) if (w.off > 0) periods.Add(w.on + w.off);
+            if (g.Storm != null) periods.Add(g.Storm.Period);
             if (g.Tide != null) periods.Add(g.Tide.period);
             int l = 1;
             foreach (float f in periods)
@@ -109,8 +109,7 @@ namespace Kfitsa
         {
             foreach (var p in g.Platforms)
                 if (Mathf.Abs(x - p.baseX) < Mathf.Abs(p.moveX) + 10 && Mathf.Abs(y - p.baseY) < Mathf.Abs(p.moveY) + 6) return true;
-            foreach (var w in g.Winds)
-                if (w.off > 0 && x > w.x0 - 8 && x < w.x1 + 4 && y > w.y0 - 2 && y < w.y1 + 2) return true;
+            if (g.Storm != null && !room) return true;
             return g.Tide != null && x > g.Tide.x0 - 6 && x < g.Tide.x1 + 2;
         }
 
@@ -177,7 +176,7 @@ namespace Kfitsa
             switch (kind)
             {
                 case "box": case "secret": boxGoals[r * 4096 + c] = q; break;
-                case "star": case "coin": case "power-up": case "lamp": case "switch": case "spring":
+                case "star": case "coin": case "power-up": case "lamp": case "switch": case "spring": case "shelter":
                     int at = Mathf.Clamp((int)x, 0, g.W - 1);
                     (overlapByColumn[at] ??= new List<Goal>()).Add(q); break;
                 case "ledge": cellGoals[c] = q; break;      // c is the surface id
@@ -426,7 +425,7 @@ namespace Kfitsa
 
     public static class Reach
     {
-        public class Job { public LevelDef def; public string name; public bool big, room, flag, strict; public Search search; public double seconds; public List<Goal> coinsLeft; }
+        public class Job { public LevelDef def; public string name; public bool big, room, flag, strict, calm; public Search search; public double seconds; public List<Goal> coinsLeft; }
 
         static Goal[] AddGoals(Search s, bool room)
         {
@@ -445,6 +444,7 @@ namespace Kfitsa
             foreach (var q in g.RoomLights) if (In(q.x)) s.Add("lamp", $"at {q.x:F0},{q.y:F0}", x: q.x, y: q.y);
             foreach (var (c, r) in g.Switches) if (In(c)) s.Add("switch", $"at {c},{r}", x: c + .5f, y: r + .4f);
             foreach (var (c, r) in g.Springs) if (In(c)) s.Add("spring", $"at {c},{r}", x: c + .5f, y: r + .3f);
+            foreach (var q in g.Shelters) if (In(q.x0)) s.Add("shelter", $"at {q.x0:F0}-{q.x1:F0}", x: (q.x0 + q.x1) / 2, y: q.y0 + .4f);
             for (int i = 0; i < g.Platforms.Count; i++) if (In(g.Platforms[i].baseX)) s.Add("platform", $"{i + 1} at {g.Platforms[i].baseX:F0}", i);
             if (room) s.Add("room exit", "the door back");
             else
@@ -464,9 +464,10 @@ namespace Kfitsa
         }
 
         /// A running search for one level, form and start. The grid is private to it, so jobs can run in parallel.
-        public static Search Start(LevelDef def, bool big, bool room, bool flag, float holdCap = 9, float hazard = 1)
+        public static Search Start(LevelDef def, bool big, bool room, bool flag, float holdCap = 9, float hazard = 1, bool calm = false)
         {
             var g = Grid2.Parse(Levels.Text(def.file));
+            if (calm) g.Calm();
             var s = new Search(g, room, holdCap) { hazardScale = hazard };
             AddGoals(s, room);
             var at = room ? g.RoomDoor : flag ? g.Checkpoint : g.Start;
@@ -522,12 +523,18 @@ namespace Kfitsa
                     if (grid.HasCheckpoint) jobs.Add(new Job { def = def, big = big, flag = true, name = $"{def.file} {form} from the flag" });
                     if (grid.HasRoomDoor) jobs.Add(new Job { def = def, big = big, room = true, name = $"{def.file} {form} in the bonus room" });
                     jobs.Add(new Job { def = def, big = big, strict = true, name = $"{def.file} {form} finish with a margin" });
+                    if (grid.Storm != null)
+                    {
+                        jobs.Add(new Job { def = def, big = big, calm = true, name = $"{def.file} {form} from the start, without wind" });
+                        jobs.Add(new Job { def = def, big = big, calm = true, flag = true, name = $"{def.file} {form} from the flag, without wind" });
+                        jobs.Add(new Job { def = def, big = big, calm = true, strict = true, name = $"{def.file} {form} finish with a margin, without wind" });
+                    }
                 }
             }
             Parallel.ForEach(jobs.OrderByDescending(j => j.def.file).ToList(), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, j =>
             {
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                j.search = Start(j.def, j.big, j.room, j.flag, j.strict ? StrictHold : 9, j.strict ? 1.15f : 1);
+                j.search = Start(j.def, j.big, j.room, j.flag, j.strict ? StrictHold : 9, j.strict ? 1.15f : 1, j.calm);
                 j.search.seconds = Seconds;
                 if (j.strict) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
                 else if (j.flag) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
@@ -559,6 +566,25 @@ namespace Kfitsa
             return fails == 0;
         }
 
+        /// The sky and the sand are level wide, so the push must be too, and a shelter must never be out of reach.
+        static IEnumerable<string> StormLint(LevelDef def, Grid2 g)
+        {
+            for (int c = 0; c < g.MainW - 1; c++)
+                if (World.StormPush(g, c + .5f, 5) == 0) { yield return $"{def.file}: no storm wind at column {c}"; break; }
+            var spots = g.Shelters.OrderBy(q => q.x0).ToList();
+            float reach = (g.Storm.calm + g.Storm.warn) * Tune.WalkSpeed * .75f, last = g.Start.x;
+            foreach (var q in spots)
+            {
+                if (q.x0 - last > reach) yield return $"{def.file}: {q.x0 - last:F0} tiles without a shelter before column {q.x0:F0}, the most is {reach:F0}";
+                last = q.x1;
+                // The wall must stand on the side the wind comes from
+                bool fromRight = World.StormPush(g, q.x0, q.y0 + 1) < 0;
+                int c = Mathf.FloorToInt(fromRight ? q.x1 : q.x0 - 1), r = Mathf.FloorToInt(q.y0 + 1);
+                if (!g.Solid(c, r)) yield return $"{def.file}: shelter at {q.x0:F0} has no wall on the wind side";
+            }
+            if (g.GateX - last > reach) yield return $"{def.file}: no shelter near the end";
+        }
+
         /// The design promises that are not about physics.
         static IEnumerable<string> Lint(string only)
         {
@@ -585,6 +611,7 @@ namespace Kfitsa
                 int power = g.Blocks.Count(b => b.kind == BlockKind.Grow);
                 if (def != Levels.All[0] && power < 3) yield return $"{def.file}: {power} power boxes, needs 3 (two early, one after the flag)";
                 if (def == Levels.All[0] && power < 1) yield return $"{def.file}: no power box";
+                if (g.Storm != null) foreach (var line in StormLint(def, g)) yield return line;
             }
         }
     }

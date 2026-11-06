@@ -7,7 +7,7 @@ namespace Kfitsa
     /// One music channel and a small pool of effect voices.
     public static class Sound
     {
-        static AudioSource music;
+        static AudioSource music, wind;
         static AudioSource[] voices;
         static int next;
         static string current;
@@ -15,7 +15,7 @@ namespace Kfitsa
         public static float MusicVolume = .7f, SfxVolume = .8f;
 
         /// Every sound the game ships. The build compares these with the folder and with the code, and the audio test plays each one.
-        public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "power", "select", "shrink", "spring", "stomp", "throw", "win" };
+        public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "power", "select", "shrink", "spring", "stomp", "throw", "win", "wind_rise", "wind_storm" };
         public static readonly string[] Tracks = { "m_boss", "m_ending", "m_map", "m_title", "m_world1", "m_world2" };
 
         /// Tells the audio test what the game asked to play.
@@ -27,6 +27,7 @@ namespace Kfitsa
             if (UnityEngine.Object.FindAnyObjectByType<AudioListener>() == null) host.AddComponent<AudioListener>();
             music = host.AddComponent<AudioSource>();
             music.loop = true; music.playOnAwake = false;
+            wind = host.AddComponent<AudioSource>(); wind.playOnAwake = false;
             voices = new AudioSource[10];
             for (int i = 0; i < voices.Length; i++) { voices[i] = host.AddComponent<AudioSource>(); voices[i].playOnAwake = false; }
         }
@@ -58,10 +59,28 @@ namespace Kfitsa
             if (music.clip != null) { music.Play(); Started?.Invoke("music " + name); } else music.Stop();
         }
 
+        /// Called every frame during a storm level: which wind to hear, and how loud. Null fades it out.
+        public static void Wind(string name, float volume, float dt)
+        {
+            if (wind == null) return;
+            if (name != null && windName != name)
+            {
+                windName = name; wind.clip = Clip(name); wind.loop = name == "wind_storm"; wind.Play();
+                Started?.Invoke("wind " + name);
+            }
+            wind.UnPause();
+            wind.volume = Mathf.MoveTowards(wind.volume, volume * SfxVolume, dt * 3);
+            if (name == null && wind.volume <= 0) WindStop();
+        }
+
+        public static void WindStop() { if (wind == null) return; wind.Stop(); wind.clip = null; wind.volume = 0; windName = null; }
+        public static float WindVolume => wind != null && wind.isPlaying ? wind.volume : 0;
+        static string windName;
+
         /// The phone left the game or came back. Music picks up where it stopped.
         public static void Background(bool away) { if (AudioListener.pause != away) Debug.Log("AUDIO " + (away ? "paused" : "resumed")); AudioListener.pause = away; }
 
-        public static void Duck(bool on) { if (music != null) music.volume = MusicVolume * (on ? .2f : .6f); }
+        public static void Duck(bool on) { if (on && wind != null) wind.Pause(); if (music != null) music.volume = MusicVolume * (on ? .2f : .6f); }
         public static bool MusicPlaying => music != null && music.isPlaying;
         public static void ApplyVolume() { if (music != null) music.volume = MusicVolume * .6f; }
     }

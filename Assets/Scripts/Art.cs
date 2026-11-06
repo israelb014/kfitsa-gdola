@@ -25,6 +25,7 @@ namespace Kfitsa
         public static Sprite Tile(string name) => Get(name, Vector2.zero, name);
         public static Sprite Center(string name) => Get(name, new Vector2(.5f, .5f), name + "#c");
         public static Sprite Feet(string name) => Get(name, new Vector2(.5f, 0), name + "#f");
+        public static Sprite LeftMiddle(string name) => Get(name, new Vector2(0, .5f), name + "#l");
 
         /// form: s small, b big, p shooter. The hero canvas keeps a small gap under the feet.
         public static Sprite Hero(char form, string pose) =>

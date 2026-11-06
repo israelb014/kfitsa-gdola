@@ -21,6 +21,9 @@ namespace Kfitsa
         public float RoomSeconds, DarkRadius, CheckpointWater = -1;
         public int RoomH = 15;
         public WindZone[] Winds = new WindZone[0];
+        public Storm Storm;
+        public readonly List<Shelter> Shelters = new List<Shelter>();
+        public readonly List<(int c, int r)> Palms = new List<(int, int)>(), Flags = new List<(int, int)>();
         public Tide Tide; public Flood Flood; public Chase Chase; public RoomWater RoomPool;
         public readonly List<Vector2> Stars = new List<Vector2>(), RoomLights = new List<Vector2>();
         public readonly List<(int c, int r)> Switches = new List<(int, int)>();
@@ -71,6 +74,8 @@ namespace Kfitsa
                         case 's': g.Stars.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
                         case 'L': g.RoomLights.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
                         case '1': g.Switches.Add((c, r)); ch = ' '; break;
+                        case 'P': g.Palms.Add((c, r)); ch = ' '; break;
+                        case 'F': g.Flags.Add((c, r)); ch = ' '; break;
                     }
                     g.cells[c, r] = ch;
                 }
@@ -90,14 +95,24 @@ namespace Kfitsa
                 case "roomh": RoomH = (int)F(1); break;
                 case "plat": Platforms.Add(new Platform(F(1), F(2), F(3), F(4), F(5), F(6), F(7))); break;
                 case "wind":
-                    var w = new List<WindZone>(Winds) { new WindZone { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4), push = F(5), on = F(6), off = F(7), lift = a.Length > 8 ? F(8) : 0, sw = a.Length > 9 ? (int)F(9) : -1 } };
-                    Winds = w.ToArray(); break;
+                    Winds = new List<WindZone>(Winds) { new WindZone { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4), push = F(5), sw = (int)F(6) } }.ToArray(); break;
+                case "storm": Storm = new Storm { calm = F(1), warn = F(2), blow = F(3) }; break;
+                case "gust":
+                    Winds = new List<WindZone>(Winds) { new WindZone { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4), push = F(5), lift = a.Length > 6 ? F(6) : 0, storm = Storm } }.ToArray(); break;
+                case "shelter": Shelters.Add(new Shelter { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4) }); break;
                 case "tide": Tide = new Tide { low = F(1), high = F(2), period = F(3), x0 = F(4), x1 = F(5) }; break;
                 case "flood": Flood = new Flood { trigger = F(1), y0 = F(2), speed = F(3), top = F(4) }; break;
                 case "chase": Chase = new Chase { trigger = F(1), x0 = F(2), speed = F(3), end = F(4) }; break;
                 case "pool": RoomPool = new RoomWater { x0 = F(1), x1 = F(2), high = F(3), low = F(4) }; break;
                 default: throw new System.Exception("Unknown level note: " + a[0]);
             }
+        }
+
+        /// The same level with the storm taken away, to prove nothing depends on it.
+        public void Calm()
+        {
+            Storm = null;
+            Winds = System.Array.FindAll(Winds, w => w.storm == null);
         }
 
         /// A flat test floor, used by the feel measurements.

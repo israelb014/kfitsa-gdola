@@ -2,17 +2,40 @@ using UnityEngine;
 
 namespace Kfitsa
 {
+    public enum Weather { Calm, Warning, Storm }
+
+    /// One clock for a whole level. Everything the player sees and feels asks this same clock, so they cannot disagree.
+    public class Storm
+    {
+        public float calm, warn, blow;
+        public float Period => calm + warn + blow;
+        public Weather At(float t)
+        {
+            float k = Mathf.Repeat(t, Period);
+            return k < calm ? Weather.Calm : k < calm + warn ? Weather.Warning : Weather.Storm;
+        }
+        /// Seconds until the current phase ends.
+        public float Left(float t)
+        {
+            float k = Mathf.Repeat(t, Period);
+            return (k < calm ? calm : k < calm + warn ? calm + warn : Period) - k;
+        }
+    }
+
+    /// A safe spot: the storm does not reach a hero whose feet are inside it.
+    public class Shelter { public float x0, x1, y0, y1; }
+
     public class WindZone
     {
-        public float x0, x1, y0, y1, push, lift, on, off;
+        public float x0, x1, y0, y1, push, lift;
         public int sw = -1;     // when 0 or 1: blows only while the switch is in that state
+        public Storm storm;     // when set: blows only during the storm
         public bool Blowing(float t, int state)
         {
             if (sw >= 0 && (state & 1) != sw) return false;
-            return off <= 0 || Mathf.Repeat(t, on + off) < on;
+            return storm == null || storm.At(t) == Weather.Storm;
         }
-        /// 0 to 1: how far through the calm the wind is, for the warning.
-        public float Warning(float t) => off <= 0 ? 0 : Mathf.Clamp01((Mathf.Repeat(t, on + off) - on - off + 1f));
+        public bool Holds(float x, float y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
     }
 
     /// Water that comes and goes on a fixed clock, inside a span of columns.
@@ -65,14 +88,37 @@ namespace Kfitsa
                 int belt = Belt(g, h);
                 if (belt != 0) h.MoveX(belt * BeltSpeed * dt);
             }
+            bool safe = Sheltered(g, h.x, h.y);
             foreach (var w in g.Winds)
-                if (h.x >= w.x0 && h.x <= w.x1 && h.y >= w.y0 && h.y <= w.y1 && w.Blowing(s.t, s.sw))
+                if (w.Holds(h.x, h.y) && w.Blowing(s.t, s.sw) && !(safe && w.storm != null))
                 {
                     h.MoveX(w.push * (h.grounded ? WindGroundScale : 1) * dt);
                     if (w.lift != 0 && !h.grounded) h.vy = Mathf.Min(h.vy + w.lift * dt, 11f);
                 }
             h.Step(dt, input);
             Triggers(g, ref s, h);
+        }
+
+        public static bool Sheltered(Grid2 g, float x, float y)
+        {
+            foreach (var q in g.Shelters)
+                if (x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1) return true;
+            return false;
+        }
+
+        /// The storm's push at a spot, shelters ignored: which way the sand there flies. 0 outside the storm's zones.
+        public static float StormPush(Grid2 g, float x, float y)
+        {
+            float push = 0;
+            foreach (var w in g.Winds) if (w.storm != null && w.Holds(x, y)) push += w.push;
+            return push;
+        }
+
+        /// The push on the hero right now, for the HUD and the tests; the same rule as Step.
+        public static float PushNow(Grid2 g, in WorldState s, Body h)
+        {
+            if (g.Storm == null || g.Storm.At(s.t) != Weather.Storm || Sheltered(g, h.x, h.y)) return 0;
+            return StormPush(g, h.x, h.y);
         }
 
         static void Triggers(Grid2 g, ref WorldState s, Player h)

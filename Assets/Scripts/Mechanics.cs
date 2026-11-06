@@ -60,7 +60,8 @@ namespace Kfitsa
             PaintGates();
             if (grid.DarkRadius > 0) dark = new Darkness(root, grid.DarkRadius);
             if (grid.Tide != null || grid.Flood != null || grid.RoomPool != null) water = new WaterView(root);
-            if (grid.Winds.Length > 0) wind = new WindView(root);
+            if (System.Array.Exists(grid.Winds, w => w.storm == null)) wind = new WindView(root);
+            if (grid.Storm != null) storm = new StormView(root, grid, sky, app.hud);
             if (grid.Chase != null)
             {
                 chaser = Art.Spawn("Chaser", root, Art.Feet("boss_walk_a"), 6);
@@ -195,6 +196,7 @@ namespace Kfitsa
             }
             water?.Draw(grid, world, camX, camY, HalfW, simT);
             wind?.Draw(grid, world, camX, camY, HalfW, dt);
+            if (storm != null && storm.Draw(world, hero, camX, camY, HalfW, dt, phase == Phase.Play)) shake = .3f;
             if (chaser != null)
             {
                 float front = World.ChaseAt(grid, world);
@@ -313,7 +315,7 @@ namespace Kfitsa
         }
     }
 
-    /// Streaks that show where the wind blows and which way, plus a warning shortly before it starts.
+    /// Streaks that show where the room's wind blows and which way.
     public class WindView
     {
         readonly SpriteRenderer[] streak = new SpriteRenderer[26]; readonly float[] ox = new float[26], oy = new float[26];
@@ -333,10 +335,9 @@ namespace Kfitsa
             {
                 WindZone w = null; float seen = 0;
                 foreach (var z in g.Winds)
-                    if (z.x1 > camX - halfW && z.x0 < camX + halfW && (camY + 8 > z.y0 && camY - 8 < z.y1))
+                    if (z.storm == null && z.x1 > camX - halfW && z.x0 < camX + halfW && (camY + 8 > z.y0 && camY - 8 < z.y1) && z.Blowing(s.t, s.sw))
                     {
-                        float a = z.Blowing(s.t, s.sw) ? 1 : z.Warning(s.t) * .35f;
-                        if (a > seen) { seen = a; w = z; }
+                        seen = 1; w = z;
                     }
                 var v = streak[i];
                 v.enabled = w != null && seen > 0;
