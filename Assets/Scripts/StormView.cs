@@ -27,6 +27,8 @@ namespace Kfitsa
         public float PalmLean { get; private set; }
         public float ArrowPush { get; private set; }
         public float HeroTilt { get; private set; }
+        /// How hard the storm blows right now, 0 to 1.
+        public float Force => force;
         public int HeroOrder { get; private set; } = 10;
 
         public StormView(Transform root, Grid2 grid, List<SpriteRenderer> skyParts, Hud h)

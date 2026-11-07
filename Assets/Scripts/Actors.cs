@@ -37,6 +37,9 @@ namespace Kfitsa
         public bool awake, alive = true, flying;
         public int state;              // snail: 0 walking, 1 in shell, 2 sliding
         public float flat, safe, t, shellT;
+        public float frozen;           // seconds left inside a block of ice from the frost sevivon
+        public Platform ice;           // the ice's top, which the hero can stand on
+        public float thawT;            // just out of the ice: harmless for a moment, so the hero on top is not hurt
         public int dir = -1;
         float baseX, baseY, hop = .8f;
 
@@ -96,6 +99,8 @@ namespace Kfitsa
             view.transform.position = new Vector3(x, y, 0);
             view.flipX = dir > 0;
             view.flipY = flying;
+            // Frozen: ice blue, and blinking for the last second before it thaws
+            view.color = frozen <= 0 ? Color.white : frozen < 1.2f && (int)(frozen * 8) % 2 == 0 ? new Color(.85f, .95f, 1) : new Color(.55f, .8f, 1);
             bool a = (int)(t * 6) % 2 == 0;
             switch (kind)
             {
@@ -118,6 +123,11 @@ namespace Kfitsa
         public float hurt, wait = 1.5f, t;
         public int dir = -1;
         public System.Action onLand;
+        public SpriteRenderer shadow;  // where it will come down
+        public float aimX, jumpY;
+        public const float WarnTime = .5f;
+        /// The crouch before a leap: long enough to see and react to.
+        public bool Warning => alive && awake && grounded && wait > 0 && wait < WarnTime;
 
         public void Step(float dt, float heroX)
         {
@@ -137,17 +147,29 @@ namespace Kfitsa
                     dir = heroX < x ? -1 : 1;
                     vx = Mathf.Clamp((heroX - x) / air2, -9f, 9f);
                     vy = 18f; grounded = false;
+                    aimX = x + vx * air2; jumpY = y;
                 }
             }
         }
 
         public void Draw()
         {
-            view.transform.position = new Vector3(x, y, 0);
+            bool warn = Warning;
+            float k = warn ? 1 - wait / WarnTime : 0;      // 0 to 1 through the crouch
+            view.transform.position = new Vector3(x + (warn ? Mathf.Sin(t * 60) * .06f : 0), y, 0);
+            view.transform.localScale = new Vector3(1 + .12f * k, 1 - .14f * k, 1);
             view.flipX = dir > 0;
             view.flipY = !alive;
             view.sprite = Art.Feet(!grounded ? "boss_rest" : (int)(t * 5) % 2 == 0 ? "boss_walk_a" : "boss_walk_b");
-            view.color = hurt > 0 && (int)(t * 16) % 2 == 0 ? new Color(1, .5f, .5f) : Color.white;
+            view.color = hurt > 0 && (int)(t * 16) % 2 == 0 ? new Color(1, .5f, .5f)
+                : warn && (int)(t * 12) % 2 == 0 ? new Color(1, .92f, .55f) : Color.white;
+            if (shadow == null) return;
+            // The shadow marks the landing spot and grows as the king comes down
+            shadow.enabled = alive && !grounded;
+            float high = Mathf.Clamp01((y - jumpY) / 4);
+            shadow.transform.position = new Vector3(aimX, jumpY + .02f, 0);
+            shadow.transform.localScale = new Vector3(2.4f - high, 1.2f - high * .4f, 1);
+            shadow.color = new Color(1, 1, 1, 1 - high * .3f);
         }
     }
 
@@ -162,7 +184,7 @@ namespace Kfitsa
         public void Step(float dt)
         {
             if (rise > 0) { rise -= dt; y += dt / .55f; return; }
-            if (type == "shoot") return;     // stays put on its box, so it can never be lost
+            if (type != "grow" && type != "life") return;     // stays put on its box, so it can never be lost
             vy = Mathf.Max(vy - 40f * dt, -Tune.MaxFall);
             if (MoveX(dir * 3.2f * dt)) dir = -dir;
             MoveY(vy * dt);
@@ -177,7 +199,7 @@ namespace Kfitsa
         public const float Speed = 10.5f, Hop = 8.5f, Gravity = 42f, Life = 2.6f;
         public SpriteRenderer view;
         public float t, spin;
-        public bool turned, gone;
+        public bool turned, gone, frost;
         public int dir;
 
         public void Step(float dt)
@@ -210,5 +232,9 @@ namespace Kfitsa
     public class CoinItem { public Vector2 at; public SpriteRenderer view; public bool room; }
     public class Star { public Vector2 at; public int id; public SpriteRenderer view; public bool hidden; }
     public class Crumble { public int c, r; public float t; public bool down; public SpriteRenderer view; }
-    public class Fx { public SpriteRenderer view; public Vector2 at, vel; public float life, gravity, spin; }
+    public class Fx
+    {
+        public SpriteRenderer view; public Vector2 at, vel; public float life, gravity, spin;
+        public float start, grow, alpha, size;    // dust: fades out and swells over its life
+    }
 }

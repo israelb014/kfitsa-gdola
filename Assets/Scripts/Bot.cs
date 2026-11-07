@@ -259,12 +259,15 @@ namespace Kfitsa
     public class ScreenTour : MonoBehaviour
     {
         App app; string dir; int step; float t; bool shot;
-        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro" };
+        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand" };
+        Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
 
         void Update()
         {
+            if (freezeWhen != null && app.game.Running && freezeWhen()) { app.game.paused = true; freezeWhen = null; }
             t -= Time.unscaledDeltaTime;
             if (t > 0) return;
             t = 1f;
@@ -276,6 +279,7 @@ namespace Kfitsa
             void At(int level, float x, float y, int power = 0)
             {
                 if (G.Running) G.Unload();
+                freezeWhen = null;
                 G.skipIntro = true; app.run = new RunState { power = power };
                 app.Enter(level);
                 G.paused = false; G.god = true;
@@ -303,9 +307,40 @@ namespace Kfitsa
                 case 17: At(6, 40, 3); G.world.t = 20; G.world.chaseAt = 14.2f; break;
                 case 18: At(6, 168, 2, 2); G.TestStep(30, new Pad { x = 1, run = true }); G.TestStep(1, new Pad { runPressed = true }); G.TestStep(18, default); break;
                 case 19: At(1, 11, 2, 1); break;
-                case 20: if (TouchUi.Available) { G.Unload(); app.ShowTitle(); app.ShowControls(app.ShowTitle); } else Application.Quit(); break;
+                case 20: G.Unload(); app.ShowTitle(); if (TouchUi.Available) app.ShowControls(app.ShowTitle); break;
                 case 21: if (G.Running) G.Unload(); app.hud.Show(false); app.ShowDifficulty(false); break;
                 case 22: app.ShowIntro(); break;
+                // Version 1.4
+                case 23: At(3, 90, 2); G.world.t = 9.5f; break;
+                case 24:
+                {
+                    At(0, 30, 2, 3);
+                    var e = G.TestEnemy('e', 34, 2); G.TestStep(1, new Pad { throwPressed = true }); G.TestStep(40, default);
+                    G.hero.x = e.x; G.hero.y = e.y + 1.05f; G.hero.vy = 0; G.TestStep(6, default);
+                    break;
+                }
+                case 25:
+                {
+                    At(0, 24, 7, 1); app.run.shield = true; G.paused = true; G.hero.vy = -16; G.hero.grounded = false;
+                    for (int i = 0; i < 240 && !G.hero.grounded; i++) G.TestStep(1, default);
+                    G.TestStep(3, default); G.DrawNow();
+                    break;
+                }
+                case 26:
+                {
+                    At(6, 173, 2); G.paused = true; G.boss.awake = true; G.boss.wait = .4f;
+                    for (int i = 0; i < 240 && !(G.boss.Warning && G.boss.wait < .15f); i++) G.TestStep(1, default);
+                    G.DrawNow();
+                    break;
+                }
+                case 27:
+                {
+                    At(6, 171, 2); G.paused = true; G.boss.awake = true; G.boss.wait = .05f;
+                    for (int i = 0; i < 400 && !(!G.boss.grounded && G.boss.vy < -6); i++) G.TestStep(1, default);
+                    G.DrawNow();
+                    break;
+                }
+                case 28: if (TouchUi.Available) { At(0, 4, 2); app.save.taught = 0; } break;
             }
         }
     }
@@ -362,6 +397,8 @@ namespace Kfitsa
             app.game.god = true;
             yield return Wait(2.6f);
             Check("controls visible while playing", Ui.Visible);
+            Check("first time: a hand points at the move button", Ui.HandShown && Ui.Teaching == "right" && Vector2.Distance(Ui.HandTip, Ui.Spot("right")) < Ui.ButtonWidth("right") * .45f,
+                $"shown {Ui.HandShown}, teaching {Ui.Teaching}, tip {Ui.HandTip}, button {Ui.Spot("right")}");
             ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_idle.png"));
             yield return Wait(.2f);
 
@@ -423,11 +460,13 @@ namespace Kfitsa
             var door = app.game.grid.Door; H.x = door.x; H.y = door.y; H.vx = 0;
             yield return Wait(.3f);
             Check("door button appears next to a door", Ui.DoorShown);
+            Check("first time at a door: the hand points at the door button", Ui.HandShown && Ui.Teaching == "door", $"teaching {Ui.Teaching}");
             ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_door.png"));
             yield return Wait(.2f);
             yield return Tap(Ui.Spot("door"));
             yield return Wait(1.2f);
             Check("door button enters the room", app.game.inRoom);
+            Check("each lesson ends once its button is used: move, jump, run, door", (app.save.taught & 23) == 23 && !Ui.HandShown, $"taught {app.save.taught}, hand {Ui.HandShown}");
             ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_room.png"));
             yield return Wait(.3f);
 
@@ -640,6 +679,45 @@ namespace Kfitsa
             for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
             g.TestStep(90, none);
             Check("sevivon power-up gives the throw", app.run.power == 2 && g.hero.shooter);
+
+            // Version 1.4: the frost sevivon is the next step after the sevivon
+            g = Fresh(app, 2); Under(g, 28.5f, 3.5f); g.TestStep(120, none);
+            Check("third power-up, taken with the sevivon, is the frost sevivon", g.pickups.Count == 1 && g.pickups[0].type == "frost");
+            for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
+            g.TestStep(90, none);
+            Check("frost power-up keeps the throw", app.run.power == 3 && g.hero.shooter && g.hero.big);
+
+            g = Fresh(app, 3); e = g.TestEnemy('e', g.hero.x + 6, 2); g.TestStep(2, none); g.hero.facing = 1; int plats = g.grid.Platforms.Count;
+            g.TestStep(1, new Pad { throwPressed = true });
+            for (int i = 0; i < 200 && g.TopsInAir > 0; i++) g.TestStep(1, none);
+            Check("frost sevivon freezes an enemy instead of knocking it out", e.alive && e.frozen > 0 && e.ice != null && g.grid.Platforms.Count == plats + 1);
+            float ex = e.x; g.hero.x = e.x; g.hero.y = e.y + 1.6f; g.hero.vy = 0; g.hero.vx = 0; g.hero.invuln = 0; g.TestStep(30, none);
+            Check("the hero can stand on the frozen enemy", g.hero.grounded && e.ice != null && g.hero.on == e.ice && Mathf.Abs(g.hero.y - (e.y + 1)) < .01f);
+            Check("a frozen enemy does not move and does no harm", e.x == ex && app.run.power == 3 && g.deaths == 0);
+            for (int i = 0; i < 120 * 6 && e.frozen > 0; i++) g.TestStep(1, none);
+            g.TestStep(10, none);
+            Check("the ice melts after five seconds and the ledge goes with it", e.frozen <= 0 && e.ice == null && g.grid.Platforms.Count == plats);
+            Check("the thaw does not hurt the hero standing on the ice", app.run.power == 3 && g.deaths == 0);
+
+            g = Fresh(app, 3); e = g.TestEnemy('e', g.hero.x + 6, 2); g.TestStep(2, none); g.hero.facing = 1;
+            g.TestStep(1, new Pad { throwPressed = true }); for (int i = 0; i < 200 && g.TopsInAir > 0; i++) g.TestStep(1, none);
+            g.TestStep(30, none); g.TestStep(1, new Pad { throwPressed = true }); for (int i = 0; i < 200 && g.TopsInAir > 0; i++) g.TestStep(1, none);
+            Check("a second sevivon shatters the ice and knocks the enemy out", !e.alive && e.ice == null && g.grid.Platforms.Count == plats);
+
+            g = Fresh(app, 3); e = g.TestEnemy('p', 8, 2); Above(g.hero, e); g.TestStep(30, none);
+            Check("a hit takes the frost first and leaves the plain sevivon", app.run.power == 2 && g.hero.shooter);
+
+            g = Fresh(app); Under(g, 12.5f, 3.5f); g.TestStep(120, none);
+            Check("shield box releases a bubble that stays on the box", g.pickups.Count == 1 && g.pickups[0].type == "shield" && Mathf.Abs(g.pickups[0].x - 12.5f) < .01f);
+            for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
+            g.TestStep(60, none);
+            Check("the bubble shields the hero and shows on the HUD", app.run.shield && app.run.power == 0 && app.hud.ShieldShown);
+            e = g.TestEnemy('p', g.hero.x + 3, 2); g.hero.invuln = 0; Above(g.hero, e); g.TestStep(30, none);
+            Check("the bubble takes one hit: no death, no power lost", !app.run.shield && g.deaths == 0 && app.run.power == 0 && g.hero.invuln > 0);
+            g.hero.x = 5; g.hero.y = 2; g.TestStep(300, none); e = g.TestEnemy('p', g.hero.x + 3, 2); g.hero.invuln = 0; Above(g.hero, e); g.TestStep(30, none);
+            Check("without the bubble the next hit counts", g.deaths == 1);
+            g = Fresh(app); app.run.shield = true; int died = g.deaths; g.hero.y = -3; g.TestStep(40, none);
+            Check("a fall still kills through the bubble, and the bubble is lost", g.deaths == died + 1 && !app.run.shield);
 
             g = Fresh(app); g.hero.x = g.grid.Door.x; g.hero.y = g.grid.Door.y; g.TestStep(4, none); g.TestStep(80, new Pad { down = true });
             Check("secret door leads to the bonus room", g.inRoom);

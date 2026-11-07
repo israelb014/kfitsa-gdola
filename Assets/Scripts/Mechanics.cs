@@ -6,6 +6,7 @@ namespace Kfitsa
     public partial class Game
     {
         bool chaseOver;
+        const float FlagPole = 10f / 72;
 
         void BuildMechanics()
         {
@@ -173,7 +174,21 @@ namespace Kfitsa
 
         void DrawMechanics(float dt)
         {
-            for (int i = 0; i <= flagAt && i < flags.Count; i++) flags[i].view.sprite = Art.Tile((int)(simT * 5) % 2 == 0 ? "flag_a" : "flag_b");
+            // In the sandstorm the cloth turns to stream downwind and flaps faster as the storm builds
+            float gust = storm != null && !inRoom ? storm.Force : 0;
+            for (int i = 0; i < flags.Count; i++)
+            {
+                var (at, view) = flags[i];
+                bool on = i <= flagAt;
+                if (on) view.sprite = Art.Tile((int)(simT * (5 + gust * 16)) % 2 == 0 ? "flag_a" : "flag_b");
+                bool left = gust > .1f && World.StormPush(grid, Mathf.Min(at.x, grid.MainW - 2), 5) < 0;
+                view.flipX = left;
+                float flap = on ? gust * (.5f + .5f * Mathf.Sin(simT * 23 + i)) : 0, wide = 1 + .22f * flap;
+                view.transform.localScale = new Vector3(wide, 1 - .12f * flap, 1);
+                // The pole sits 10 px from the art's left edge (62 px when mirrored in place); keep it where it stands
+                float pole = (left ? 1 - FlagPole : FlagPole) * wide;
+                view.transform.position = new Vector3(at.x - .5f + FlagPole - pole, at.y, 0);
+            }
             var belt = Art.Tile((int)(simT * 8) % 2 == 0 ? "conveyor_a" : "conveyor_b");
             foreach (var b in belts) b.sprite = belt;
             foreach (var (view, box) in powerHints)
@@ -181,7 +196,7 @@ namespace Kfitsa
                 // The prize floats above its box until the box is used
                 view.enabled = !box.used;
                 view.transform.position = new Vector3(box.c + .5f, box.r + 1.45f + Mathf.Sin(simT * 4) * .12f, 0);
-                view.transform.localScale = Vector3.one * .62f;
+                view.transform.localScale = Vector3.one * (box.kind == BlockKind.Shield ? .4f : .62f);
                 view.color = new Color(1, 1, 1, .85f);
             }
             for (int i = 0; i < lights.Count; i++) if (lights[i].lit) lights[i].view.sprite = Art.Tile((int)(simT * 7) % 2 == 0 ? "torch_on_a" : "torch_on_b");

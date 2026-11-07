@@ -24,6 +24,7 @@ namespace Kfitsa
         public float buttonAlpha = .8f, buttonSize = 1;
         public bool leftHanded, haptics = true;
         public int buttonColor, runMode;                     // runMode: see TouchUi.RunMode
+        public int taught;                                   // touch lessons already shown, one bit each
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;

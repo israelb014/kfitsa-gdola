@@ -54,6 +54,7 @@ namespace Kfitsa
         bool jumpWas, runWas, tossWas, pausePressed, doorShown, throwShown, preview, locked;
         Vector2? tap, finger;
         Color theme = Themes[0].color; float alpha = .8f; bool flip;
+        readonly Image hand; Button taught; float handT;
 
         public RunMode Mode => save == null ? RunMode.Hold : (RunMode)save.runMode;
         public bool RunLocked => locked;
@@ -72,6 +73,12 @@ namespace Kfitsa
             door = Make(arrow, 180, null); pause = Make(null, 0, "II");
             all = new[] { left, right, run, jump, toss, door, pause };
             door.rect.gameObject.SetActive(false); toss.rect.gameObject.SetActive(false);
+
+            // The teaching hand: its fingertip rests on the button it is pointing at
+            var h = new GameObject("Hand", typeof(Image)); h.transform.SetParent(root.transform, false);
+            hand = h.GetComponent<Image>(); hand.sprite = Art.Center("hand"); hand.raycastTarget = false;
+            hand.rectTransform.pivot = new Vector2(.48f, .94f); hand.rectTransform.sizeDelta = new Vector2(130, 130);
+            hand.enabled = false;
 
             Button Make(Sprite icon, float turn, string label)
             {
@@ -159,6 +166,34 @@ namespace Kfitsa
         {
             "left" => left.Center, "right" => right.Center, "jump" => jump.Center, "run" => run.Center, "door" => door.Center, "throw" => toss.Center, _ => pause.Center,
         };
+
+        /// Points at one button until it has been used: left, right, jump, run, throw or door. Null hides the hand.
+        public void Teach(string name)
+        {
+            var b = name switch { "left" => left, "right" => right, "jump" => jump, "run" => run, "throw" => toss, "door" => door, _ => null };
+            if (b != taught) handT = 0;
+            taught = b;
+            DrawHand();
+        }
+
+        public string Teaching => taught == null ? null : taught == left ? "left" : taught == right ? "right" : taught == jump ? "jump" : taught == run ? "run" : taught == toss ? "throw" : "door";
+        public bool HandShown => hand.enabled;
+        public Vector2 HandTip => hand.rectTransform.position;
+
+        void DrawHand()
+        {
+            bool show = taught != null && taught.rect.gameObject.activeInHierarchy && Visible;
+            hand.enabled = show;
+            if (!show) return;
+            handT += Time.unscaledDeltaTime;
+            // A tap, over and over: the hand dips onto the button, then lifts off
+            float tap = Mathf.Abs(Mathf.Sin(handT * 3.2f));
+            float px = scale();
+            hand.rectTransform.position = taught.Center + new Vector2(18, -10 - 26 * tap) * px;
+            hand.rectTransform.localScale = Vector3.one * (taught.size / 190f) * (1 - .08f * (1 - tap));
+            hand.color = new Color(1, 1, 1, Mathf.Clamp01(handT * 3));
+            hand.transform.SetAsLastSibling();
+        }
 
         public void SetVisible(bool on) { if (!preview && root.activeSelf != on) root.SetActive(on); }
 
@@ -257,6 +292,7 @@ namespace Kfitsa
             bool changed = false;
             Set(left, l); Set(right, r); Set(jump, j); Set(run, u); Set(door, d); Set(toss, w);
             if (changed) PaintAll();
+            DrawHand();
 
             void Set(Button b, bool on) { if (b.held != on) { b.held = on; changed = true; } }
         }

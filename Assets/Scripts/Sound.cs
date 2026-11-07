@@ -15,7 +15,7 @@ namespace Kfitsa
         public static float MusicVolume = .7f, SfxVolume = .8f;
 
         /// Every sound the game ships. The build compares these with the folder and with the code, and the audio test plays each one.
-        public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "power", "select", "shrink", "spring", "stomp", "throw", "win", "wind_rise", "wind_storm" };
+        public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "freeze", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "pop", "power", "select", "shatter", "shrink", "spring", "stomp", "throw", "win", "wind_rise", "wind_storm" };
         public static readonly string[] Tracks = { "m_boss", "m_ending", "m_map", "m_title", "m_world1", "m_world2" };
 
         /// Tells the audio test what the game asked to play.
@@ -39,12 +39,12 @@ namespace Kfitsa
             return c;
         }
 
-        public static void Play(string name, float volume = 1)
+        public static void Play(string name, float volume = 1, float pitch = 1)
         {
             var c = Clip(name);
             if (c == null || voices == null || AudioListener.pause) return;
             var v = voices[next = (next + 1) % voices.Length];
-            v.pitch = 1; v.volume = volume * SfxVolume;
+            v.pitch = pitch; v.volume = volume * SfxVolume;
             v.PlayOneShot(c);
             Started?.Invoke("sfx " + name);
         }

@@ -10,6 +10,7 @@ namespace Kfitsa
         public float invuln;
         public System.Action<int, int> onBump;   // a block was hit from below
         public System.Action onJump, onLand;
+        public float landSpeed;     // how fast the last landing came down, for the squash
 
         float coyote, buffer, riseGravity = Tune.RiseGravity, fallStartVy;
         bool wasGrounded = true;
@@ -101,7 +102,7 @@ namespace Kfitsa
             if (grounded)
             {
                 jumping = false;
-                if (!wasGrounded && fallStartVy < -6f) onLand?.Invoke();
+                if (!wasGrounded && fallStartVy < -6f) { landSpeed = -fallStartVy; onLand?.Invoke(); }
                 fallStartVy = 0;
             }
             else if (wasGrounded && !jumping) coyote = Tune.Coyote;

@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace Kfitsa
 {
-    public class RunState { public int score, coins, lives = 3, power, secrets; }
+    public class RunState { public int score, coins, lives = 3, power, secrets; public bool shield; }
 
     /// Screens and flow: title, map, pause, scores, settings, credits, and the level itself.
     public class App : MonoBehaviour
@@ -450,7 +450,7 @@ namespace Kfitsa
                 "גיבור המשחק: " + HeroName,
                 "גרפיקה וצלילים: Kenney (www.kenney.nl) - CC0",
                 "New Platformer Pack, Platformer Characters",
-                "Impact, Digital Audio, Music Jingles",
+                "Impact, Digital Audio, Interface, Music Jingles",
                 "מוזיקה: Juhani Junkala - CC0",
                 "גופן: Rubik - SIL OFL",
                 "נבנה ב-Unity",
@@ -611,7 +611,8 @@ namespace Kfitsa
         readonly Transform canvas;
         readonly GameObject stats;
         readonly Text scoreText, coinText, lifeText, bannerText, bossName, hintText, timerText;
-        readonly Image[] starIcons = new Image[3], powerIcons = new Image[3];
+        readonly Image[] starIcons = new Image[3], powerIcons = new Image[4];
+        Image shieldIcon;
         float hintT;
         readonly Image fade, bossFill; readonly GameObject bossBar;
         readonly Font font;
@@ -655,8 +656,10 @@ namespace Kfitsa
             lifeText = Label(46, TextAnchor.UpperLeft, new Vector2(1, 1), new Vector2(-810, -24), new Vector2(120, 70), stats.transform, new Vector2(1, 1));
 
             for (int i = 0; i < 3; i++) starIcons[i] = Picture("star", new Vector2(1, 1), new Vector2(-1050 - i * 62, -54), new Vector2(56, 56), stats.transform);
-            string[] forms = { "hero_s_stand", "hero_b_stand", "sevivon" };
-            for (int i = 0; i < 3; i++) powerIcons[i] = Picture(forms[i], new Vector2(0, 1), new Vector2(170 + i * 74, -58), new Vector2(64, 64), stats.transform);
+            string[] forms = { "hero_s_stand", "hero_b_stand", "sevivon", "sevivon_frost" };
+            for (int i = 0; i < 4; i++) powerIcons[i] = Picture(forms[i], new Vector2(0, 1), new Vector2(170 + i * 74, -58), new Vector2(64, 64), stats.transform);
+            shieldIcon = Picture("bubble", new Vector2(0, 1), new Vector2(170 + 4 * 74 + 16, -58), new Vector2(60, 60), stats.transform);
+            shieldIcon.enabled = false;
             timerText = Label(70, TextAnchor.MiddleCenter, new Vector2(.5f, 1), new Vector2(0, -130), new Vector2(400, 90), stats.transform);
 
             hintText = Label(34, TextAnchor.LowerCenter, new Vector2(.5f, 0), new Vector2(0, 36), new Vector2(1800, 60), stats.transform, new Vector2(.5f, 0));
@@ -735,12 +738,15 @@ namespace Kfitsa
         /// The steps of the power ladder, with the current one lit.
         public void Power(int level)
         {
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < powerIcons.Length; i++)
             {
                 powerIcons[i].color = i == level ? Color.white : new Color(.2f, .22f, .3f, .55f);
                 powerIcons[i].rectTransform.localScale = Vector3.one * (i == level ? 1.15f : .85f);
             }
         }
+
+        public void Shield(bool on) { if (shieldIcon.enabled != on) shieldIcon.enabled = on; }
+        public bool ShieldShown => shieldIcon.enabled;
 
         public void Timer(float seconds) => timerText.text = seconds < 0 ? "" : Mathf.CeilToInt(seconds).ToString();
 

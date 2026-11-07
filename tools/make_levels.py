@@ -109,6 +109,7 @@ def w1l2():
     l.ground(x0, x0+3, 4, 'g'); l.put(x0+1, 4, 'E'); l.stairs(x0+4, 1, 2, 'g')
     l.plat(x0+8.5, 5, 2, 0, 4, 0, 3); l.plat(x0+14.5, 7, 2, 0, 4, .5, 3)
     l.ground(x1-3, x1, 7, 'g'); l.put(x1-1, 8, 's')
+    l.put(113, 5, '+')   # bubble shield box (v1.4)
     return l
 
 def w1l3():
@@ -146,6 +147,7 @@ def w1l3():
     for x, y in ((x0+6, 4), (x0+10, 7), (x0+6, 10)): l.row(x, x+2, y, 'u')
     l.fill(x0+13, x1, 11, 12, 'g'); l.fill(x0+12, x0+12, 2, 12, 'g'); l.fill(x0+12, x0+12, 8, 10, 'Q'); l.fill(x0+13, x1, 2, 7, 'g')
     l.put(x1-1, 8, 's'); l.line(x0+13, x1-2, 8)
+    l.put(18, 47, '+')   # bubble shield box (v1.4)
     return l
 
 def w2l1():
@@ -187,6 +189,7 @@ def w2l1():
     l.ground(x1-4, x1, 5, 'g'); l.put(x1-2, 5, '1')
     l.note(f'wind {x0+4} {x1-5} 0 13 8 0'); l.note(f'wind {x0+4} {x1-5} 0 13 -8 1')
     l.put(x0+5, 2, 'T')
+    l.put(98, 5, '+')   # bubble shield box (v1.4)
     return l
 
 def w2l2():
@@ -220,6 +223,7 @@ def w2l2():
     l.ground(x0, x0+4, 8, 'g'); l.put(x0+1, 8, 'E'); l.put(x0+3, 8, '1'); l.stairs(x0+5, 4, 2, 'g', up=False)
     l.ground(x1-5, x1, 8, 'g'); l.stairs(x1-8, 3, 2, 'g')
     l.put(x1-5, 8, '1'); l.fill(x1-3, x1-3, 8, 12, 'A'); l.put(x1-1, 8, 's')
+    l.put(121, 5, '+')   # bubble shield box (v1.4)
     return l
 
 def w2l3():
@@ -251,6 +255,7 @@ def w2l3():
     l.put(x0+1, 2, 'E'); l.put(x0+3, 2, '|')
     l.row(x0+4, x0+7, 5, 'g'); l.put(x0+5, 7, 'L'); l.row(x0+9, x0+11, 8, 'g'); l.put(x0+10, 10, 'L'); l.put(x1-1, 3, 'L'); l.fill(x1-3, x1-3, 2, 3, '^')
     l.put(x0+13, 3, 's')
+    l.put(131, 10, '+')   # bubble shield box (v1.4)
     return l
 
 def boss():
@@ -278,6 +283,7 @@ def boss():
     l.put(x0+1, 2, 'E')
     for x in (x0+6, x0+9, x0+12, x0+15): l.put(x, 2, 'e')
     l.row(x0+7, x0+11, 5); l.put(x0+9, 7, 's')
+    l.put(147, 5, '+')   # bubble shield box (v1.4)
     return l
 
 def test():
@@ -285,7 +291,7 @@ def test():
     l = L(120, idea='test')
     l.note('room test 0')
     l.ground(0, 90, 2); l.put(3, 2, 'S'); l.put(70, 2, 'C'); l.put(76, 2, 'D'); l.put(84, 2, 'G')
-    l.put(20, 6, 'b'); l.put(24, 6, '?'); l.put(28, 6, '!'); l.put(32, 6, 'h'); l.put(36, 2, 'T')
+    l.put(20, 6, 'b'); l.put(24, 6, '?'); l.put(28, 6, '!'); l.put(32, 6, 'h'); l.put(36, 2, 'T'); l.put(12, 6, '+')
     l.row(40, 42, 2, 'u'); l.row(46, 50, 1, '}'); l.put(54, 2, 's'); l.put(56, 2, 's'); l.put(58, 2, 's')
     l.fill(66, 66, 2, 8, '#'); l.fill(91, 94, 0, 14, '#')
     x0, x1 = l.box(95); l.put(x0+2, 2, 'E')

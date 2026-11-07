@@ -46,6 +46,7 @@ namespace Kfitsa
         public void SnapCamera() { SetCamBounds(); camX = Mathf.Clamp(hero.x, camMin, camMax); camY = Mathf.Clamp(hero.y + 2.5f, HalfH, camTop); }
         public void RestartAtFlag() { flagAt = grid.FlagSpots(app.Easy).IndexOf(grid.Checkpoint); StartLevel(levelIndex, true); RemoveEnemies(); }
         public int FlagCount => flags.Count;
+        public void DrawNow() => Draw();     // screenshots: draw a frame the test stepped to
         public int EnemyCount => enemies.Count;
 
         
@@ -77,7 +78,10 @@ namespace Kfitsa
         readonly List<SpriteRenderer> sky = new List<SpriteRenderer>(), torches = new List<SpriteRenderer>();
         float acc, freeze, phaseT, camX, camY = HalfH, look, heroAnim, squash, simT, skidDust, growFlash, heroGone, shake, throwT;
         float camMin, camMax, camTop;
-        int stompChain;
+        int stompChain, coinStreak;
+        float coinStreakT;
+        SpriteRenderer bubbleView;
+        bool bossWarned;
         bool pendingDoor, lastDown;
         int flagAt = -1;            // the furthest checkpoint touched
         readonly List<(Vector2 at, SpriteRenderer view)> flags = new List<(Vector2, SpriteRenderer)>();
@@ -101,12 +105,20 @@ namespace Kfitsa
             hero = new Player { grid = grid, x = grid.Start.x, y = grid.Start.y };
             ApplyPower(app.run.power);
             hero.onBump = Bump;
-            hero.onJump = () => { squash = .18f; Sound.Play("jump"); };
-            hero.onLand = () => squash = -.16f;
+            hero.onJump = () => { squash = .18f; Sound.Play("jump"); Dust(2, .9f, 1.2f); };
+            hero.onLand = () =>
+            {
+                // The harder the landing, the deeper the squash and the bigger the cloud
+                float k = Mathf.InverseLerp(6, Tune.MaxFall, hero.landSpeed);
+                squash = -Mathf.Lerp(.1f, .26f, k);
+                Dust(k > .5f ? 5 : 3, 1.4f + k, .8f);
+            };
             var spots = grid.FlagSpots(app.Easy);
             if (flagAt >= spots.Count) flagAt = spots.Count - 1;     // difficulty changed since
             if (flagAt >= 0) { hero.x = spots[flagAt].x; hero.y = spots[flagAt].y; }
             heroView = Art.Spawn("Hero", root, Art.Hero('s', "stand"), 10);
+            bubbleView = Art.Spawn("Bubble", root, Art.Center("bubble"), 11);
+            bubbleView.enabled = false;
 
             int counted = 0;
             foreach (var (at, kind) in grid.Enemies)
@@ -127,7 +139,8 @@ namespace Kfitsa
                 v.enabled = !hidden;
                 var box = new Block { c = c, r = r, kind = kind, view = v };
                 blocks.Add(box);
-                if (kind == BlockKind.Grow) powerHints.Add((Art.Spawn("Hint", root, Art.Center(app.run.power == 0 ? "gem_blue" : "sevivon"), 3), box));
+                if (kind == BlockKind.Grow) powerHints.Add((Art.Spawn("Hint", root, Art.Center(GrowHint(app.run.power)), 3), box));
+                if (kind == BlockKind.Shield) powerHints.Add((Art.Spawn("Hint", root, Art.Center("bubble"), 3), box));
             }
             foreach (var (c, r) in grid.Springs)
             {
@@ -167,9 +180,11 @@ namespace Kfitsa
             {
                 var v = Art.Spawn("Boss", root, Art.Feet("boss_walk_a"), 6);
                 boss = new Boss { grid = grid, x = grid.BossSpot.x, y = grid.BossSpot.y, w = 2.7f, h = 2.5f, view = v, onLand = BossLanded };
+                boss.shadow = Art.Spawn("Shadow", root, Art.Center("shadow"), 4);
+                boss.shadow.enabled = false;
             }
 
-            look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0;
+            look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0; coinStreak = 0; bossWarned = false;
             heroGone = 0; growFlash = 0; inRoom = false; shake = 0; pendingDoor = false;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
@@ -182,6 +197,7 @@ namespace Kfitsa
             string tip = index == 0 ? (TouchUi.Available ? "משמאל זזים    מימין קופצים ורצים" : "חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה") : Def.tip;
             app.hud.Hint(skipIntro ? 0 : 8f, Rtl.V(tip));
             TouchUi.Current?.ShowDoor(false);
+            TouchUi.Current?.Teach(null); lessonWait = 0;
             Sound.Music(Def.music);
             paused = false;
         }
@@ -339,6 +355,7 @@ namespace Kfitsa
             }
 
             levelTime += dt;
+            app.hud.Shield(app.run.shield);
             int switchWas = world.sw;
             World.Step(grid, ref world, hero, dt, input);
             if (world.sw != switchWas) { Sound.Play("bump"); PaintGates(); }
@@ -373,8 +390,53 @@ namespace Kfitsa
             if (nearDoor) app.hud.Hint(.5f, Rtl.V(TouchUi.Available && !GameInput.GamepadActive ? "כפתור החץ - נכנסים לדלת" : "חץ למטה - נכנסים לדלת"));
             TouchUi.Current?.ShowDoor(nearDoor);
             TouchUi.Current?.ShowThrow(hero.shooter);
+            StepLessons(input, nearDoor);
             bool gateOpen = boss == null || !boss.alive;
             if (gateOpen && !inRoom && grid.AtGate(hero)) Win();
+        }
+
+        // ---- touch lessons: the first time each button is needed, a hand points at it until it is used ----
+
+        [System.Flags] enum Lesson { Move = 1, Jump = 2, Run = 4, Throw = 8, Door = 16 }
+        float lessonWait;
+
+        bool Taught(Lesson l) => (app.save.taught & (int)l) != 0;
+
+        void Learn(Lesson l)
+        {
+            if (Taught(l)) return;
+            app.save.taught |= (int)l;
+            app.save.Write();
+            lessonWait = 1.2f;      // a breath before the next lesson
+            TouchUi.Current?.Teach(null);
+        }
+
+        void StepLessons(Pad input, bool nearDoor)
+        {
+            var t = TouchUi.Current;
+            if (t == null) return;
+            if (!TouchUi.Available || GameInput.GamepadActive || !t.Visible) { t.Teach(null); return; }
+            lessonWait -= 1f / Tune.SimHz;
+            string want = null;
+            bool first = levelIndex == 0 && !inRoom;
+            if (nearDoor && !Taught(Lesson.Door)) want = "door";
+            else if (hero.shooter && !Taught(Lesson.Throw)) want = "throw";
+            else if (first && !Taught(Lesson.Move))
+            {
+                want = "right";
+                if (hero.x - grid.Start.x > 2.5f) Learn(Lesson.Move);
+            }
+            else if (first && !Taught(Lesson.Jump))
+            {
+                want = "jump";
+                if (input.jumpPressed) Learn(Lesson.Jump);
+            }
+            else if (first && !Taught(Lesson.Run) && t.Mode != RunMode.Auto)
+            {
+                want = "run";
+                if (input.run) Learn(Lesson.Run);
+            }
+            t.Teach(lessonWait > 0 || Taught(Lesson.Move) && want == "right" ? null : want);
         }
 
         void TryDoor()
@@ -383,7 +445,7 @@ namespace Kfitsa
             else if (grid.HasRoomDoor && inRoom && Mathf.Abs(hero.x - grid.RoomDoor.x) < .6f) EnterDoor();
         }
 
-        void EnterDoor() { phase = Phase.Door; phaseT = 0; pendingDoor = true; Sound.Play("magic"); }
+        void EnterDoor() { Learn(Lesson.Door); phase = Phase.Door; phaseT = 0; pendingDoor = true; Sound.Play("magic"); }
 
         public void UseDoor()
         {
@@ -417,7 +479,7 @@ namespace Kfitsa
             hero.Stomped(pad.jumpHeld);
             stompChain++;
             app.run.score += 100 << Mathf.Min(stompChain, 5);
-            freeze = .035f;
+            freeze = .07f; shake = Mathf.Max(shake, .12f);      // a beat of stillness and a small kick sells the hit
             Sound.Play("stomp");
             Haptics.Buzz(25, .5f);
         }
@@ -425,6 +487,7 @@ namespace Kfitsa
         void KillFlying(Enemy e, int by)
         {
             if (!e.alive) return;
+            if (e.frozen > 0) { e.frozen = 0; DropIce(e, true); }
             e.alive = false; e.flying = true; e.vy = 9; e.vx = by * 3;
             app.run.score += 200;
             Sound.Play("stomp");
@@ -437,6 +500,13 @@ namespace Kfitsa
             {
                 var e = enemies[i];
                 if (!e.awake) { e.awake = e.x < wake && Mathf.Abs(e.y - camY) < HalfH + 3; if (!e.awake) continue; }
+                if (e.frozen > 0)
+                {
+                    e.frozen -= dt;
+                    if (e.frozen <= 0) Thaw(e);
+                    continue;       // in the ice: still, and harmless to touch
+                }
+                e.thawT = Mathf.Max(0, e.thawT - dt);
                 e.Step(dt * Pace, hero.x);
                 if (e.y < -3 || !e.alive && !e.flying && e.flat <= 0) { Destroy(e.view.gameObject); enemies.RemoveAt(i); continue; }
                 if (!e.alive) continue;
@@ -447,6 +517,7 @@ namespace Kfitsa
 
                 if (!hero.Overlaps(e)) continue;
                 bool stomp = hero.vy < 0 && hero.y > e.y + e.h * .35f;
+                if (e.thawT > 0 && !stomp) continue;
                 if (e.kind == 'p') Hurt();
                 else if (e.kind == 'n' && e.state == 1)
                 {
@@ -479,6 +550,8 @@ namespace Kfitsa
             }
             boss.Step(dt * (app.Easy ? .85f : 1), hero.x);
             if (!boss.alive) return;
+            if (boss.Warning && !bossWarned) Sound.Play("bump", 1, .55f);     // a low thud as it crouches
+            bossWarned = boss.Warning;
             if (hero.Overlaps(boss))
             {
                 bool stomp = hero.vy < 0 && hero.y > boss.y + boss.h * .55f;
@@ -495,6 +568,7 @@ namespace Kfitsa
         void DamageBoss(int n)
         {
             boss.hp -= n; boss.hurt = 1.2f;
+            freeze = .12f; shake = Mathf.Max(shake, .35f);
             app.run.score += 500;
             app.hud.BossBar(Mathf.Max(0, boss.hp) / (float)Boss.MaxHp, Rtl.V(Def.name));
             Sound.Play("hurt");
@@ -524,8 +598,10 @@ namespace Kfitsa
         {
             if (tops.Count >= 2 || throwT > simT) return;
             throwT = simT + .22f;
-            var v = Art.Spawn("Sevivon", root, Art.Center("sevivon"), 9);
-            tops.Add(new Sevivon { grid = grid, view = v, x = hero.x + hero.facing * .5f, y = hero.y + Mathf.Min(.5f, hero.h / 2), w = .5f, h = .5f, dir = hero.facing, vy = 3f });
+            Learn(Lesson.Throw);
+            bool frost = app.run.power >= 3;
+            var v = Art.Spawn("Sevivon", root, Art.Center(frost ? "sevivon_frost" : "sevivon"), 9);
+            tops.Add(new Sevivon { grid = grid, view = v, x = hero.x + hero.facing * .5f, y = hero.y + Mathf.Min(.5f, hero.h / 2), w = .5f, h = .5f, dir = hero.facing, vy = 3f, frost = frost });
             heroThrow = .2f;
             Sound.Play("throw");
         }
@@ -540,11 +616,15 @@ namespace Kfitsa
                 var d = tops[i];
                 d.Step(dt);
                 foreach (var e in enemies)
-                    if (e.alive && e.awake && d.Hits(e)) { KillFlying(e, d.dir); d.gone = true; break; }
+                    if (e.alive && e.awake && d.Hits(e))
+                    {
+                        if (d.frost && e.frozen <= 0) Freeze(e); else KillFlying(e, d.dir);
+                        d.gone = true; break;
+                    }
                 if (boss != null && boss.alive && boss.awake && boss.hurt <= 0 && d.Hits(boss)) { DamageBoss(1); d.gone = true; }
                 if (d.gone)
                 {
-                    AddFx(Art.Center("sevivon"), new Vector2(d.x, d.y), new Vector2(-d.dir * 2, 6), .4f, 34, 9);
+                    AddFx(Art.Center(d.frost ? "sevivon_frost" : "sevivon"), new Vector2(d.x, d.y), new Vector2(-d.dir * 2, 6), .4f, 34, 9);
                     Destroy(d.view.gameObject); tops.RemoveAt(i);
                 }
             }
@@ -596,23 +676,35 @@ namespace Kfitsa
         {
             app.run.score += 1000;
             if (type == "life") { app.run.lives++; Sound.Play("gem"); return; }
-            int want = type == "shoot" ? 2 : 1;
             Sound.Play("power"); Haptics.Buzz(60, .7f);
+            if (type == "shield")
+            {
+                if (!app.run.shield) app.hud.Hint(4f, Rtl.V("בועת מגן! היא תספוג פגיעה אחת"));
+                app.run.shield = true;
+                return;
+            }
+            int want = type == "frost" ? 3 : type == "shoot" ? 2 : 1;
             if (app.run.power >= want) return;
             ApplyPower(want);
             freeze = .5f; growFlash = .5f;
             string how = !TouchUi.Available || GameInput.GamepadActive ? "כפתור הריצה זורק סביבון" : "כפתור הזריקה זורק סביבון";
-            app.hud.Hint(5f, Rtl.V(want == 1 ? "גדלת! קופסת קריאה נוספת תיתן סביבון" : "יש סביבון! " + how));
+            app.hud.Hint(5f, Rtl.V(want == 1 ? "גדלת! קופסת קריאה נוספת תיתן סביבון"
+                : want == 2 ? "יש סביבון! " + how
+                : "סביבון כפור! אויב שנפגע קופא, ואפשר לעמוד עליו"));
         }
 
         void ApplyPower(int p)
         {
             app.run.power = p;
             hero.SetBig(p > 0);
-            hero.shooter = p == 2;
+            hero.shooter = p >= 2;
             app.hud.Power(p);
-            foreach (var (view, _) in powerHints) view.sprite = Art.Center(p == 0 ? "gem_blue" : "sevivon");
+            foreach (var (view, box) in powerHints) if (box.kind == BlockKind.Grow) view.sprite = Art.Center(GrowHint(p));
         }
+
+        /// What a power box gives at each step of the ladder: grow, then the sevivon, then the frost sevivon.
+        static string GrowHint(int power) => power == 0 ? "gem_blue" : power == 1 ? "sevivon" : "sevivon_frost";
+        static string GrowGift(int power) => power == 0 ? "grow" : power == 1 ? "shoot" : "frost";
 
         void StepCells()
         {
@@ -634,7 +726,9 @@ namespace Kfitsa
         void AddCoin()
         {
             app.run.coins++; app.run.score += 100; levelCoins++;
-            Sound.Play("coin", .7f);
+            coinStreak = simT - coinStreakT < .5f ? Mathf.Min(coinStreak + 1, 12) : 0;
+            coinStreakT = simT;
+            Sound.Play("coin", .7f, Mathf.Pow(2, coinStreak / 12f));      // one semitone per coin, up to an octave
             if (app.run.coins >= 100) { app.run.coins -= 100; app.run.lives++; Sound.Play("gem"); }
         }
 
@@ -665,7 +759,8 @@ namespace Kfitsa
                 b.view.enabled = true;
                 b.view.sprite = Art.Tile("block_empty");
                 if (b.kind == BlockKind.HiddenCoin || b.kind == BlockKind.HiddenLife) { grid.Reveal(c, r); app.run.secrets++; }
-                if (b.kind == BlockKind.Grow) Spawn(app.run.power == 0 ? "grow" : "shoot", c, r);
+                if (b.kind == BlockKind.Grow) Spawn(GrowGift(app.run.power), c, r);
+                else if (b.kind == BlockKind.Shield) Spawn("shield", c, r);
                 else if (b.kind == BlockKind.Life || b.kind == BlockKind.HiddenLife) Spawn("life", c, r);
                 else
                 {
@@ -679,8 +774,9 @@ namespace Kfitsa
 
         void Spawn(string type, int c, int r)
         {
-            string sprite = type == "grow" ? "gem_blue" : type == "shoot" ? "gem_red" : "heart";
+            string sprite = type == "grow" ? "gem_blue" : type == "shoot" ? "gem_red" : type == "frost" ? "sevivon_frost" : type == "shield" ? "bubble" : "heart";
             var v = Art.Spawn("Pickup", root, Art.Center(sprite), 1);
+            if (type == "shield") v.transform.localScale = Vector3.one * .55f;
             pickups.Add(new Pickup { grid = grid, x = c + .5f, y = r, w = .8f, h = .8f, view = v, type = type });
             Sound.Play("magic");
         }
@@ -691,6 +787,19 @@ namespace Kfitsa
             hits++;
             if (god) { hero.invuln = .3f; return; }
             Haptics.Buzz(120, .9f);
+            if (app.run.shield)
+            {
+                app.run.shield = false;
+                hero.invuln = Tune.Invulnerable;
+                freeze = .15f; shake = Mathf.Max(shake, .2f);
+                Sound.Play("pop");
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = i * Mathf.PI / 3;
+                    AddFx(Art.Center("bubble"), new Vector2(hero.x, hero.y + hero.h / 2), new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 5, .3f, 0, 11, .18f);
+                }
+                return;
+            }
             if (hero.big)
             {
                 ApplyPower(app.run.power - 1);    // one step at a time: sevivon, then big, then small
@@ -707,9 +816,10 @@ namespace Kfitsa
         {
             if (phase != Phase.Play) return;
             phase = Phase.Dying; phaseT = 0; deaths++; lastFall = new Vector2(hero.x, hero.y);
+            TouchUi.Current?.Teach(null);
             hero.dead = true; hero.vy = hero.y < 0 ? 17 : 13; hero.vx = 0;
             freeze = .25f;
-            app.run.power = 0;
+            app.run.power = 0; app.run.shield = false;
             Haptics.Buzz(250, 1);
             app.hud.Timer(-1);
             Sound.Music(null); Sound.Play("lose");
@@ -725,6 +835,7 @@ namespace Kfitsa
         void Win()
         {
             phase = Phase.Won; phaseT = 0;
+            TouchUi.Current?.Teach(null);
             app.run.score += 1000 + (hero.big ? 500 : 0);
             Sound.Music(null); Sound.Play("win");
             int found = 0;
@@ -780,9 +891,86 @@ namespace Kfitsa
                 if (f.life <= 0) { Destroy(f.view.gameObject); fx.RemoveAt(i); continue; }
                 f.vel.y -= f.gravity * dt; f.at += f.vel * dt;
                 f.view.transform.position = f.at;
+                if (f.start > 0)
+                {
+                    float k = 1 - f.life / f.start;
+                    f.view.transform.localScale = Vector3.one * f.size * (1 + f.grow * k);
+                    var col = f.view.color; col.a = f.alpha * (1 - k); f.view.color = col;
+                }
             }
-            if (hero.skidding && hero.grounded && (skidDust -= dt) <= 0) { skidDust = .08f; Sound.Play("bump", .12f); }
+            if (hero.skidding && hero.grounded && (skidDust -= dt) <= 0)
+            {
+                skidDust = .08f; Sound.Play("bump", .12f);
+                Puff(new Vector2(hero.x - hero.facing * .1f, hero.y + .1f), new Vector2(-hero.facing * 1.5f, .8f), .9f);
+            }
+            DrawBubble();
             app.hud.Stats(app.run.score, app.run.coins, app.run.lives);
+        }
+
+        static readonly Color DustGrass = new Color(.88f, .84f, .7f), DustSand = new Color(.97f, .86f, .62f), DustStone = new Color(.86f, .86f, .9f), DustDirt = new Color(.86f, .75f, .6f);
+
+        /// A small cloud at the hero's feet. Only on ground the hero is really standing on, not on a moving ledge.
+        void Dust(int n, float spread, float rise)
+        {
+            if (hero.on != null || inRoom && grid.RoomPool != null) return;
+            for (int i = 0; i < n; i++)
+            {
+                float side = n == 1 ? 0 : i / (n - 1f) * 2 - 1;
+                Puff(new Vector2(hero.x + side * hero.w * .75f, hero.y + .1f), new Vector2(side * spread * 2.2f, rise * Random.Range(.6f, 1f)), Random.Range(.8f, 1.1f));
+            }
+        }
+
+        void Puff(Vector2 at, Vector2 vel, float size)
+        {
+            var v = Art.Spawn("Dust", root, Art.Center("puff"), 11);
+            var tint = Def.terrain == "sand" ? DustSand : Def.terrain == "stone" || inRoom ? DustStone : Def.terrain == "dirt" ? DustDirt : DustGrass;
+            v.color = tint;
+            float s = size * (hero.big ? 1.7f : 1.35f);
+            v.transform.localScale = Vector3.one * s;
+            fx.Add(new Fx { view = v, at = at, vel = vel, life = .38f, gravity = -1.5f, start = .38f, grow = 1.2f, alpha = .85f, size = s });
+        }
+
+        void DrawBubble()
+        {
+            bubbleView.enabled = app.run.shield && !hero.dead && phase != Phase.Won;
+            if (!bubbleView.enabled) return;
+            float size = (Mathf.Max(hero.h, hero.w) + .55f) / (128f / Art.PPU);
+            float wob = Mathf.Sin(simT * 5) * .04f;
+            bubbleView.transform.position = new Vector3(hero.x, hero.y + hero.h / 2, 0);
+            bubbleView.transform.localScale = new Vector3(size * (1 + wob), size * (1 - wob), 1);
+            bubbleView.sortingOrder = heroView.sortingOrder + 1;
+        }
+
+        /// The frost sevivon locks an enemy in ice for a few seconds; the ice's top is a ledge.
+        void Freeze(Enemy e)
+        {
+            e.frozen = FrozenSeconds; e.vx = 0; e.vy = 0;
+            var o = new GameObject("Ice").transform; o.SetParent(root, false);
+            var cube = Art.Spawn("IceCube", o, Art.Tile("ice"), 6);
+            cube.transform.localPosition = new Vector3(-.5f, -1, 0);
+            e.ice = new Platform(e.x, e.y + 1, 0, 0, 1, 0, 1) { view = o };
+            grid.Platforms.Add(e.ice);
+            app.run.score += 200;
+            Sound.Play("freeze");
+        }
+
+        public const float FrozenSeconds = 5;
+
+        void Thaw(Enemy e)
+        {
+            e.frozen = 0; e.thawT = .6f;
+            DropIce(e, false);
+        }
+
+        void DropIce(Enemy e, bool loud)
+        {
+            if (e.ice == null) return;
+            grid.Platforms.Remove(e.ice);
+            if (hero.on == e.ice) hero.on = null;
+            for (int i = 0; i < 4; i++)
+                AddFx(Art.Center("ice"), new Vector2(e.x, e.y + .5f), new Vector2((i % 2 * 2 - 1) * Random.Range(2f, 4f), Random.Range(5f, 9f)), .5f, 34, 7, .3f);
+            Destroy(e.ice.view.gameObject); e.ice = null;
+            Sound.Play("shatter", loud ? 1 : .6f);
         }
 
         void DrawHero(float dt)
@@ -801,13 +989,14 @@ namespace Kfitsa
             else pose = (int)heroAnim % 2 == 0 ? "walk1" : "walk2";
 
             growFlash = Mathf.Max(0, growFlash - dt);
-            char form = app.run.power == 2 ? 'p' : app.run.power == 1 ? 'b' : 's';
+            char form = app.run.power == 3 ? 'f' : app.run.power == 2 ? 'p' : app.run.power == 1 ? 'b' : 's';
             if (growFlash > 0 && (int)(growFlash * 16) % 2 == 0) form = form == 's' ? 'b' : 's';
             heroView.sprite = Art.Hero(form, pose);
 
             heroView.flipX = hero.facing < 0;
             squash = Mathf.MoveTowards(squash, 0, dt * 1.6f);
-            float sy = 1 + squash, sx = 1 - squash * .7f;
+            float stretch = hero.grounded || hero.dead ? 0 : Mathf.Clamp(Mathf.Abs(hero.vy) / 30f, 0, .08f);
+            float sy = 1 + squash + stretch, sx = 1 - (squash + stretch) * .7f;
             float gone = phase == Phase.Won ? 1 - heroGone : 1;
             heroView.transform.localScale = new Vector3(sx * gone, sy * gone, 1);
             heroView.transform.position = new Vector3(hero.x, hero.y, 0);
