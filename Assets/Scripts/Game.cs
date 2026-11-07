@@ -19,6 +19,7 @@ namespace Kfitsa
         public float levelTime;
         public bool paused, god, inRoom, skipIntro;
         public bool windless;       // tests only: the level without its storm
+        public Vector2 lastFall;    // tests only
         public bool Won => phase == Phase.Won;
         public bool Running => grid != null;
         public LevelDef Def => levelIndex < 0 ? Levels.Test : Levels.All[levelIndex];
@@ -27,7 +28,7 @@ namespace Kfitsa
         // For the tests
         public bool tidy;       // bricks stay and pickups do nothing, so a route replays exactly as the search saw it
         public int GotStars => gotStars;
-        public bool CheckpointReached => checkpointSet;
+        public bool CheckpointReached => flagAt >= 0;
         public int TopsInAir => tops.Count;
         public float TopHeight => tops.Count > 0 ? tops[0].y : 0;
         public int TopDir => tops.Count > 0 ? tops[0].dir : 0;
@@ -43,7 +44,9 @@ namespace Kfitsa
             if (boss != null) { Destroy(boss.view.gameObject); boss = null; }
         }
         public void SnapCamera() { SetCamBounds(); camX = Mathf.Clamp(hero.x, camMin, camMax); camY = Mathf.Clamp(hero.y + 2.5f, HalfH, camTop); }
-        public void RestartAtFlag() { checkpointSet = true; StartLevel(levelIndex, true); RemoveEnemies(); }
+        public void RestartAtFlag() { flagAt = grid.FlagSpots(app.Easy).IndexOf(grid.Checkpoint); StartLevel(levelIndex, true); RemoveEnemies(); }
+        public int FlagCount => flags.Count;
+        public int EnemyCount => enemies.Count;
 
         
         const float HalfH = 7.5f;
@@ -72,18 +75,19 @@ namespace Kfitsa
         int gotStars; float roomTimer; bool roomOpen, roomDone; bool crumbleShaking;
         readonly List<Fx> fx = new List<Fx>();
         readonly List<SpriteRenderer> sky = new List<SpriteRenderer>(), torches = new List<SpriteRenderer>();
-        SpriteRenderer flag;
         float acc, freeze, phaseT, camX, camY = HalfH, look, heroAnim, squash, simT, skidDust, growFlash, heroGone, shake, throwT;
         float camMin, camMax, camTop;
         int stompChain;
-        bool checkpointSet, pendingDoor, lastDown;
+        bool pendingDoor, lastDown;
+        int flagAt = -1;            // the furthest checkpoint touched
+        readonly List<(Vector2 at, SpriteRenderer view)> flags = new List<(Vector2, SpriteRenderer)>();
         Pad pad; bool latchedJump, latchedRun, latchedThrow;
 
         public void Init(App a) { app = a; cam = Camera.main; }
 
         public void StartLevel(int index, bool keepCheckpoint = false)
         {
-            if (!keepCheckpoint) { checkpointSet = false; gotStars = 0; }
+            if (!keepCheckpoint) { flagAt = -1; gotStars = 0; }
             levelIndex = index;
             Unload();
             root = new GameObject("Level").transform;
@@ -99,10 +103,15 @@ namespace Kfitsa
             hero.onBump = Bump;
             hero.onJump = () => { squash = .18f; Sound.Play("jump"); };
             hero.onLand = () => squash = -.16f;
-            if (checkpointSet) { hero.x = grid.Checkpoint.x; hero.y = grid.Checkpoint.y; }
+            var spots = grid.FlagSpots(app.Easy);
+            if (flagAt >= spots.Count) flagAt = spots.Count - 1;     // difficulty changed since
+            if (flagAt >= 0) { hero.x = spots[flagAt].x; hero.y = spots[flagAt].y; }
             heroView = Art.Spawn("Hero", root, Art.Hero('s', "stand"), 10);
 
-            foreach (var (at, kind) in grid.Enemies) AddEnemy(at, kind);
+            int counted = 0;
+            foreach (var (at, kind) in grid.Enemies)
+                if (!app.Easy || at.x >= grid.MainW || counted++ % 2 == 0) AddEnemy(at, kind);     // easy: every second one stays home
+            if (app.Easy && grid.Chase != null) grid.Chase.speed *= .85f;
             foreach (var c in grid.Coins)
             {
                 var v = Art.Spawn("Coin", root, Art.Center("coin_gold"), 1);
@@ -144,10 +153,12 @@ namespace Kfitsa
                 }
                 p.view = o;
             }
-            if (grid.HasCheckpoint)
+            flags.Clear();
+            for (int i = 0; i < spots.Count; i++)
             {
-                flag = Art.Spawn("Flag", root, Art.Tile(checkpointSet ? "flag_a" : "flag_off"), -2);
-                flag.transform.position = new Vector3(grid.Checkpoint.x - .5f, grid.Checkpoint.y, 0);
+                var v = Art.Spawn("Flag", root, Art.Tile(i <= flagAt ? "flag_a" : "flag_off"), -2);
+                v.transform.position = new Vector3(spots[i].x - .5f, spots[i].y, 0);
+                flags.Add((spots[i], v));
             }
             if (grid.HasDoor) PlaceDoor(grid.Door);
             if (grid.HasRoomDoor) PlaceDoor(grid.RoomDoor);
@@ -164,7 +175,7 @@ namespace Kfitsa
             camX = Mathf.Clamp(hero.x, camMin, camMax);
             camY = Mathf.Clamp(hero.y + 3, HalfH, camTop);
             app.hud.Fade(0);
-            app.hud.Banner(phase == Phase.Intro ? Rtl.V($"שלב {Def.Code}\n{Def.name}") : "");
+            app.hud.Banner(phase == Phase.Intro ? Rtl.V((index == 0 ? App.HeroName + "\n" : "") + $"שלב {Def.Code}\n{Def.name}") : "");
             app.hud.BossBar(-1);
             app.hud.Timer(-1);
             app.hud.Stars(gotStars | SavedStars, grid.Stars.Count);
@@ -178,11 +189,13 @@ namespace Kfitsa
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; flag = null; dark = null; water = null; wind = null; storm = null; chaser = null;
+            root = null; grid = null; boss = null; dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
         }
+
+        float Pace => app.Easy ? .7f : 1;
 
         void AddEnemy(Vector2 at, char kind)
         {
@@ -347,9 +360,11 @@ namespace Kfitsa
             if (!god && (World.Drowned(grid, world, hero) || World.Caught(grid, world, hero))) ForceDie();
             if (phase != Phase.Play) return;
 
-            if (grid.HasCheckpoint && !checkpointSet && hero.x >= grid.Checkpoint.x && hero.y >= grid.Checkpoint.y - 1 && !inRoom)
+            for (int i = flags.Count - 1; i > flagAt && !inRoom; i--)
             {
-                checkpointSet = true; flag.sprite = Art.Tile("flag_a"); Sound.Play("magic");
+                var spot = flags[i].at;
+                if ((grid.MainW >= 60 && hero.x < spot.x) || hero.y < spot.y - 1) continue;
+                flagAt = i; flags[i].view.sprite = Art.Tile("flag_a"); Sound.Play("magic");
                 app.hud.Hint(2.5f, Rtl.V("נקודת ביקורת!"));
             }
             if (hero.grounded && input.down && !lastDown) TryDoor();
@@ -422,7 +437,7 @@ namespace Kfitsa
             {
                 var e = enemies[i];
                 if (!e.awake) { e.awake = e.x < wake && Mathf.Abs(e.y - camY) < HalfH + 3; if (!e.awake) continue; }
-                e.Step(dt, hero.x);
+                e.Step(dt * Pace, hero.x);
                 if (e.y < -3 || !e.alive && !e.flying && e.flat <= 0) { Destroy(e.view.gameObject); enemies.RemoveAt(i); continue; }
                 if (!e.alive) continue;
 
@@ -462,7 +477,7 @@ namespace Kfitsa
                 if (hero.x > boss.x - 16) { boss.awake = true; app.hud.BossBar(1, Rtl.V(Def.name)); }
                 return;
             }
-            boss.Step(dt, hero.x);
+            boss.Step(dt * (app.Easy ? .85f : 1), hero.x);
             if (!boss.alive) return;
             if (hero.Overlaps(boss))
             {
@@ -691,7 +706,7 @@ namespace Kfitsa
         void ForceDie()
         {
             if (phase != Phase.Play) return;
-            phase = Phase.Dying; phaseT = 0; deaths++;
+            phase = Phase.Dying; phaseT = 0; deaths++; lastFall = new Vector2(hero.x, hero.y);
             hero.dead = true; hero.vy = hero.y < 0 ? 17 : 13; hero.vx = 0;
             freeze = .25f;
             app.run.power = 0;

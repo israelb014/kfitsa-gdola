@@ -17,6 +17,7 @@ namespace Kfitsa
         public List<ScoreRow> scores = new List<ScoreRow>();
         public float music = .7f, sfx = .8f;
         public bool fullscreen = true;
+        public int difficulty;                               // 0 normal, 1 easy
         public int[] stars = new int[Levels.All.Length];     // one bit per star found
 
         // Touch controls

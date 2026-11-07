@@ -57,6 +57,8 @@ namespace Kfitsa
         public bool exhausted;          // every reachable spot was explored
         public int stopAfterHits = int.MaxValue;
         public float hazardScale = 1;
+        public bool walkOnly;           // the run button is never held: what a normal jump can reach
+        public bool plainOnly => walkOnly && (g.Chase != null || g.Flood != null);   // these need speed, not height: run, but with a normal jump
         readonly Dictionary<long, int> seen = new Dictionary<long, int>();
         // One queue per place, always serving the least explored place first: the search spreads through
         // the whole level instead of trying every phase of the first platform. Each queue is first come, first served.
@@ -74,7 +76,7 @@ namespace Kfitsa
         readonly bool room;
         readonly float maxHold;
 
-        static readonly short[] Holds = { 8, 24, 45, 72 };
+        static readonly short[] Holds = { 8, 24, 45, 72, 90 };
         static readonly short[] Splits = { 24, 56 };
 
         public Search(Grid2 grid, bool inRoom, float holdCap = 9)
@@ -307,6 +309,8 @@ namespace Kfitsa
             {
                 bumpTick = tick;
                 var pad = plan.At(tick);
+                if (walkOnly && !plainOnly) pad.run = false;
+                h.plainJump = plainOnly;
                 World.Step(g, ref s, h, Dt, pad);
                 if (World.SpringAt(g, h) >= 0) h.Launch(World.SpringSpeed);
                 tick++;
@@ -336,6 +340,29 @@ namespace Kfitsa
             int surf = SurfaceUnder(h);
             if (surf >= 0 && n.surface >= 0 && surf != n.surface) links.Add((long)n.surface << 32 | (uint)surf);
             Push(new Node { p = h, s = s, parent = id, planIndex = planIndex, trail = trail, surface = surf >= 0 ? surf : n.surface });
+        }
+
+        /// The fewest ledge to ledge moves from the start to the finish: it drops when a jump skips part of a level.
+        public int Hops()
+        {
+            int from = surfaceAt[Mathf.Clamp((int)g.Start.x, 0, g.W - 1), Mathf.Max(0, Mathf.RoundToInt(g.Start.y) - 1)];
+            int to = surfaceAt[Mathf.Clamp((int)g.GateX, 0, g.W - 1), Mathf.Max(0, Mathf.RoundToInt(g.GateY) - 1)];
+            var next = new Dictionary<int, List<int>>();
+            foreach (long l in links)
+            {
+                int a = (int)(l >> 32), b = (int)(uint)l;
+                if (!next.TryGetValue(a, out var list)) next[a] = list = new List<int>();
+                list.Add(b);
+            }
+            var far = new Dictionary<int, int> { [from] = 0 };
+            var q = new Queue<int>(); q.Enqueue(from);
+            while (q.Count > 0)
+            {
+                int a = q.Dequeue();
+                if (a == to) return far[a];
+                if (next.TryGetValue(a, out var list)) foreach (int b in list) if (!far.ContainsKey(b)) { far[b] = far[a] + 1; q.Enqueue(b); }
+            }
+            return -1;
         }
 
         int SurfaceUnder(Player h)
@@ -425,7 +452,7 @@ namespace Kfitsa
 
     public static class Reach
     {
-        public class Job { public LevelDef def; public string name; public bool big, room, flag, strict, calm; public Search search; public double seconds; public List<Goal> coinsLeft; }
+        public class Job { public LevelDef def; public string name, must; public bool big, room, flag, strict, calm, walk; public Vector2? from; public Search search; public double seconds; public List<Goal> coinsLeft; }
 
         static Goal[] AddGoals(Search s, bool room)
         {
@@ -464,13 +491,14 @@ namespace Kfitsa
         }
 
         /// A running search for one level, form and start. The grid is private to it, so jobs can run in parallel.
-        public static Search Start(LevelDef def, bool big, bool room, bool flag, float holdCap = 9, float hazard = 1, bool calm = false)
+        public static Search Start(LevelDef def, bool big, bool room, bool flag, float holdCap = 9, float hazard = 1, bool calm = false, string without = null, Vector2? from = null)
         {
             var g = Grid2.Parse(Levels.Text(def.file));
             if (calm) g.Calm();
+            if (without != null) g.Without(without);
             var s = new Search(g, room, holdCap) { hazardScale = hazard };
             AddGoals(s, room);
-            var at = room ? g.RoomDoor : flag ? g.Checkpoint : g.Start;
+            var at = from ?? (room ? g.RoomDoor : flag ? g.Checkpoint : g.Start);
             s.Begin(Hero(g, big, at), WorldState.Fresh);
             return s;
         }
@@ -506,7 +534,8 @@ namespace Kfitsa
             return w.ToString();
         }
 
-        public static double Seconds = 90;
+        public static double Seconds = 150;
+        const int SmallNormal = 75, BigNormal = 90;
         const float StrictHold = .38f;     // the finish must be reachable without holding the jump to its very top
 
         public static bool ValidateAll(string reportPath, string only = null)
@@ -523,6 +552,9 @@ namespace Kfitsa
                     if (grid.HasCheckpoint) jobs.Add(new Job { def = def, big = big, flag = true, name = $"{def.file} {form} from the flag" });
                     if (grid.HasRoomDoor) jobs.Add(new Job { def = def, big = big, room = true, name = $"{def.file} {form} in the bonus room" });
                     jobs.Add(new Job { def = def, big = big, strict = true, name = $"{def.file} {form} finish with a margin" });
+                    jobs.Add(new Job { def = def, big = big, walk = true, name = $"{def.file} {form} normal jumps" });
+                    foreach (var at in grid.EasyFlags) jobs.Add(new Job { def = def, big = big, flag = true, from = at, name = $"{def.file} {form} from the easy flag at {at.x:F0},{at.y:F0}" });
+                    foreach (string need in grid.Needs) jobs.Add(new Job { def = def, big = big, must = need, name = $"{def.file} {form} without {need}" });
                     if (grid.Storm != null)
                     {
                         jobs.Add(new Job { def = def, big = big, calm = true, name = $"{def.file} {form} from the start, without wind" });
@@ -534,9 +566,11 @@ namespace Kfitsa
             Parallel.ForEach(jobs.OrderByDescending(j => j.def.file).ToList(), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, j =>
             {
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                j.search = Start(j.def, j.big, j.room, j.flag, j.strict ? StrictHold : 9, j.strict ? 1.15f : 1, j.calm);
+                j.search = Start(j.def, j.big, j.room, j.flag, j.strict ? StrictHold : 9, j.strict ? 1.15f : 1, j.calm, j.must, j.from);
                 j.search.seconds = Seconds;
-                if (j.strict) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
+                j.search.walkOnly = j.walk;
+                if (j.must != null) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
+                else if (j.strict) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
                 else if (j.flag) { j.search.stopAfterHits = 1; foreach (var q in j.search.goals) if (q.kind != "gate") q.hit = true; }
                 else
                 {
@@ -548,15 +582,47 @@ namespace Kfitsa
                 Console.WriteLine($"{j.name}: {j.search.goals.Count(q => !q.hit)} missing, {j.search.nodes.Count} spots, {j.seconds:F1}s");
             });
 
+            // A wide search can run out of time before the far end of a level. What it missed gets a second search from the flag,
+            // which the first search proved reachable
+            foreach (var j in jobs.Where(j => !j.room && !j.flag && !j.strict && !j.walk && j.must == null && j.from == null))
+            {
+                var left = j.search.goals.Where(q => !q.hit && q.kind != "coin").ToList();
+                if (left.Count == 0 || !Grid2.Parse(Levels.Text(j.def.file)).HasCheckpoint || !j.search.goals.Exists(q => q.kind == "flag" && q.hit)) continue;
+                var names = new HashSet<string>(left.Select(q => q.ToString()));
+                var again = Start(j.def, j.big, false, true, 9, 1, j.calm);
+                again.seconds = Seconds;
+                foreach (var q in again.goals) if (!names.Contains(q.ToString())) q.hit = true;
+                again.stopAfterHits = left.Count;
+                again.Run();
+                foreach (var q in left) if (again.goals.Exists(o => o.hit && o.ToString() == q.ToString())) q.hit = true;
+            }
+
             var w = new StringBuilder();
             w.AppendLine("Reachability report, measured from the real controller").AppendLine().Append(Physics()).AppendLine();
             int fails = 0;
             foreach (var j in jobs)
             {
                 var s = j.search;
+                if (j.walk)
+                {
+                    var all = s.goals.Where(q => q.kind != "coin" && q.kind != "shelter").ToList();
+                    int got = all.Count(q => q.hit), pct = 100 * got / Math.Max(1, all.Count);
+                    int floor = j.big ? BigNormal : SmallNormal;
+                    if (pct < floor) fails++;
+                    w.AppendLine($"{(pct >= floor ? "ok  " : "FAIL")} {j.name}: reach {pct}% of {all.Count} places, needs {floor}%");
+                    foreach (var q in all.Where(q => !q.hit).Take(12)) w.AppendLine($"       needs a running jump: {q}");
+                    continue;
+                }
+                if (j.must != null)
+                {
+                    bool skipped = s.goals.Find(q => q.kind == "gate").hit;
+                    if (skipped) fails++;
+                    w.AppendLine($"{(skipped ? "FAIL" : "ok  ")} {j.name}: {(skipped ? "the finish can be reached, so the level's idea can be skipped" : "the finish stays out of reach, the idea is needed")}");
+                    continue;
+                }
                 var missing = s.goals.Where(q => !q.hit && (q.kind != "coin" || j.room)).ToList();
                 fails += missing.Count;
-                w.AppendLine($"{(missing.Count == 0 ? "ok  " : "FAIL")} {j.name}: {s.goals.Count} goals, {s.nodes.Count} spots, {j.seconds:F1}s{(s.exhausted ? ", searched everything" : "")}");
+                w.AppendLine($"{(missing.Count == 0 ? "ok  " : "FAIL")} {j.name}: {s.goals.Count} goals, {s.nodes.Count} spots, {j.seconds:F1}s{(s.exhausted ? ", searched everything" : "")}{(!j.room && !j.flag && !j.strict && j.from == null ? ", shortest way " + s.Hops() + " moves" : "")}");
                 foreach (var q in missing.Take(40)) w.AppendLine($"       cannot reach {q}");
             }
             foreach (var line in Lint(only)) { fails++; w.AppendLine("FAIL " + line); }
@@ -600,6 +666,9 @@ namespace Kfitsa
                     float at = g.MainW < 60 ? g.Checkpoint.y / g.GateY : (g.Checkpoint.x - g.Start.x) / (g.GateX - g.Start.x);
                     if (at < .3f || at > .7f) yield return $"{def.file}: checkpoint is not near the middle ({at:P0})";
                 }
+                if (g.EasyFlags.Count < 2) yield return $"{def.file}: {g.EasyFlags.Count} extra flags for easy, needs 2";
+                foreach (var q in g.EasyFlags)
+                    if (!g.Solid(Mathf.FloorToInt(q.x), Mathf.RoundToInt(q.y) - 1)) yield return $"{def.file}: easy flag at {q.x:F0},{q.y:F0} stands on nothing";
                 if (g.Idea == "") yield return $"{def.file}: no main idea";
                 else if (ideas.TryGetValue(g.Idea, out var o)) yield return $"{def.file}: same main idea as {o}";
                 else ideas[g.Idea] = def.file;

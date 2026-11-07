@@ -1,5 +1,7 @@
 @idea water
 @tide -1 5.2 10 27 150
+@easyflag 64 6
+@easyflag 192 28
 @flood 150 2 .85 33
 @room pool 0
 @pool 220 232 7.5 -1
@@ -24,8 +26,8 @@
                                                                                                                                                                                                                       g
                                                                                                                                                                               #####                                   gggggggggggggggggggggggggg
                                                                                                                                                                                                                       gggggggggggggggggggggggggg
-                                                                                                                                                                                                                      g                    A   g
-                                                                                                                                                                      #####                                           g                    A   g
+                                                                                                                                              ooo                                                                     g                    A   g
+                                                                                                                                              ###                     #####                                           g                    A   g
                                                                                                                                                                                                                       g                    A   g
                                                                                h                               b!b                                                                                                    g                    A   g
                                                                                                                                                                  #####################################################g E 1              1 A s g

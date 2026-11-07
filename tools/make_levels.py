@@ -53,12 +53,14 @@ class L:
 def w1l1():
     """Springs. Met on open ground, then the only way up a wall, then chained over pits; the twist is a tower of springs."""
     l = L(214, idea='springs')
+    l.note('needs springs')
     # Met safely: flat ground, nothing to lose
     l.ground(0, 42, 2); l.put(9, 2, 'S'); l.put(6, 2, '>'); l.put(11, 2, ',')
     l.put(13, 5, '?'); l.put(16, 5, '!'); l.put(19, 5, '?'); l.put(24, 2, 'e')
-    l.put(30, 2, 'T'); l.col(30, 5, 10); l.row(33, 38, 8); l.line(33, 38, 9); l.put(37, 2, '%')
+    l.put(30, 2, 'T'); l.col(30, 5, 10); l.row(33, 38, 9); l.line(33, 38, 10); l.put(37, 2, '%')
     # The wall: a spring is the only way over. A false wall on the far side hides the first star
-    l.ground(43, 58, 9); l.put(41, 2, 'T'); l.put(48, 9, 'e'); l.line(46, 52, 10)
+    l.ground(43, 58, 10); l.put(41, 2, 'T'); l.put(48, 10, 'e'); l.line(46, 52, 11)
+    l.row(190, 192, 7); l.line(190, 192, 8); l.note('easyflag 60 2'); l.note('easyflag 152 2')
     l.fill(50, 58, 2, 3, ' '); l.fill(55, 58, 2, 3, 'Q'); l.put(51, 2, 's'); l.line(52, 54, 2)
     # Down the far side, then a chain of springs over pits
     l.ground(59, 70, 2); l.put(61, 2, ','); l.put(66, 2, 'n')
@@ -84,6 +86,7 @@ def w1l1():
 def w1l2():
     """Moving platforms. Met over a shallow ditch, then over pits and as lifts; the twist is a relay out of step."""
     l = L(244, idea='moving')
+    l.note('needs platforms')
     l.ground(0, 34, 2); l.put(9, 2, 'S'); l.put(7, 2, '%')
     # Two power boxes right at the start: big, then the sevivon
     l.put(11, 5, '!'); l.put(12, 5, 'b'); l.put(13, 5, 'b'); l.put(14, 5, '!'); l.put(22, 2, 'e'); l.put(26, 2, 'e'); l.put(30, 2, 'n')
@@ -92,7 +95,7 @@ def w1l2():
     # Pits, then a lift. A star sits high over the pit
     l.plat(63.5, 5, 3, 0, 6); l.plat(59.5, 8, 0, 3.5, 6, .25, 2); l.row(62, 64, 11); l.put(63, 12, 's'); l.ground(69, 76, 5); l.put(73, 5, 'n')
     l.plat(80.5, 8, 0, 3, 6); l.ground(84, 92, 9); l.line(85, 91, 10); l.put(88, 9, 'e'); l.put(88, 13, 'h')
-    l.plat(98.5, 7, 3.5, 0, 6, .5); l.ground(105, 130, 2); l.put(108, 2, 'C'); l.put(106, 2, ',')
+    l.plat(98.5, 7, 3.5, 0, 6, .5); l.ground(105, 130, 2); l.put(108, 2, 'C'); l.put(106, 2, ','); l.row(213, 215, 7); l.line(213, 215, 8); l.note('easyflag 52 4'); l.note('easyflag 182 10')
     l.put(116, 5, '!'); l.put(115, 5, 'b'); l.put(117, 5, 'b'); l.put(121, 2, 'j'); l.put(126, 2, 'D')
     # The twist: a relay, each platform out of step with the last, then two lifts with a fly between them
     l.plat(135.5, 4, 2.5, 0, 4); l.plat(143.5, 6, 2.5, 0, 4, .5); l.plat(151.5, 8, 2.5, 0, 4); l.line(149, 153, 11)
@@ -112,8 +115,9 @@ def w1l3():
     """A vertical climb. Slabs catch every fall at first; then lifts; after the flag the ledges crumble under you."""
     W, H = 58, 84
     l = L(W, H, 'climb')
+    l.note('needs crumble')
     M = 36
-    l.ground(0, M-1, 2, '#'); l.put(11, 2, 'S'); l.put(9, 2, ','); l.put(14, 2, 'e')
+    l.ground(0, M-1, 2, '#'); l.row(1, 3, 7); l.line(1, 3, 8); l.put(11, 2, 'S'); l.put(9, 2, ','); l.put(14, 2, 'e')
     def slab(y, gap0, gap1):
         l.row(0, gap0-1, y); l.row(gap1+1, M-1, y)
     # Met safely: wide steps, a slab under every part of the climb
@@ -127,7 +131,7 @@ def w1l3():
     l.row(6, M-1, 43); l.put(14, 43, 'C'); l.put(12, 43, ','); l.put(24, 46, '!'); l.put(23, 46, 'b'); l.put(25, 46, 'b'); l.put(30, 43, 'p')
     # The twist: ledges that crumble, with nothing to catch a fall until the slab below
     for x, y in ((33, 46), (29, 49), (25, 52), (21, 55)): l.row(x, x+2, y, 'u')
-    l.row(14, 18, 57); l.put(16, 57, 'e')
+    l.row(14, 18, 57); l.put(16, 58, 'e'); l.note('easyflag 28 27'); l.note('easyflag 15 58')
     for x, y in ((9, 60), (5, 63)): l.row(x, x+2, y, 'u')
     l.row(0, 2, 65); l.put(1, 66, 's')
     l.plat(12.5, 66, 0, 2.5, 6); l.row(16, 19, 69); l.put(18, 70, 'T'); l.row(10, 13, 74, 'u'); l.row(22, 26, 72, 'u'); l.row(29, M-1, 74)
@@ -164,7 +168,7 @@ def w2l1():
     l.ground(50, 56, 2); lee(55, 2, -1); l.put(50, 2, 'P'); l.ground(62, 68, 3); lee(67, 3, -1); l.ground(74, 80, 3); lee(79, 3, -1); l.put(75, 3, 'F')
     l.arc(57, 6, 5); l.arc(69, 7, 5); l.put(63, 3, 'j')
     # The flag; then the wind turns around at the end of this ground
-    l.ground(82, 112, 2); l.put(85, 2, 'C'); l.put(83, 2, 'k'); l.put(87, 2, 'P'); l.put(92, 5, '!'); l.put(91, 5, 'b'); l.put(93, 5, 'b')
+    l.ground(82, 112, 2); l.row(219, 221, 7); l.line(219, 221, 8); l.note('easyflag 38 2'); l.note('easyflag 144 2'); l.put(85, 2, 'C'); l.put(83, 2, 'k'); l.put(87, 2, 'P'); l.put(92, 5, '!'); l.put(91, 5, 'b'); l.put(93, 5, 'b')
     lee(96, 2, -1); l.put(101, 2, 'p'); l.put(100, 2, 'F'); l.put(104, 2, 'D'); lee(110, 2, -1)
     # Tailwind: over two gaps, and under an overhang that keeps the storm off a star
     l.ground(118, 122, 2); l.line(114, 126, 6); l.put(120, 8, 'y'); l.put(120, 2, 'F')
@@ -201,7 +205,7 @@ def w2l2():
     l.ground(45, 62, 2); rock(63, 67); l.line(47, 60, 3); l.put(52, 2, 'n')
     # Developed: a ledge halfway, because the run is too long for one low tide
     l.ground(68, 92, 2); l.row(77, 80, 5); l.put(78, 6, 'e'); rock(93, 99); l.put(96, 6, 'k'); l.put(79, 9, 'h')
-    l.ground(100, 104, 2); rock(105, 118); l.put(107, 6, 'C'); l.put(112, 9, '!'); l.put(111, 9, 'b'); l.put(113, 9, 'b'); l.put(115, 6, 'D')
+    l.ground(100, 104, 2); rock(105, 118); l.row(142, 144, 11); l.line(142, 144, 12); l.note('easyflag 64 6'); l.note('easyflag 192 28'); l.put(107, 6, 'C'); l.put(112, 9, '!'); l.put(111, 9, 'b'); l.put(113, 9, 'b'); l.put(115, 6, 'D')
     l.ground(119, 138, 2); l.row(124, 126, 5); l.row(131, 133, 5); l.put(125, 2, 's'); l.put(137, 2, 'n'); rock(139, 150); l.put(144, 6, 'r')
     # The twist: past this point the water rises and does not stop. Up the canyon, fast
     l.note('flood 150 2 .85 33')
@@ -236,7 +240,7 @@ def w2l3():
     l.fill(143, 196, 0, 0, 'l')
     l.row(146, 156, 3, '{'); l.row(157, 158, 3); l.put(158, 4, 'T'); l.put(150, 8, 'y'); l.row(160, 170, 5, '}'); l.put(159, 5, '|'); l.line(160, 170, 7)
     l.row(174, 177, 3); l.put(175, 4, '|'); l.row(181, 192, 3, '{'); l.fill(186, 187, 4, 4, '^')
-    l.ground(197, 244, 3); l.put(198, 3, '|'); l.put(205, 3, 'p'); l.row(209, 216, 3, '}'); l.fill(217, 218, 3, 3, '^'); l.put(222, 3, 'n')
+    l.ground(197, 244, 3); l.row(201, 203, 8); l.line(201, 203, 9); l.note('easyflag 77 3'); l.note('easyflag 200 3'); l.put(198, 3, '|'); l.put(205, 3, 'p'); l.row(209, 216, 3, '}'); l.fill(217, 218, 3, 3, '^'); l.put(222, 3, 'n')
     # Stars shine a little by themselves: a high one over the lava, one behind a false wall at the end
     l.row(150, 152, 11); l.put(151, 12, 's')
     l.fill(226, 233, 3, 5, '#'); l.fill(227, 232, 3, 4, ' '); l.fill(226, 226, 3, 4, 'Q'); l.put(231, 3, 's')
@@ -252,6 +256,7 @@ def w2l3():
 def boss():
     """A chase. The king runs you down the road first; the flag stops him; then you fight him on crumbling ground."""
     l = L(236, idea='chase')
+    l.note('needs crumble')
     l.note('chase 14 -4 6.6 124')
     l.ground(0, 34, 2); l.put(9, 2, 'S'); l.put(8, 2, '|')
     # Met safely: nothing but open road for a few seconds
@@ -261,7 +266,7 @@ def boss():
     l.fill(67, 80, 0, 0, 'l'); l.row(70, 79, 3, 'u'); l.fill(74, 74, 4, 4, '^')
     l.ground(81, 92, 4); l.ground(93, 105, 2); l.put(97, 2, 'p'); l.put(101, 6, '?')
     l.fill(106, 116, 0, 0, 'l'); l.row(109, 113, 3, 'u')
-    l.ground(117, 148, 2); l.fill(124, 124, 5, 14, 'g'); l.put(127, 2, 'C'); l.put(125, 2, '|')
+    l.ground(117, 148, 2); l.row(137, 139, 7); l.line(137, 139, 8); l.note('easyflag 60 3'); l.note('easyflag 151 2'); l.fill(124, 124, 5, 14, 'g'); l.put(127, 2, 'C'); l.put(125, 2, '|')
     l.put(132, 5, '!'); l.put(131, 5, 'b'); l.put(133, 5, 'b'); l.put(136, 5, '*'); l.put(143, 2, 'D'); l.put(140, 2, '|')
     # The arena: the king again, with crumbling ledges overhead and a star above them
     l.ground(149, 214, 2); l.fill(214, 214, 2, 14, 'g')

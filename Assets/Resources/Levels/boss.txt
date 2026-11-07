@@ -1,5 +1,8 @@
 @idea chase
+@needs crumble
 @chase 14 -4 6.6 124
+@easyflag 60 3
+@easyflag 151 2
 @room stomp 25
                                                                                                                             g                                                                                         gggggggggggggggggggggg
                                                                                                                             g                                                                                         gggggggggggggggggggggg
@@ -7,8 +10,8 @@
                                                                                                                             g                                                                                         gg                   g
                                                                                                                             g                                                       s                                 gg                   g
                                                                                                                             g                                                                                         gg                   g
-                                                                                                                            g                                     #####           #####                               gg                   g
-                                                                s                                                           g                                                                                         gg         s         g
+                                                                                                                            g            ooo                      #####           #####                               gg                   g
+                                                                s                                                           g            ###                                                                          gg         s         g
                                         ooooooooooooo          bbb                                   ?                      g                                                                                         gg                   g
                     !bb!                                                                                                    g      b!b  *                  uuuuu          uuuuu          uuuuu                        gg       #####       g
                                                                           ^                                                                                                                                           gg                   g

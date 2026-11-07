@@ -6,6 +6,7 @@ namespace Kfitsa
     {
         public bool big, skidding, jumping, dead, shooter;
         public int facing = 1;
+        public bool plainJump;      // the search only: a running start adds no height
         public float invuln;
         public System.Action<int, int> onBump;   // a block was hit from below
         public System.Action onJump, onLand;
@@ -58,14 +59,28 @@ namespace Kfitsa
                 else rate = Tune.AirAccel;
             }
             vx = Mathf.MoveTowards(vx, dir * max, rate * dt);
-            MoveX(vx * dt);
+            float speed = vx;
+            if (MoveX(vx * dt) && !grounded && dir != 0 && speed * dir > 0) LedgeStep((int)dir, speed);
+        }
+
+        /// The feet stopped just short of a ledge's top: lift them onto it, so a nearly good jump is a good jump.
+        void LedgeStep(int dir, float speed)
+        {
+            if (vy > Tune.LedgeMaxRise) return;
+            int col = Mathf.FloorToInt(dir > 0 ? Right + .01f : Left - .01f), row = RowLo, top = row + 1;
+            if (!grid.Solid(col, row) || top - y > Tune.LedgeAssist) return;
+            float nx = x + dir * .08f, left = nx - w / 2, right = nx + w / 2;
+            for (int r = top; r <= Mathf.FloorToInt(top + h - .001f); r++)
+                for (int c = Mathf.FloorToInt(left + .001f); c <= Mathf.FloorToInt(right - .001f); c++)
+                    if (grid.Solid(c, r)) return;
+            x = nx; y = top; vy = 0; vx = speed * .7f;
         }
 
         void TryJump()
         {
             if (buffer <= 0 || !(grounded || coyote > 0)) return;
-            float t = Mathf.InverseLerp(Tune.WalkSpeed, Tune.RunSpeed, Mathf.Abs(vx));
-            vy = Mathf.Lerp(Tune.JumpSpeed, Tune.RunJumpSpeed, t);
+            float t = plainJump ? 0 : Mathf.InverseLerp(Tune.WalkSpeed, Tune.RunSpeed, Mathf.Abs(vx));
+            vy = Mathf.Lerp(Tune.JumpSpeed, Tune.RunJumpSpeed, t) * (big ? Tune.BigJumpScale : 1);
             riseGravity = Mathf.Lerp(Tune.RiseGravity, Tune.RunRiseGravity, t);
             jumping = true; grounded = false; wasGrounded = false; buffer = 0; coyote = 0;
             onJump?.Invoke();
@@ -103,7 +118,10 @@ namespace Kfitsa
                 if (clip < Tune.CornerNudge)
                 {
                     float nx = leftEdge ? col - w / 2 - .002f : col + 1 + w / 2 + .002f;
-                    if (!grid.Solid(Mathf.FloorToInt(leftEdge ? nx - w / 2 : nx + w / 2), row)) { x = nx; return; }
+                    int side = Mathf.FloorToInt(leftEdge ? nx - w / 2 : nx + w / 2);
+                    bool free = true;
+                    for (int r = RowLo; r <= row; r++) free &= !grid.Solid(side, r);
+                    if (free) { x = nx; return; }
                 }
             }
             base.HitHead(row, hits, col);

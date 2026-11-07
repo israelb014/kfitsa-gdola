@@ -1,13 +1,16 @@
 @idea springs
+@needs springs
+@easyflag 60 2
+@easyflag 152 2
 @room coins 30
                                                                                                                                                                                                      ggggggggggggggggg
                                                                                                                                                        s                                             ggggggggggggggggg
                                                                                                                                                       ###                                            g               g
-                                                                               ooo                                                      y                        ooooo                               g               g
-                              o               ooooooo                         o   o                                    oooo           ####                       #####                               g     o   o   o g
-                              o  oooooo         e                            o     o                                   ##n#                                                                          g     o   o   o g
-                              o  ######    ################                                                                                                #T##                                      g     o   o   o g
-                              o            ################                                                                                                                                          g     o   o   o g
+                                              ooooooo                          ooo                                                      y                        ooooo                               g               g
+                              o  oooooo         e                             o   o                                    oooo           ####                       #####                               g     o   o   o g
+                              o  ######    ################                  o     o                                   ##n#                                                                          g     o   o   o g
+                              o            ################                                                                                                #T##                               ooo    g     o   o   o g
+                              o            ################                                                                                                                                   ###    g     o   o   o g
                               o            ################                                                                                                                                          g     o   o   o g
              ?  !  ?          o            ################                                         b!b                                                                           ooooooo            g               g
                                            ################                                                                                                                                          g         s     g

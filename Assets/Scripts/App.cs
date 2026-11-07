@@ -15,6 +15,9 @@ namespace Kfitsa
     {
         enum Screen { Title, Map, Playing, Paused, Menu }
 
+        public const string HeroName = "צוקי ציקי";
+        public bool Easy => save != null && save.difficulty == 1;
+
         public Game game;
         public Hud hud;
         public Save save;
@@ -313,19 +316,47 @@ namespace Kfitsa
             screen = Screen.Title;
             var list = new List<MenuItem>
             {
-                Item(save.unlocked > 0 ? "המשך משחק" : "משחק חדש", () => { NewRun(); ShowMap(); }),
+                save.unlocked > 0 ? Item("המשך משחק", () => { NewRun(); ShowMap(); }) : Item("משחק חדש", () => ShowDifficulty(false)),
                 Item("שיאים", () => ShowScores(ShowTitle)),
                 Item("הגדרות", () => ShowSettings(ShowTitle)),
                 Item("קרדיטים", ShowCredits),
                 Item("יציאה", Application.Quit),
             };
-            if (save.unlocked > 0) list.Insert(1, Item("משחק חדש", () => { save.unlocked = 0; mapCursor = 0; save.Write(); NewRun(); ShowMap(); }));
+            if (save.unlocked > 0) list.Insert(1, Item("משחק חדש", () => ShowDifficulty(true)));
             Menu("קפיצה גדולה", list, null, 90, .15f);
             var h = hud.Picture("hero_b_cheer1", new Vector2(.5f, .5f), new Vector2(-640, -60), new Vector2(300, 370));
             screenObjects.Add(h.gameObject);
+            var name = hud.Label(60, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(-640, -285), new Vector2(520, 90));
+            name.text = Rtl.V(HeroName); name.color = new Color(1, .86f, .3f);
+            screenObjects.Add(name.gameObject);
         }
 
-        void NewRun() => run = new RunState();
+        void NewRun() => run = new RunState { lives = Easy ? 6 : 3 };
+
+        /// Starting over: normal comes first, so a press straight through keeps the default.
+        public void ShowDifficulty(bool wipe)
+        {
+            void Start(int level)
+            {
+                save.difficulty = level;
+                if (wipe) { save.unlocked = 0; mapCursor = 0; }
+                save.Write(); NewRun(); ShowIntro();
+            }
+            Menu("בחרו קושי", new List<MenuItem> { Item("רגיל", () => Start(0)), Item("קל", () => Start(1)), Item("חזרה", ShowTitle) }, ShowTitle, 140, .35f, true, 360);
+            var help = new Color(.85f, .9f, 1);
+            Line("רגיל: 3 חיים והאתגר המלא", 40, -220, help);
+            Line("קל: 6 חיים, פחות אויבים ואיטיים יותר, ועוד דגלי ביקורת", 40, -290, help);
+            Line("אפשר לשנות בכל רגע בהגדרות", 34, -360, help);
+        }
+
+        public void ShowIntro()
+        {
+            Menu(HeroName, new List<MenuItem> { Item("יוצאים לדרך", ShowMap) }, ShowMap, -300, .35f, true, 400);
+            var h = hud.Picture("hero_b_cheer1", new Vector2(.5f, .5f), new Vector2(0, 120), new Vector2(260, 320));
+            screenObjects.Add(h.gameObject);
+            Line("הכירו את " + HeroName + "!", 52, -100);
+            Line("קפיצה אחר קפיצה, עד מלך הג'לי", 40, -180, new Color(.85f, .9f, 1));
+        }
 
         public void ShowScores(Action back)
         {
@@ -346,10 +377,11 @@ namespace Kfitsa
             {
                 new MenuItem { label = () => "מוזיקה  " + Mathf.RoundToInt(save.music * 10), adjust = d => { save.music = Mathf.Clamp01(save.music + d * .1f); Sound.MusicVolume = save.music; Sound.ApplyVolume(); } },
                 new MenuItem { label = () => "אפקטים  " + Mathf.RoundToInt(save.sfx * 10), adjust = d => { save.sfx = Mathf.Clamp01(save.sfx + d * .1f); Sound.SfxVolume = save.sfx; Sound.Play("coin"); } },
+                new MenuItem { label = () => "קושי  " + (Easy ? "קל" : "רגיל"), ok = FlipDifficulty, adjust = d => FlipDifficulty() },
                 new MenuItem { label = () => "מסך מלא  " + (save.fullscreen ? "כן" : "לא"), ok = ToggleFull, adjust = d => ToggleFull() },
                 Item("חזרה", () => { save.Write(); back(); }),
             };
-            if (Application.isMobilePlatform) list.RemoveAt(2);
+            if (Application.isMobilePlatform) list.RemoveAt(3);
             if (TouchUi.Available) list.Insert(list.Count - 1, Item("שליטה", () => { save.Write(); ShowControls(() => ShowSettings(back)); }));
             Menu("הגדרות", list, () => { save.Write(); back(); }, TouchUi.Available ? 210 : 120, .35f, !overGame);
             var help = new Color(.85f, .9f, 1);
@@ -364,6 +396,8 @@ namespace Kfitsa
             Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -380, help);
             Line("דלת סודית: חץ למטה    כוכבים: שלושה בכל שלב, אחד בחדר הסודי", 34, -430, help);
         }
+
+        void FlipDifficulty() { save.difficulty = 1 - save.difficulty; save.Write(); }
 
         static readonly string[] RunModes = { "החזק לריצה", "ריצה אוטומטית", "נגיעה לריצה" };
         static readonly string[] RunHelp =
@@ -413,6 +447,7 @@ namespace Kfitsa
             Menu("קרדיטים", new List<MenuItem> { Item("חזרה", ShowTitle) }, ShowTitle, -420, .35f, true, 410);
             string[] text =
             {
+                "גיבור המשחק: " + HeroName,
                 "גרפיקה וצלילים: Kenney (www.kenney.nl) - CC0",
                 "New Platformer Pack, Platformer Characters",
                 "Impact, Digital Audio, Music Jingles",
@@ -420,7 +455,7 @@ namespace Kfitsa
                 "גופן: Rubik - SIL OFL",
                 "נבנה ב-Unity",
             };
-            for (int i = 0; i < text.Length; i++) Line(text[i], 44, 230 - i * 80);
+            for (int i = 0; i < text.Length; i++) Line(text[i], 44, 260 - i * 76);
         }
 
         public void ShowPause()
@@ -494,7 +529,7 @@ namespace Kfitsa
             mapInfo.text = Rtl.V($"{d.Code}: {d.name}");
             int total = 0;
             foreach (int bits in save.stars) for (int b = bits; b != 0; b >>= 1) total += b & 1;
-            mapStats.text = Rtl.V($"כוכבים: {total}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}");
+            mapStats.text = Rtl.V($"כוכבים: {total}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
         }
 
         void MapTap(Vector2 at)

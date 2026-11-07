@@ -9,7 +9,7 @@ namespace Kfitsa
 
         void BuildMechanics()
         {
-            chaseOver = checkpointSet;
+            chaseOver = grid.Chase != null && flagAt >= 0 && flags[flagAt].at.x >= grid.Chase.end;
             int starId = 0;
             foreach (var at in grid.Stars)
             {
@@ -173,7 +173,7 @@ namespace Kfitsa
 
         void DrawMechanics(float dt)
         {
-            if (flag != null && checkpointSet) flag.sprite = Art.Tile((int)(simT * 5) % 2 == 0 ? "flag_a" : "flag_b");
+            for (int i = 0; i <= flagAt && i < flags.Count; i++) flags[i].view.sprite = Art.Tile((int)(simT * 5) % 2 == 0 ? "flag_a" : "flag_b");
             var belt = Art.Tile((int)(simT * 8) % 2 == 0 ? "conveyor_a" : "conveyor_b");
             foreach (var b in belts) b.sprite = belt;
             foreach (var (view, box) in powerHints)

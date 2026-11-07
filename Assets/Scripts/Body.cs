@@ -47,7 +47,7 @@ namespace Kfitsa
             if (dy < 0)
             {
                 foreach (var p in grid.Platforms)
-                    if (y - dy >= p.Top - .05f && y <= p.Top && Right > p.Left && Left < p.Right)
+                    if (y - dy >= p.Top - Tune.PlatformCatch && y <= p.Top && Right > p.Left && Left < p.Right)
                     {
                         y = p.Top; vy = 0; grounded = true; on = p;
                         return;

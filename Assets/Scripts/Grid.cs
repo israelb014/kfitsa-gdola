@@ -23,6 +23,8 @@ namespace Kfitsa
         public WindZone[] Winds = new WindZone[0];
         public Storm Storm;
         public readonly List<Shelter> Shelters = new List<Shelter>();
+        public readonly List<Vector2> EasyFlags = new List<Vector2>();   // extra checkpoints on easy
+        public readonly List<string> Needs = new List<string>();     // what the level's idea is: without it the finish must stay out of reach
         public readonly List<(int c, int r)> Palms = new List<(int, int)>(), Flags = new List<(int, int)>();
         public Tide Tide; public Flood Flood; public Chase Chase; public RoomWater RoomPool;
         public readonly List<Vector2> Stars = new List<Vector2>(), RoomLights = new List<Vector2>();
@@ -99,6 +101,8 @@ namespace Kfitsa
                 case "storm": Storm = new Storm { calm = F(1), warn = F(2), blow = F(3) }; break;
                 case "gust":
                     Winds = new List<WindZone>(Winds) { new WindZone { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4), push = F(5), lift = a.Length > 6 ? F(6) : 0, storm = Storm } }.ToArray(); break;
+                case "needs": Needs.Add(a[1]); break;
+                case "easyflag": EasyFlags.Add(new Vector2(F(1) + .5f, F(2))); break;
                 case "shelter": Shelters.Add(new Shelter { x0 = F(1), x1 = F(2), y0 = F(3), y1 = F(4) }); break;
                 case "tide": Tide = new Tide { low = F(1), high = F(2), period = F(3), x0 = F(4), x1 = F(5) }; break;
                 case "flood": Flood = new Flood { trigger = F(1), y0 = F(2), speed = F(3), top = F(4) }; break;
@@ -113,6 +117,25 @@ namespace Kfitsa
         {
             Storm = null;
             Winds = System.Array.FindAll(Winds, w => w.storm == null);
+        }
+
+        /// Checkpoints in the order the player meets them.
+        public List<Vector2> FlagSpots(bool easy)
+        {
+            var all = new List<Vector2>();
+            if (HasCheckpoint) all.Add(Checkpoint);
+            if (easy) all.AddRange(EasyFlags);
+            all.Sort((a, b) => MainW < 60 ? a.y.CompareTo(b.y) : a.x.CompareTo(b.x));
+            return all;
+        }
+
+        /// The same level with one mechanic taken out, to prove that it cannot be skipped.
+        public void Without(string what)
+        {
+            if (what == "springs") Springs.Clear();
+            else if (what == "platforms") Platforms.Clear();
+            else if (what == "crumble") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (cells[c, r] == 'u') cells[c, r] = ' '; }
+            else throw new System.Exception("Unknown mechanic: " + what);
         }
 
         /// A flat test floor, used by the feel measurements.

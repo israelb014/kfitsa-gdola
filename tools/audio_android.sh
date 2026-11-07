@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: tools/audio_android.sh ; plays the built APK on the emulator and fails if sound does not work there.
-cd "$(dirname "$0")/.."; V=$PWD/verification/v1.2.2; mkdir -p "$V"; R=$V/audio_android.txt
+cd "$(dirname "$0")/.."; V=$PWD/verification/v1.3; mkdir -p "$V"; R=$V/audio_android.txt
 export PATH=~/work/_tools/android-emu/platform-tools:$PATH
 P=com.ibfix.kfitsagdola; A=$P/.GameMain
 if [ "$(adb get-state 2>/dev/null)" != device ]; then
@@ -12,7 +12,7 @@ if [ "$(adb get-state 2>/dev/null)" != device ]; then
 fi
 fail() { echo "FAIL $1" | tee -a "$R"; bad=1; }
 : > "$R"; bad=0
-adb install -r Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
+adb uninstall $P > /dev/null 2>&1; adb install Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
 
 # 1. The same audio test as on the desktop, inside the APK
 adb logcat -c
@@ -62,6 +62,19 @@ echo "--- back in the game" | tee -a "$R"
 adb shell dumpsys audio | grep -E "u/pid:$U/" | cut -c1-170 | tee -a "$R"
 adb shell dumpsys audio | grep -E "u/pid:$U/" | grep -q "state:started" || fail "did not resume"
 adb logcat -d -s Unity:I | grep -q "AUDIO resumed" || fail "no resume logged"
+
+# 3. A new game through the real menus, on a clean install: new game, easy, the intro, the map
+adb exec-out screencap -p > "$V/android_menu_title.png"
+tap() { adb shell input tap "$1" "$2"; sleep 2; }
+W=$(adb shell wm size | tail -1 | sed 's/.*: //;s/\r//' | cut -dx -f1); H=$(adb shell wm size | tail -1 | sed 's/.*: //;s/\r//' | cut -dx -f2)
+[ "$W" -lt "$H" ] && { t=$W; W=$H; H=$t; }
+S=$((H*1000/1080))
+row() { tap $((W/2)) $((H/2-$1*S/1000)); }
+row 90;  adb exec-out screencap -p > "$V/android_menu_difficulty.png"
+row 40;  adb exec-out screencap -p > "$V/android_menu_intro.png"
+row -300; adb exec-out screencap -p > "$V/android_menu_map.png"
+
+
 
 [ -n "$STARTED" ] && { adb shell input keyevent KEYCODE_HOME; adb emu kill > /dev/null; }
 [ $bad = 0 ] && echo "ANDROID AUDIO OK" | tee -a "$R" || echo "ANDROID AUDIO FAILED" | tee -a "$R"

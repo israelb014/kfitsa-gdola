@@ -59,6 +59,16 @@ namespace Kfitsa
                     if (q.kind != "gate" && q.kind != "star" && q.kind != "box" && q.kind != "secret" && q.kind != "door" && q.kind != "flag" && q.kind != "shelter") continue;
                     Fresh(index, big ? 1 : 0, false);
                     bool done = q.hit && Replay(s.Route(q), q);
+                    if (!q.hit && def.file != null)
+                    {
+                        // The wide search ran out of time; the far end gets its own search from the flag, as in the validator
+                        var again = Reach.Start(def, big, false, true, calm: calm);
+                        again.seconds = 120;
+                        foreach (var o in again.goals) if (o.ToString() != q.ToString()) o.hit = true;
+                        again.stopAfterHits = 1; again.Run();
+                        var same = again.goals.Find(o => o.ToString() == q.ToString() && o.node >= 0);
+                        if (same != null) { G.RestartAtFlag(); done = Replay(again.Route(same), same); Check($"{def.file} {form}: {q} is reached in the real game, from the flag", done, $"{G.levelTime:F1}s"); continue; }
+                    }
                     Check($"{def.file} {form}: {q} is reached in the real game", done, q.hit ? $"{G.levelTime:F1}s" : "no route");
                 }
             }
@@ -66,6 +76,7 @@ namespace Kfitsa
             Room(def, index);
             Flag(def, index);
             Full(def, index);
+            app.save.difficulty = 1; Full(def, index, true); app.save.difficulty = 0;
         }
 
         System.Collections.Generic.List<(int tick, float x, float y)> marks;
@@ -123,8 +134,17 @@ namespace Kfitsa
                 G.TestStep(1, p); step++;
                 if (G.deaths != deaths || !G.Running || G.Won) break;
                 // An enemy knocked the hero off the route: stop here, so the caller can plan a new one
-                if (check.TryGetValue(step, out var at) && (at - new Vector2(G.hero.x, G.hero.y)).sqrMagnitude > .04f) off = true;
-                if (off && G.hero.grounded) break;
+                if (check.TryGetValue(step, out var at) && (at - new Vector2(G.hero.x, G.hero.y)).sqrMagnitude > .04f)
+                {
+                    if (!off) Note($"     off the route at step {step}: planned {at.x:F2},{at.y:F2} game {G.hero.x:F2},{G.hero.y:F2} vx {G.hero.vx:F1} vy {G.hero.vy:F1} power {app.run.power}");
+                    off = true;
+                }
+                if (off)
+                {
+                    // Knocked into the air: let go of the route and brake, as a player would
+                    for (int i = 0; i < 240 && G.Running && !G.hero.grounded && G.deaths == deaths; i++) G.TestStep(1, new Pad { x = -Mathf.Sign(G.hero.vx) });
+                    break;
+                }
             }
             return G.deaths == deaths;
         }
@@ -198,9 +218,15 @@ namespace Kfitsa
         }
 
         /// The whole level with enemies on. They cannot hurt the bot, but they bump it off its route, so it replans.
-        void Full(LevelDef def, int index)
+        void Full(LevelDef def, int index, bool easy = false)
         {
             Fresh(index, 0, true);
+            if (easy)
+            {
+                int total = G.grid.Enemies.FindAll(e => e.at.x < G.grid.MainW).Count, room = G.grid.Enemies.Count - total;
+                Check($"{def.file} easy: half the enemies and two more flags", (total == 0 || G.EnemyCount - room <= (total + 1) / 2) && G.FlagCount == G.grid.FlagSpots(false).Count + G.grid.EasyFlags.Count,
+                    $"{G.EnemyCount - room} of {total}, {G.FlagCount} flags");
+            }
             int plans = 0;
             while (G.Running && !G.Won && G.levelTime < 400 && plans < 10)
             {
@@ -208,12 +234,13 @@ namespace Kfitsa
                 if (G.boss != null && G.boss.alive && G.hero.x > G.boss.x - 24) { FightBoss(); continue; }
                 int falls = G.deaths;
                 bool found = Drive(def, q => q.kind == "gate", false, 60);
+                if (G.deaths != falls) Note($"     fell at {G.lastFall.x:F1},{G.lastFall.y:F1} clock {G.levelTime:F1}");
                 // After a fall, set off a little later, so the same enemy is not met at the same moment again
-                if (G.deaths != falls) { G.TestStep(280, default); G.TestStep(47 * G.deaths, default); continue; }
+                if (G.deaths != falls) { G.TestStep(280, default); G.TestStep(190 * G.deaths, default); continue; }
                 if (!found) Note($"     route {plans}: stopped at {G.hero.x:F1},{G.hero.y:F1} clock {G.world.t:F1}, falls {G.deaths}");
                 if (G.grid != null && G.grid.AtGate(G.hero) && G.boss != null && G.boss.alive) { FightBoss(); }
             }
-            Check($"{def.file}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes");
+            Check($"{def.file}{(easy ? " easy" : "")}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes");
         }
 
         void FightBoss()
@@ -232,7 +259,7 @@ namespace Kfitsa
     public class ScreenTour : MonoBehaviour
     {
         App app; string dir; int step; float t; bool shot;
-        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls" };
+        static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro" };
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
 
@@ -277,6 +304,8 @@ namespace Kfitsa
                 case 18: At(6, 168, 2, 2); G.TestStep(30, new Pad { x = 1, run = true }); G.TestStep(1, new Pad { runPressed = true }); G.TestStep(18, default); break;
                 case 19: At(1, 11, 2, 1); break;
                 case 20: if (TouchUi.Available) { G.Unload(); app.ShowTitle(); app.ShowControls(app.ShowTitle); } else Application.Quit(); break;
+                case 21: if (G.Running) G.Unload(); app.hud.Show(false); app.ShowDifficulty(false); break;
+                case 22: app.ShowIntro(); break;
             }
         }
     }
@@ -321,7 +350,11 @@ namespace Kfitsa
             Check("controls hidden on the title screen", !Ui.Visible);
             Vector2 first = mid + new Vector2(0, (90 + 0) * app.hud.Scale * 1) ;
             yield return Tap(first);
-            Check("tap on the first menu row opens the map", app.ScreenName == "Map", app.ScreenName);
+            Check("new game asks for the difficulty first", app.ScreenName == "Menu", app.ScreenName);
+            yield return Tap(mid + new Vector2(0, 140) * app.hud.Scale);
+            Check("normal is the first choice and gives 3 lives", app.save.difficulty == 0 && app.run.lives == 3, $"difficulty {app.save.difficulty}, lives {app.run.lives}");
+            yield return Tap(mid + new Vector2(0, -300) * app.hud.Scale);
+            Check("the intro leads to the map", app.ScreenName == "Map", app.ScreenName);
             Vector2 node = mid + new Vector2(720, -120) * app.hud.Scale;
             yield return Tap(node);
             if (app.ScreenName == "Map") { Down(9, node); Up(9, node); yield return Wait(.3f); }   // down and up between two frames
@@ -510,10 +543,10 @@ namespace Kfitsa
             switch (step++)
             {
                 case 0: Keys(Key.Space); break;
-                case 1: Keys(); Note("after Space on title: " + app.ScreenName); break;
+                case 1: Keys(); Note("after Space on title: " + app.ScreenName); if (app.ScreenName == "Menu") step = 0; break;   // difficulty, then the intro
                 case 2: Keys(Key.Space); break;
                 case 3: Keys(); Note("after Space on map: " + app.ScreenName); break;
-                case 4: break;
+                case 4: app.game.god = true; break;      // the slime down the road must not end the test
                 case 5: startX = h.x; startY = h.y; InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }); break;
                 case 6: Note($"gamepad stick right: moved {h.x - startX:F2} tiles"); InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new Vector2(1, 0) }.WithButton(GamepadButton.South)); t = .6f; break;
                 case 7: Note($"gamepad South: height {h.y - startY:F2}, jumping {h.jumping}"); InputSystem.QueueStateEvent(pad, new GamepadState()); break;

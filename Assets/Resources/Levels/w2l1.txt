@@ -10,6 +10,8 @@
 @shelter 52 55 2 4
 @shelter 64 67 3 5
 @shelter 76 79 3 5
+@easyflag 38 2
+@easyflag 144 2
 @shelter 93 96 2 4
 @shelter 107 110 2 4
 @shelter 133 138 2 4
@@ -25,8 +27,8 @@
                                                                                                                                                                   g                                                                g  s              g
                                                                                                                                                                   g oooooooo    XX                                                 ggggg             g
                                                                        o                                                                                          g     e kF                                                       g                 g
-                                                           o          o o                                               y                                       #############                                                      g                 g
-                                                          o o        o   o                                                                                      #############                                                      g                 g
+                                                           o          o o                                               y                                       #############                                              ooo     g                 g
+                                                          o o        o   o                                                                                      #############                                              ###     g                 g
                                                          o   o                                                    ooooooooooooo                                 #############                 g                                    g                 g
             !bb!                                                   g           g           b!b                                      gggggggg                    #############                 g         oooooooo                   g E            1  g
                         g                 g            g           g           g                g             g                     g                           #############                 g     e            g                 ggggg        gggggg

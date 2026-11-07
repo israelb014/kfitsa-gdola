@@ -1,13 +1,15 @@
 @idea dark
 @dark 5.5
+@easyflag 77 3
+@easyflag 200 3
 @room lights 0
 #########################################   #############                                                                                                                                                                                            ggggggggggggggggg
 #########################################   #############                                                                                                                                                                                            ggggggggggggggggg
                                                                                                                                                        s                                                                                             g               g
                                                                                                                                                       ###                                                                                            g               g
                                                                                                                 y                                                                                                                                    g          L    g
-                                                                                                                                                                                                                                                     g               g
-                                                                                                                                                      y                                                                                              g         ggg   g
+                                                                                                                                                                                                         ooo                                         g               g
+                                                                                                                                                      y                                                  ###                                         g         ggg   g
                                                                                                                     |                                           ooooooooooo                                                                          g     L         g
                                                                    |                bbb?bbb  H                    #####           b!b                                                                                                                g               g
           !bb!                                              ooo   ###                                             #####                                        |}}}}}}}}}}}                                                       ########           g    gggg       g
