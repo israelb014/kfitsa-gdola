@@ -388,6 +388,34 @@ def w3l3():
     l.put(x0+1, 2, 'E'); l.row(x0+5, x0+9, 5, 'g'); l.put(x0+7, 6, 'z'); l.put(x1-1, 2, 's')
     return l
 
+def boss2():
+    """The frost giant. A climb through everything world 3 taught, then the arena: the giant throws snow blocks,
+    is stuck for a moment after each throw, and only then can it be stomped."""
+    l = L(214, 18, 'giant')
+    def ladder(x, y0, y1):
+        for y in range(y0, y1+1): l.put(x, y, 'I')
+    l.ground(0, 40, 2); l.put(9, 2, 'S'); l.put(7, 2, '>')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!'); l.put(22, 2, 'q'); l.put(30, 2, 'm')
+    # A wall with a ladder, then clouds down the far side
+    l.ground(41, 50, 10); ladder(40, 2, 9); l.put(45, 10, 'e'); l.line(43, 49, 11)
+    l.row(54, 56, 8, 'c'); l.row(60, 62, 5, 'c'); l.put(61, 10, 's')
+    l.ground(66, 112, 2); l.put(70, 2, 'z'); l.put(76, 2, 'e'); l.put(80, 2, 'n'); l.note('easyflag 67 2')
+    l.put(86, 5, '+'); l.put(90, 6, 'h'); l.put(94, 2, 'C'); l.put(92, 2, '|')
+    l.put(99, 5, '!'); l.put(98, 5, 'b'); l.put(100, 5, 'b'); l.put(104, 5, '*'); l.put(108, 2, 'D'); l.put(111, 2, 'm')
+    # The arena: a wall behind, two ladders up to safe ledges, the star on the higher one
+    l.ground(113, 196, 2); l.note('easyflag 116 2'); l.fill(196, 196, 2, 17, 'g')
+    ladder(134, 2, 6); l.row(135, 138, 6); ladder(176, 2, 9); l.row(172, 175, 10); l.put(173, 11, 's')
+    l.put(165, 2, 'B'); l.put(190, 2, 'G'); l.put(186, 2, '|'); l.put(193, 2, '|')
+    x0, x1 = l.box(197)
+    # Bonus room: coins hang along ropes; take them all before the clock runs out
+    l.note('room coins 15')
+    l.put(x0+1, 2, 'E')
+    for x in (x0+4, x0+8, x0+12):
+        for y in range(4, 13): l.put(x, y, 't')
+    l.coins([(x0+6, 7), (x0+10, 7), (x0+6, 10), (x0+10, 10)])
+    l.put(x0+8, 3, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -405,5 +433,5 @@ def test():
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('boss2',boss2),('test',test)):
     f().save(n, out)

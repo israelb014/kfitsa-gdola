@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: tools/audio_android.sh ; plays the built APK on the emulator and fails if sound does not work there.
-cd "$(dirname "$0")/.."; V=$PWD/verification/v1.8; mkdir -p "$V"; R=$V/audio_android.txt
+cd "$(dirname "$0")/.."; V=$PWD/verification/v2.0; mkdir -p "$V"; R=$V/audio_android.txt
 export PATH=~/work/_tools/android-emu/platform-tools:$PATH
 ADB=$(command -v adb); P=com.ibfix.kfitsagdola; A=$P/.GameMain
 if [ "$(adb get-state 2>/dev/null)" != device ]; then

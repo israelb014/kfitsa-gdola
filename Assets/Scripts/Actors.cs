@@ -170,8 +170,15 @@ namespace Kfitsa
         public SpriteRenderer shadow;  // where it will come down
         public float aimX, jumpY;
         public const float WarnTime = .5f;
-        /// The crouch before a leap: long enough to see and react to.
-        public bool Warning => alive && awake && grounded && wait > 0 && wait < WarnTime;
+        /// The crouch before a leap (or a throw): long enough to see and react to.
+        public bool Warning => alive && awake && grounded && stuck <= 0 && wait > 0 && wait < WarnTime;
+        // The frost giant (v2.0): instead of calling slimes it throws snow blocks, and after each throw it is
+        // stuck for a moment. Only then can it be hurt.
+        public bool frost, thrown;
+        public float stuck;
+        public System.Action<int> onThrow;
+        public bool Open => !frost || stuck > 0;
+        public float StuckTime => hp <= 3 ? 1f : 1.2f;
 
         public void Step(float dt, float heroX)
         {
@@ -181,12 +188,20 @@ namespace Kfitsa
             bool air = !grounded;
             if (MoveX(vx * dt)) vx = 0;
             MoveY(vy * dt);
-            if (air && grounded) { vx = 0; landings++; onLand?.Invoke(); wait = hp <= 3 ? .55f : 1.05f; }
+            if (air && grounded) { vx = 0; landings++; onLand?.Invoke(); wait = frost ? (hp <= 3 ? .7f : .9f) : hp <= 3 ? .55f : 1.05f; }
+            if (grounded && stuck > 0) { stuck -= dt; return; }
             if (grounded)
             {
                 wait -= dt;
-                if (wait <= 0)
+                if (wait <= 0 && frost && !thrown)
                 {
+                    thrown = true; dir = heroX < x ? -1 : 1;
+                    onThrow?.Invoke(hp <= 3 ? 2 : 1);
+                    stuck = StuckTime; wait = .45f;
+                }
+                else if (wait <= 0)
+                {
+                    thrown = false;
                     float air2 = .9f;
                     dir = heroX < x ? -1 : 1;
                     vx = Mathf.Clamp((heroX - x) / air2, -9f, 9f);
@@ -200,13 +215,16 @@ namespace Kfitsa
         {
             bool warn = Warning;
             float k = warn ? 1 - wait / WarnTime : 0;      // 0 to 1 through the crouch
-            view.transform.position = new Vector3(x + (warn ? Mathf.Sin(t * 60) * .06f : 0), y, 0);
-            view.transform.localScale = new Vector3(1 + .12f * k, 1 - .14f * k, 1);
+            bool held = frost && stuck > 0 && alive;    // stuck: squashed down and shivering
+            view.transform.position = new Vector3(x + (warn ? Mathf.Sin(t * 60) * .06f : held ? Mathf.Sin(t * 40) * .04f : 0), y, 0);
+            view.transform.localScale = held ? new Vector3(1.1f, .86f, 1) : new Vector3(1 + .12f * k, 1 - .14f * k, 1);
             view.flipX = dir > 0;
             view.flipY = !alive;
-            view.sprite = Art.Feet(!grounded ? "boss_rest" : (int)(t * 5) % 2 == 0 ? "boss_walk_a" : "boss_walk_b");
+            string n = frost ? "giant" : "boss";
+            view.sprite = Art.Feet(!grounded || held ? n + "_rest" : (int)(t * 5) % 2 == 0 ? n + "_walk_a" : n + "_walk_b");
             view.color = hurt > 0 && (int)(t * 16) % 2 == 0 ? new Color(1, .5f, .5f)
-                : warn && (int)(t * 12) % 2 == 0 ? new Color(1, .92f, .55f) : Color.white;
+                : warn && (int)(t * 12) % 2 == 0 ? new Color(1, .92f, .55f)
+                : held ? new Color(.75f, .88f, 1f) : Color.white;
             if (shadow == null) return;
             // The shadow marks the landing spot and grows as the king comes down
             shadow.enabled = alive && !grounded;
@@ -214,6 +232,24 @@ namespace Kfitsa
             shadow.transform.position = new Vector3(aimX, jumpY + .02f, 0);
             shadow.transform.localScale = new Vector3(2.4f - high, 1.2f - high * .4f, 1);
             shadow.color = new Color(1, 1, 1, 1 - high * .3f);
+        }
+    }
+
+    /// A snow block thrown by the frost giant: flies in an arc and breaks where it lands.
+    public class SnowBall : Body
+    {
+        public const float Gravity = 30f;
+        public SpriteRenderer view;
+        public bool gone;
+        public float spin;
+
+        public void Step(float dt)
+        {
+            spin += dt;
+            vy = Mathf.Max(vy - Gravity * dt, -20f);
+            if (MoveX(vx * dt)) gone = true;
+            MoveY(vy * dt);
+            if (grounded || y < -2) gone = true;
         }
     }
 

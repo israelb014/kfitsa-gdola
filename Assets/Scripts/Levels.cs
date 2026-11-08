@@ -46,6 +46,8 @@ namespace Kfitsa
                 tip = "ענן שלג שוקע כשעומדים עליו. אל תתעכבו", roomTip = "דרכו על כל הג'לי-בלוקים והכוכב יופיע" },
             new LevelDef { file = "w3l3", name = "שביל השקט", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 3,
                 tip = "עכבר ששומע ריצה מעיר את כולם. לידו הולכים לאט, או דורכים עליו", roomTip = "הכוכב מעבר לעכבר. הולכים, לא רצים" },
+            new LevelDef { file = "boss2", name = "ענק הכפור", terrain = "snow", sky = "snow", music = "m_boss", world = 3, stage = 4, boss = true,
+                tip = "הענק זורק קוביות שלג ואז נתקע לרגע. זה הזמן לקפוץ עליו", roomTip = "אספו את כל המטבעות שעל החבלים לפני שהזמן נגמר" },
         };
     }
 }

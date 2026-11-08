@@ -208,7 +208,7 @@ namespace Kfitsa
                 var (icon, glow, level) = mapNodes[i];
                 bool open2 = level <= MapLast && nodeAt[level] <= mapReveal + 1;
                 bool done = level < save.unlocked;
-                string want = !open2 ? "lock_yellow" : Levels.All[level].boss ? "boss_walk_a" : done ? "block_empty" : "block_coin";
+                string want = !open2 ? "lock_yellow" : Levels.All[level].boss ? (Levels.All[level].terrain == "snow" ? "giant_walk_a" : "boss_walk_a") : done ? "block_empty" : "block_coin";
                 var sprite = Art.Center(want);
                 if (icon.sprite != sprite)
                 {

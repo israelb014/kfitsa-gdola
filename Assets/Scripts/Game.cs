@@ -61,6 +61,8 @@ namespace Kfitsa
         readonly List<CoinItem> coinItems = new List<CoinItem>();
         readonly List<Spring> springs = new List<Spring>();
         readonly List<Sevivon> tops = new List<Sevivon>();
+        readonly List<SnowBall> snowBalls = new List<SnowBall>();
+        public int SnowBallCount => snowBalls.Count;
         readonly List<Star> stars = new List<Star>();
         readonly List<Crumble> crumbles = new List<Crumble>();
         readonly List<(SpriteRenderer view, char kind)> gates = new List<(SpriteRenderer, char)>();
@@ -180,8 +182,9 @@ namespace Kfitsa
             BuildGate();
             if (grid.HasBoss)
             {
-                var v = Art.Spawn("Boss", root, Art.Feet("boss_walk_a"), 6);
-                boss = new Boss { grid = grid, x = grid.BossSpot.x, y = grid.BossSpot.y, w = 2.7f, h = 2.5f, view = v, onLand = BossLanded };
+                bool giant = Def.terrain == "snow";
+                var v = Art.Spawn("Boss", root, Art.Feet(giant ? "giant_walk_a" : "boss_walk_a"), 6);
+                boss = new Boss { grid = grid, x = grid.BossSpot.x, y = grid.BossSpot.y, w = 2.7f, h = 2.5f, view = v, onLand = BossLanded, frost = giant, onThrow = GiantThrow };
                 boss.shadow = Art.Spawn("Shadow", root, Art.Center("shadow"), 4);
                 boss.shadow.enabled = false;
             }
@@ -209,7 +212,7 @@ namespace Kfitsa
             if (root != null) Destroy(root.gameObject);
             root = null; grid = null; boss = null; dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
-            enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
+            enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); snowBalls.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
         }
 
@@ -369,6 +372,7 @@ namespace Kfitsa
             StepCamera(dt);
             StepEnemies(dt);
             StepBoss(dt);
+            StepSnowBalls(dt);
             StepItems(dt);
             StepTops(dt);
             input0 = input;
@@ -588,19 +592,27 @@ namespace Kfitsa
             if (hero.Overlaps(boss))
             {
                 bool stomp = hero.vy < 0 && hero.y > boss.y + boss.h * .55f;
-                if (stomp)
+                if (stomp && !boss.Open)
+                {
+                    // The giant is not stuck: the hero bounces off its icy head
+                    hero.Stomped(true);
+                    Sound.Play("bump", 1, .7f);
+                    if (!giantTold) { giantTold = true; app.hud.Hint(3f, Rtl.V("רק כשהענק תקוע אחרי זריקה")); }
+                }
+                else if (stomp)
                 {
                     hero.Stomped(true);
                     Sound.Play("stomp");
                     if (boss.hurt <= 0) DamageBoss(2);
                 }
+                else if (boss.frost && boss.stuck > 0) { }     // stuck in place, it cannot hurt anyone
                 else if (boss.hurt <= .9f) Hurt();
             }
         }
 
         void DamageBoss(int n)
         {
-            boss.hp -= n; boss.hurt = 1.2f;
+            boss.hp -= n; boss.hurt = 1.2f; boss.stuck = 0;
             freeze = .12f; shake = Mathf.Max(shake, .35f);
             app.run.score += 500;
             app.hud.BossBar(Mathf.Max(0, boss.hp) / (float)Boss.MaxHp, Rtl.V(Def.name));
@@ -610,6 +622,7 @@ namespace Kfitsa
                 boss.alive = false; boss.vy = 12;
                 app.run.score += 5000;
                 foreach (var e in enemies) KillFlying(e, 1);
+                foreach (var b in snowBalls) b.gone = true;
                 gateDoor.enabled = gateTop.enabled = true;
                 Sound.Music(null); Sound.Play("win");
                 app.hud.BossBar(-1);
@@ -620,10 +633,44 @@ namespace Kfitsa
         {
             shake = .3f;
             Sound.Play("brick");
-            if (boss.landings % 2 == 0 && enemies.Count < 3)
+            if (!boss.frost && boss.landings % 2 == 0 && enemies.Count < 3)
             {
                 AddEnemy(new Vector2(boss.x + boss.dir * 2f, boss.y), boss.hp <= 3 ? 'p' : 'e');
                 var e = enemies[enemies.Count - 1]; e.dir = boss.dir; e.awake = true;
+            }
+        }
+
+        bool giantTold;
+
+        /// The frost giant throws one snow block (two when it is nearly beaten) in an arc at the hero.
+        void GiantThrow(int count)
+        {
+            Sound.Play("throw", 1, .6f);
+            for (int i = 0; i < count; i++)
+            {
+                float flight = i == 0 ? 1f : .75f;
+                float aim = hero.x + (i == 0 ? 0 : -boss.dir * 2.5f);
+                var v = Art.Spawn("SnowBall", root, Art.Center("t_snow_block"), 8);
+                v.transform.localScale = Vector3.one * .9f;
+                float sx = boss.x + boss.dir * 1.2f, sy = boss.y + boss.h - .4f;
+                float drop = sy - (hero.y + .2f);       // it comes down at the hero's height after the flight time
+                snowBalls.Add(new SnowBall { grid = grid, view = v, x = sx, y = sy, w = .7f, h = .7f,
+                    vx = Mathf.Clamp((aim - sx) / flight, -11f, 11f), vy = (SnowBall.Gravity * flight * flight / 2 - drop) / flight });
+            }
+        }
+
+        void StepSnowBalls(float dt)
+        {
+            for (int i = snowBalls.Count - 1; i >= 0; i--)
+            {
+                var b = snowBalls[i];
+                if (!b.gone) b.Step(dt);
+                if (!b.gone && hero.Overlaps(b)) { Hurt(); b.gone = true; }
+                if (!b.gone) continue;
+                for (int k = 0; k < 4; k++)
+                    AddFx(Art.Center("t_snow_block"), new Vector2(b.x, b.y + .3f), new Vector2((k - 1.5f) * 2.5f, 5 + k % 2 * 2), .45f, 34, 9, .3f);
+                Sound.Play("brick", .5f, 1.4f);
+                Destroy(b.view.gameObject); snowBalls.RemoveAt(i);
             }
         }
 
@@ -654,7 +701,12 @@ namespace Kfitsa
                         if (d.frost && e.frozen <= 0) Freeze(e); else KillFlying(e, d.dir);
                         d.gone = true; break;
                     }
-                if (boss != null && boss.alive && boss.awake && boss.hurt <= 0 && d.Hits(boss)) { DamageBoss(1); d.gone = true; }
+                if (boss != null && boss.alive && boss.awake && d.Hits(boss))
+                {
+                    if (boss.hurt <= 0 && boss.Open) DamageBoss(1); else if (boss.frost) Sound.Play("bump", .6f, 1.3f);
+                    d.gone = true;
+                }
+                foreach (var b in snowBalls) if (!b.gone && d.Hits(b)) { b.gone = true; d.gone = true; }
                 if (d.gone)
                 {
                     AddFx(Art.Center(d.frost ? "sevivon_frost" : "sevivon"), new Vector2(d.x, d.y), new Vector2(-d.dir * 2, 6), .4f, 34, 9);
@@ -907,6 +959,7 @@ namespace Kfitsa
             DrawHero(dt);
             foreach (var e in enemies) e.Draw();
             boss?.Draw();
+            foreach (var b in snowBalls) { b.view.transform.position = new Vector3(b.x, b.y + b.h / 2, 0); b.view.transform.rotation = Quaternion.Euler(0, 0, b.spin * -b.vx * 40); }
             foreach (var k in pickups) k.Draw(simT);
             foreach (var p in grid.Platforms) p.view.position = new Vector3(p.x, p.y, 0);
             foreach (var d in tops)

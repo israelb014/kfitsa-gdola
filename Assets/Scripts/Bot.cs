@@ -251,6 +251,16 @@ namespace Kfitsa
             {
                 var b = G.boss;
                 float dx = b.x - G.hero.x;
+                if (b.frost)
+                {
+                    // Keep away while it throws; when it is stuck, run in and jump on it
+                    bool open = b.Open && b.hurt <= 0;
+                    float side = dx > 0 ? -1 : 1, target = open ? b.x : b.x + side * 6;
+                    float go = target - G.hero.x;
+                    G.TestStep(1, new Pad { x = Mathf.Abs(go) > .5f ? Mathf.Sign(go) : 0, run = true, runPressed = open && i % 20 == 0,
+                        jumpPressed = open && G.hero.grounded && Mathf.Abs(dx) < 4, jumpHeld = open });
+                    continue;
+                }
                 G.TestStep(1, new Pad { x = Mathf.Abs(dx) > 3 ? Mathf.Sign(dx) : -Mathf.Sign(dx), run = true, runPressed = i % 30 == 0, jumpPressed = i % 70 == 0, jumpHeld = i % 70 < 30 });
             }
         }
@@ -261,7 +271,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -308,6 +318,14 @@ namespace Kfitsa
                     G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
                     break;
                 }
+                case 39:
+                case 40:
+                {
+                    At(10, 157, 2, 1); G.paused = true;
+                    for (int i = 0; i < 900 && G.SnowBallCount == 0; i++) G.TestStep(1, default);
+                    G.TestStep(step == 39 ? 14 : 40, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
                 case 35: app.hud.Show(true); At(8, 135, 10, 1); G.paused = true; G.TestStep(90, default); G.SnapCamera(); G.DrawNow(); break;
                 case 36:
                 {
@@ -319,7 +337,7 @@ namespace Kfitsa
                 }
                 case 30: app.mapHold = false; app.save.unlocked = Levels.All.Length - 1; for (int i = 0; i < Levels.All.Length; i++) { app.save.stars[i] = i % 3 == 0 ? 7 : 3; app.save.found[i] = 7; } app.run = new RunState { power = 3 }; app.ShowMap(); break;
                 case 1: app.save.unlocked = 4; app.save.stars[0] = 7; app.save.stars[1] = 3; app.save.stars[2] = 1; app.run = new RunState(); app.ShowMap(); break;
-                case 2: app.save.AddScore(12400, "הגיע לשלב 1-2"); app.save.AddScore(8300, "הגיע לשלב 1-1"); app.ShowScores(app.ShowTitle); break;
+                case 2: app.save.AddScore(12400, "עד שלב 1-2"); app.save.AddScore(8300, "עד שלב 1-1"); app.ShowScores(app.ShowTitle); break;
                 case 3: app.ShowSettings(app.ShowTitle); break;
                 case 4: app.ShowCreditsForTour(); break;
                 case 5: app.ShowEndingForTour(); break;
@@ -870,6 +888,41 @@ namespace Kfitsa
                 Check("a stomp silences the mouse: the sleepers sleep on", !m.alive && !m.scared && sl.asleep);
                 g = Fresh(app); d2 = g.deaths; m = g.TestEnemy('z', 12, 2); g.hero.x = 10; g.hero.y = 2; g.TestStep(150, new Pad { x = 1 });
                 Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
+            }
+
+            // Version 2.0: the frost giant
+            {
+                int gi = Array.FindIndex(Levels.All, l => l.file == "boss2");
+                app.run = new RunState { lives = 9 }; app.game.skipIntro = true; app.game.StartLevel(gi); g = app.game; g.god = true;
+                var b = g.boss;
+                Check("the frost giant is the last level's boss", b != null && b.frost && gi == Levels.All.Length - 1);
+                g.hero.x = b.x - 10; g.hero.y = 2; g.SnapCamera(); g.TestStep(2, none);
+                Check("the giant wakes when the hero comes near", b.awake);
+                bool warned = false;
+                for (int i = 0; i < 900 && g.SnowBallCount == 0; i++) { warned |= b.Warning; g.TestStep(1, none); }
+                Check("the giant crouches, then throws a snow block and is stuck", warned && g.SnowBallCount == 1 && b.stuck > 0 && !b.Warning);
+                Check("the giant calls no slimes", !g.enemies.Exists(e => e.alive && Mathf.Abs(e.x - b.x) < 30));
+                Above(g.hero, b); g.TestStep(20, none);
+                Check("stuck, the giant can be stomped", b.hp == Boss.MaxHp - 2);
+                for (int i = 0; i < 900 && !(b.grounded && !b.Open && b.hurt <= 0 && b.wait > .3f && b.thrown == false); i++) g.TestStep(1, none);
+                g.hero.invuln = 0; int h0 = g.hits; Above(g.hero, b); g.TestStep(12, none);
+                Check("not stuck, a stomp bounces off without harm to either", b.hp == Boss.MaxHp - 2 && g.hits == h0 && g.hero.vy > 0);
+                g.hero.x = b.x - 9; g.hero.y = 2; g.hero.vx = 0; g.SnapCamera();
+                for (int i = 0; i < 900 && g.SnowBallCount == 0; i++) g.TestStep(1, none);
+                h0 = g.hits; g.hero.invuln = 0;
+                for (int i = 0; i < 200 && g.SnowBallCount > 0; i++) g.TestStep(1, none);
+                Check("a snow block hurts the hero it lands on", g.hits == h0 + 1);
+                g.ApplyPowerForTest(2);
+                for (int i = 0; i < 900 && !b.Open; i++) g.TestStep(1, none);
+                g.hero.x = b.x - 4; g.hero.y = b.y; g.hero.facing = 1; g.hero.vx = 0; int hp0 = b.hp;
+                g.TestStep(1, new Pad { runPressed = true }); g.TestStep(40, none);
+                Check("stuck, a sevivon hurts the giant", b.hp == hp0 - 1);
+                b.hp = 2; b.hurt = 0;
+                for (int i = 0; i < 900 && !b.Open; i++) g.TestStep(1, none);
+                bool flying = g.SnowBallCount > 0;
+                Above(g.hero, b); g.TestStep(20, none);
+                Check("the last stomp beats the giant and its snow blocks break", !b.alive && flying && g.SnowBallCount == 0);
+                g.god = false;
             }
 
             // Version 1.5: the live world map

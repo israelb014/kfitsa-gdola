@@ -514,9 +514,9 @@ namespace Kfitsa
         {
             hud.Show(false);
             Sound.Music("m_ending");
-            int rank = save.AddScore(run.score, "סיים את המשחק");
+            int rank = save.AddScore(run.score, "המשחק הושלם");
             Menu("ניצחת!", new List<MenuItem> { Item("לשיאים", () => ShowScores(ShowTitle)) }, () => ShowScores(ShowTitle), -220, .25f, true, 300);
-            Line(Levels.All[Levels.All.Length - 1].boss ? "מלך הג'לי הובס והדרך הביתה פתוחה" : "סיימת את כל השלבים שיש כרגע! עוד שלבים בדרך", 52, 120);
+            Line(Levels.All[Levels.All.Length - 1].boss ? Levels.All[Levels.All.Length - 1].name + " הובס והדרך הביתה פתוחה" : "סיימת את כל השלבים שיש כרגע! עוד שלבים בדרך", 52, 120);
             Line($"ניקוד סופי: {run.score}    סודות שנמצאו: {run.secrets}", 46, 30);
             if (rank >= 0) Line($"מקום {rank + 1} בטבלת השיאים!", 46, -60, new Color(1, .86f, .3f));
             NewRun();
@@ -526,7 +526,7 @@ namespace Kfitsa
         {
             game.Unload(); hud.Show(false); hud.Fade(0);
             Sound.Music(null); Sound.Play("gameover");
-            int rank = save.AddScore(run.score, "הגיע לשלב " + Levels.All[mapCursor].Code);
+            int rank = save.AddScore(run.score, "עד שלב " + Levels.All[mapCursor].Code);
             Menu("המשחק נגמר", new List<MenuItem> { Item("חזרה למפה", () => { NewRun(); ShowMap(); }) }, () => { NewRun(); ShowMap(); }, -200, .6f, true, 240);
             Line($"ניקוד: {run.score}", 56, 60);
             if (rank >= 0) Line($"מקום {rank + 1} בטבלת השיאים!", 46, -40, new Color(1, .86f, .3f));
