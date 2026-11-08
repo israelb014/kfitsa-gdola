@@ -64,6 +64,7 @@ namespace Kfitsa
 
             foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots", "-audiotest", "-stormtest" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
             save = Save.Load();
+            Outfit.Hat = Mathf.Clamp(save.hat, 0, Outfit.Hats.Length - 1); Outfit.Pant = Mathf.Clamp(save.pant, 0, Outfit.Pants.Length - 1);
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
             if (!save.fullscreen && !Application.isMobilePlatform) UnityEngine.Screen.SetResolution(1280, 720, false);
@@ -317,6 +318,7 @@ namespace Kfitsa
             var list = new List<MenuItem>
             {
                 save.unlocked > 0 ? Item("המשך משחק", () => { NewRun(); ShowMap(); }) : Item("משחק חדש", () => ShowDifficulty(false)),
+                Item("ארון הבגדים", () => ShowWardrobe(ShowTitle)),
                 Item("שיאים", () => ShowScores(ShowTitle)),
                 Item("הגדרות", () => ShowSettings(ShowTitle)),
                 Item("קרדיטים", ShowCredits),
@@ -324,8 +326,7 @@ namespace Kfitsa
             };
             if (save.unlocked > 0) list.Insert(1, Item("משחק חדש", () => ShowDifficulty(true)));
             Menu("קפיצה גדולה", list, null, 90, .15f);
-            var h = hud.Picture("hero_b_cheer1", new Vector2(.5f, .5f), new Vector2(-640, -60), new Vector2(300, 370));
-            screenObjects.Add(h.gameObject);
+            HeroPicture('b', "cheer1", new Vector2(-640, -60), new Vector2(300, 370));
             var name = hud.Label(60, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(-640, -285), new Vector2(520, 90));
             name.text = Rtl.V(HeroName); name.color = new Color(1, .86f, .3f);
             screenObjects.Add(name.gameObject);
@@ -352,10 +353,9 @@ namespace Kfitsa
         public void ShowIntro()
         {
             Menu(HeroName, new List<MenuItem> { Item("יוצאים לדרך", ShowMap) }, ShowMap, -300, .35f, true, 400);
-            var h = hud.Picture("hero_b_cheer1", new Vector2(.5f, .5f), new Vector2(0, 120), new Vector2(260, 320));
-            screenObjects.Add(h.gameObject);
+            HeroPicture('b', "cheer1", new Vector2(0, 120), new Vector2(260, 320));
             Line("הכירו את " + HeroName + "!", 52, -100);
-            Line("קפיצה אחר קפיצה, עד מלך הג'לי", 40, -180, new Color(.85f, .9f, 1));
+            Line("קפיצה אחר קפיצה, עד ענק הכפור", 40, -180, new Color(.85f, .9f, 1));
         }
 
         public void ShowScores(Action back)
@@ -479,7 +479,72 @@ namespace Kfitsa
         public void ShowCreditsForTour() => ShowCredits();
         public void ResumeForTour() => Resume();
         public void ShowEndingForTour() { run.score = 45200; run.secrets = 5; ShowEnding(); }
-        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; game.StartLevel(level); }
+        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; starsBefore = StarCount; game.StartLevel(level); }
+
+        // ---- outfits (v2.1) ----
+
+        int starsBefore = -1;
+        string newOutfit;      // shown on the map after a level that opened an item
+        public string OutfitNote;   // the same, kept for the self test
+        public void WearForTest(bool hat, int d) => WearNext(hat, d);
+        public int StarCount { get { int n = 0; foreach (int b in save.stars) for (int k = b; k != 0; k >>= 1) n += k & 1; return n; } }
+
+        /// The hero as a picture on a screen, wearing the chosen pants and hat. Returns the hero and its hat.
+        public (Image hero, Image hat) HeroPicture(char form, string pose, Vector2 pos, Vector2 size)
+        {
+            var h = hud.Picture(Outfit.HeroSprite(form, pose), new Vector2(.5f, .5f), pos, size);
+            var o = new GameObject("Hat", typeof(Image)); o.transform.SetParent(h.transform, false);
+            var hat = o.GetComponent<Image>(); hat.raycastTarget = false;
+            Outfit.Place(hat, h, form, pose);
+            screenObjects.Add(h.gameObject);
+            return (h, hat);
+        }
+
+        void WearNext(bool hat, int d)
+        {
+            int n = hat ? Outfit.Hats.Length : Outfit.Pants.Length, at = hat ? Outfit.Hat : Outfit.Pant, stars = StarCount;
+            for (int i = 1; i <= n; i++)
+            {
+                int k = ((at + d * i) % n + n) % n;
+                if (!Outfit.Open(hat, k, stars)) continue;
+                if (hat) Outfit.Hat = save.hat = k; else Outfit.Pant = save.pant = k;
+                break;
+            }
+            Sound.Play("select");
+        }
+
+        /// The wardrobe: a hat and pants, each chosen among the open ones; every 3 stars opens one more.
+        public void ShowWardrobe(Action back)
+        {
+            (Image hero, Image hat) look = default;
+            void Refresh()
+            {
+                look.hero.sprite = Art.Center(Outfit.HeroSprite('b', "stand"));
+                Outfit.Place(look.hat, look.hero, 'b', "stand");
+            }
+            var list = new List<MenuItem>
+            {
+                new MenuItem { label = () => "כובע:  " + Outfit.HatNames[Outfit.Hat], ok = () => { WearNext(true, 1); Refresh(); }, adjust = d => { WearNext(true, d); Refresh(); } },
+                new MenuItem { label = () => "בגדים:  " + Outfit.PantsNames[Outfit.Pant], ok = () => { WearNext(false, 1); Refresh(); }, adjust = d => { WearNext(false, d); Refresh(); } },
+                Item("חזרה", () => { save.Write(); back(); }),
+            };
+            Menu("ארון הבגדים", list, () => { save.Write(); back(); }, 160, .35f);
+            look = HeroPicture('b', "stand", new Vector2(-620, 0), new Vector2(300, 380));
+            int stars = StarCount, open = Outfit.OpenCount(stars), next = Outfit.NextAt(stars);
+            Line($"כוכבים: {stars}    נפתחו {open} מתוך {Outfit.ItemCount}", 40, -150, new Color(1, .9f, .4f));
+            Line(next < 0 ? "כל הבגדים פתוחים!" : $"הבא בתור: {Outfit.ItemName(open + 1)}, ב־{next} כוכבים", 36, -205, new Color(.85f, .9f, 1));
+            // Every item in a row, the closed ones dark with a lock
+            for (int n = 1; n <= Outfit.ItemCount; n++)
+            {
+                bool isHat = n % 2 == 1; int k = isHat ? (n + 1) / 2 : n / 2;
+                var at = new Vector2(-495 + (n - 1) * 110, -320);
+                var pic = hud.Picture(isHat ? "hat_" + Outfit.Hats[k] : "pants_" + Outfit.Pants[k], new Vector2(.5f, .5f), at, new Vector2(84, 84));
+                screenObjects.Add(pic.gameObject);
+                if (Outfit.Open(isHat, k, stars)) continue;
+                pic.color = new Color(.2f, .22f, .3f, .8f);
+                var l = hud.Picture("lock_yellow", new Vector2(.5f, .5f), at, new Vector2(44, 44)); screenObjects.Add(l.gameObject);
+            }
+        }
 
         // ---- flow from the level ----
 
@@ -495,6 +560,9 @@ namespace Kfitsa
             if (i == Levels.All.Length - 1) { ShowEnding(); return; }
             mapCursor = Mathf.Min(i + 1, Levels.All.Length - 1);
             mapFrom = i;      // the map opens on the level just finished, and the hero walks on to the next
+            if (starsBefore >= 0 && Outfit.OpenCount(StarCount) > Outfit.OpenCount(starsBefore))
+                OutfitNote = newOutfit = "חדש בארון הבגדים: " + Outfit.ItemName(Outfit.OpenCount(StarCount)) + "!";
+            starsBefore = -1;
             if (Levels.All[i].boss) { WorldCleared(i); return; }
             ShowMap();
         }

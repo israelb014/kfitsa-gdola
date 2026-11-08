@@ -50,7 +50,7 @@ namespace Kfitsa
         int mapFrom = -1;
         bool mapEnter;
         public bool mapHold;      // screenshots: the map stops on the frame the tour stepped to
-        Image mapHero; Text mapInfo, mapMissing, mapStats;
+        Image mapHero, mapHat; Text mapInfo, mapMissing, mapStats;
         readonly List<(Image dot, float at)> mapDots = new List<(Image, float)>();
         readonly List<(Image icon, Image glow, int level)> mapNodes = new List<(Image, Image, int)>();
         readonly List<float> mapPop = new List<float>();
@@ -155,8 +155,8 @@ namespace Kfitsa
                 count.text = got + "/" + total; count.color = got == total ? new Color(1, .9f, .4f) : Color.white;
                 screenObjects.Add(count.gameObject);
             }
-            mapHero = hud.Picture("hero_s_stand", new Vector2(.5f, .5f), Vector2.zero, new Vector2(100, 120));
-            screenObjects.Add(mapHero.gameObject);
+            (mapHero, mapHat) = HeroPicture('s', "stand", Vector2.zero, new Vector2(100, 120));
+            if (newOutfit != null) { Line(newOutfit, 40, -245, new Color(1, .86f, .3f)); newOutfit = null; }
             mapInfo = Line("", 52, -300);
             mapMissing = Line("", 38, -362);
             mapStats = Line("", 36, -414);
@@ -229,7 +229,8 @@ namespace Kfitsa
             var at = PathPoint(mapAt) + new Vector2(0, lift);
             char form = run.power == 3 ? 'f' : run.power == 2 ? 'p' : run.power == 1 ? 'b' : 's';
             string pose = walking ? ((int)(mapStep * 8) % 2 == 0 ? "walk1" : "walk2") : "stand";
-            mapHero.sprite = Art.Center($"hero_{form}_{pose}");
+            mapHero.sprite = Art.Center(Outfit.HeroSprite(form, pose));
+            Outfit.Place(mapHat, mapHero, form, pose);
             if (dir != 0) mapHero.rectTransform.localScale = new Vector3(dir > 0 ? -1 : 1, 1, 1);
             mapHero.rectTransform.anchoredPosition = at + new Vector2(0, walking ? Mathf.Abs(Mathf.Sin(mapStep * 12)) * 6 : 0);
 

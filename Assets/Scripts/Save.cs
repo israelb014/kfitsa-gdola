@@ -26,6 +26,7 @@ namespace Kfitsa
         public bool leftHanded, haptics = true;
         public int buttonColor, runMode;                     // runMode: see TouchUi.RunMode
         public int taught;                                   // touch lessons already shown, one bit each
+        public int hat, pant;                                // what the hero wears (v2.1), see Outfit
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;

@@ -17,7 +17,7 @@ namespace Kfitsa
             if (cache.TryGetValue(key, out var s)) return s;
             var t = Resources.Load<Texture2D>("Art/" + name);
             if (t == null) { Debug.LogError("Missing art: " + name); t = Texture2D.whiteTexture; }
-            s = Sprite.Create(t, new Rect(0, 0, t.width, t.height), pivot, PPU, 0, SpriteMeshType.FullRect);
+            s = Sprite.Create(t, new Rect(0, 0, t.width, t.height), pivot, PPU, 0, SpriteMeshType.FullRect); s.name = name;
             return cache[key] = s;
         }
 
@@ -28,8 +28,11 @@ namespace Kfitsa
         public static Sprite LeftMiddle(string name) => Get(name, new Vector2(0, .5f), name + "#l");
 
         /// form: s small, b big, p shooter. The hero canvas keeps a small gap under the feet.
-        public static Sprite Hero(char form, string pose) =>
-            Get($"hero_{form}_{pose}", new Vector2(.5f, form == 's' ? .0435f : .0286f), $"hero_{form}_{pose}");
+        public static Sprite Hero(char form, string pose)
+        {
+            string n = Outfit.HeroSprite(form, pose);     // the pants worn are part of the picture (v2.1)
+            return Get(n, new Vector2(.5f, form == 's' ? .0435f : .0286f), n);
+        }
 
         public static SpriteRenderer Spawn(string name, Transform parent, Sprite s, int order)
         {

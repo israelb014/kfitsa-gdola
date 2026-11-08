@@ -5,3 +5,4 @@
 - מוזיקה: Juhani Junkala, רישיון CC0 (OpenGameArt): Chiptune Adventures, 5 Action Chiptunes.
 - גופן עברי: Rubik, רישיון SIL OFL (Assets/Resources/Fonts/OFL-Rubik.txt).
 - קו המתאר של הגיבור והחולצה הסגולה נגזרו מגרפיקת Kenney בעזרת tools/prep_art.py.
+- צבעי המכנסיים נגזרו מגרפיקת Kenney, והכובעים צוירו בקוד בסגנון שלה, עם אותו קו מתאר (tools/prep_art_v21.py).

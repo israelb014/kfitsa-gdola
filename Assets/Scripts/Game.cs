@@ -119,6 +119,7 @@ namespace Kfitsa
             if (flagAt >= spots.Count) flagAt = spots.Count - 1;     // difficulty changed since
             if (flagAt >= 0) { hero.x = spots[flagAt].x; hero.y = spots[flagAt].y; }
             heroView = Art.Spawn("Hero", root, Art.Hero('s', "stand"), 10);
+            hatView = Art.Spawn("Hat", heroView.transform, null, 11);
             bubbleView = Art.Spawn("Bubble", root, Art.Center("bubble"), 11);
             bubbleView.enabled = false;
 
@@ -1142,6 +1143,12 @@ namespace Kfitsa
             heroView.transform.localEulerAngles = new Vector3(0, 0, storm != null ? storm.HeroTilt : 0);
             heroView.sortingOrder = storm != null ? storm.HeroOrder : 10;
             heroView.enabled = hero.invuln <= 0 || (int)(simT * 14) % 2 == 0;
+            Outfit.Place(hatView, heroView, form, pose);
+            heroPose = pose; heroForm = form;
         }
+        SpriteRenderer hatView;
+        public string heroPose = "stand"; public char heroForm = 's';
+        public bool HatShown => hatView != null && hatView.enabled && hatView.sprite != null;
+        public string HeroSpriteName => heroView != null && heroView.sprite != null ? heroView.sprite.name : "";
     }
 }

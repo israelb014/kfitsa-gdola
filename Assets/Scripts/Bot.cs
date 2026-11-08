@@ -271,7 +271,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -316,6 +316,20 @@ namespace Kfitsa
                     At(9, 20, 2, 1); G.paused = true; var mouse = G.enemies.Find(x => x.kind == 'z');
                     for (int i = 0; i < 300 && mouse != null && !mouse.scared; i++) G.TestStep(1, new Pad { x = 1, run = true });
                     G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 41:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < 7 ? 7 : 0;
+                    Outfit.Hat = 5; Outfit.Pant = 1; app.ShowWardrobe(app.ShowTitle);
+                    break;
+                }
+                case 42: Outfit.Hat = 1; Outfit.Pant = 2; app.hud.Show(true); At(0, 20, 2, 1); G.paused = true; G.TestStep(1, new Pad { x = 1 }); G.DrawNow(); break;
+                case 43:
+                {
+                    if (G.Running) G.Unload();
+                    Outfit.Hat = 2; Outfit.Pant = 4; app.hud.Show(false); app.run = new RunState { power = 0 }; app.mapHold = false; app.ShowMap();
                     break;
                 }
                 case 39:
@@ -888,6 +902,32 @@ namespace Kfitsa
                 Check("a stomp silences the mouse: the sleepers sleep on", !m.alive && !m.scared && sl.asleep);
                 g = Fresh(app); d2 = g.deaths; m = g.TestEnemy('z', 12, 2); g.hero.x = 10; g.hero.y = 2; g.TestStep(150, new Pad { x = 1 });
                 Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
+            }
+
+            // Version 2.1: outfits
+            {
+                Check("outfits: one item every 3 stars, hats and pants in turn", Outfit.StarsFor(true, 1) == 3 && Outfit.StarsFor(false, 1) == 6 && Outfit.StarsFor(true, 5) == 27
+                    && Outfit.StarsFor(false, 5) == 30 && Outfit.OpenCount(33) == 10 && Outfit.NextAt(4) == 6 && Outfit.NextAt(30) == -1);
+                var keep = (int[])app.save.stars.Clone();
+                for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = 0;
+                Outfit.Hat = Outfit.Pant = 0; app.WearForTest(true, 1); app.WearForTest(false, 1);
+                Check("outfits: with no stars nothing can be worn", Outfit.Hat == 0 && Outfit.Pant == 0);
+                app.save.stars[0] = 7; app.save.stars[1] = 7; app.save.stars[2] = 7;      // 9 stars: two hats and one pair of pants
+                app.WearForTest(true, 1); int h1 = Outfit.Hat; app.WearForTest(true, 1); int h2 = Outfit.Hat; app.WearForTest(true, 1);
+                app.WearForTest(false, 1); app.WearForTest(false, 1); app.WearForTest(false, 1);
+                Check($"outfits: the wardrobe offers only what is open (hats {h1},{h2},{Outfit.Hat}, pants {Outfit.Pant})", h1 == 1 && h2 == 2 && Outfit.Hat == 0 && Outfit.Pant == 1);
+                Check("outfits: the choice is saved", app.save.hat == 0 && app.save.pant == 1);
+                Outfit.Hat = 5; Outfit.Pant = 1;
+                g = Fresh(app); g.TestStep(2, none); g.DrawNow();
+                Check($"outfits: the hero wears the pants and the hat in the game ({g.HeroSpriteName})", g.HeroSpriteName.StartsWith("hero_s_") && g.HeroSpriteName.EndsWith("_red") && g.HatShown);
+                Outfit.Hat = 0; g.DrawNow();
+                Check("outfits: no hat chosen, no hat shown", !g.HatShown);
+                g.Unload();
+                for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = 0;
+                app.save.stars[0] = 3;     // 2 stars, and the level is finished with a third
+                app.game.skipIntro = true; app.Enter(0); app.save.stars[0] = 7; app.LevelDone();
+                Check($"outfits: a level that brings the stars to 3 opens the first hat ({app.OutfitNote})", app.OutfitNote != null && app.OutfitNote.Contains(Outfit.HatNames[1]));
+                app.save.stars = keep; Outfit.Hat = Outfit.Pant = 0; app.save.hat = app.save.pant = 0; app.OutfitNote = null;
             }
 
             // Version 2.0: the frost giant
