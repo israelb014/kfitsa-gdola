@@ -451,7 +451,7 @@ namespace Kfitsa
         {
             inRoom = !inRoom;
             // The room runs on its own clock, so its moving parts always start the same way
-            if (inRoom) { mainClock = world.t; world.t = 0; } else world.t = mainClock;
+            if (inRoom) { mainClock = world.t; world.t = 0; Found(0); } else world.t = mainClock;
             var to = inRoom ? grid.RoomDoor : grid.Door;
             hero.x = to.x; hero.y = to.y; hero.vx = 0; hero.vy = 0;
             SetCamBounds();
@@ -758,7 +758,7 @@ namespace Kfitsa
                 b.used = true;
                 b.view.enabled = true;
                 b.view.sprite = Art.Tile("block_empty");
-                if (b.kind == BlockKind.HiddenCoin || b.kind == BlockKind.HiddenLife) { grid.Reveal(c, r); app.run.secrets++; }
+                if (b.kind == BlockKind.HiddenCoin || b.kind == BlockKind.HiddenLife) { grid.Reveal(c, r); app.run.secrets++; Found(1 + grid.Blocks.FindAll(k => k.kind == BlockKind.HiddenCoin || k.kind == BlockKind.HiddenLife).FindIndex(k => k.c == c && k.r == r)); }
                 if (b.kind == BlockKind.Grow) Spawn(GrowGift(app.run.power), c, r);
                 else if (b.kind == BlockKind.Shield) Spawn("shield", c, r);
                 else if (b.kind == BlockKind.Life || b.kind == BlockKind.HiddenLife) Spawn("life", c, r);
@@ -771,6 +771,15 @@ namespace Kfitsa
             }
             Sound.Play("bump", .5f);
         }
+
+        /// A secret for the map: bit 0 is the bonus room, then one bit per hidden block in the level's order.
+        void Found(int bit)
+        {
+            if (levelIndex < 0 || bit < 0 || (app.save.found[levelIndex] >> bit & 1) != 0) return;
+            app.save.found[levelIndex] |= 1 << bit;
+            app.save.Write();
+        }
+        public int FoundBits => levelIndex < 0 ? 0 : app.save.found[levelIndex];
 
         void Spawn(string type, int c, int r)
         {

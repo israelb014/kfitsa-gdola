@@ -11,7 +11,7 @@ namespace Kfitsa
     public class RunState { public int score, coins, lives = 3, power, secrets; public bool shield; }
 
     /// Screens and flow: title, map, pause, scores, settings, credits, and the level itself.
-    public class App : MonoBehaviour
+    public partial class App : MonoBehaviour
     {
         enum Screen { Title, Map, Playing, Paused, Menu }
 
@@ -162,7 +162,7 @@ namespace Kfitsa
             }
             var m = GameInput.Menu();
             var tap = hud.Touch.Tap;
-            if (screen == Screen.Map) { if (tap != null) MapTap(tap.Value); MapInput(m); return; }
+            if (screen == Screen.Map) { if (!mapHold) MapTick(Time.unscaledDeltaTime); if (tap != null) MapTap(tap.Value); MapInput(m); return; }
             if (items == null) return;
             if (dragging && hud.Touch.Finger is Vector2 held) { Drag(held); return; }
             dragging = false;
@@ -474,91 +474,6 @@ namespace Kfitsa
 
         void Resume() { ClearScreen(); screen = Screen.Playing; game.paused = false; Sound.Duck(false); }
 
-        // ---- map: the path runs right to left, like the language ----
-
-        static readonly Vector2[] Nodes =
-        {
-            new Vector2(720, -120), new Vector2(480, 60), new Vector2(240, -120),
-            new Vector2(0, 60), new Vector2(-240, -120), new Vector2(-480, 60), new Vector2(-720, -60),
-        };
-
-        public void ShowMap()
-        {
-            ClearScreen();
-            hud.Show(false); screen = Screen.Map;
-            Sound.Music("m_map");
-            Backdrop(.1f);
-            Line("מפת המסע", 72, 430);
-            for (int i = 0; i < Nodes.Length - 1; i++)
-                for (int k = 1; k < 6; k++)
-                {
-                    var p = Vector2.Lerp(Nodes[i], Nodes[i + 1], k / 6f);
-                    var dot = hud.Picture("hud_coin", new Vector2(.5f, .5f), p, new Vector2(20, 20));
-                    dot.color = i < save.unlocked ? Color.white : new Color(.3f, .3f, .35f);
-                    screenObjects.Add(dot.gameObject);
-                }
-            for (int i = 0; i < Nodes.Length; i++)
-            {
-                bool open = i <= save.unlocked, done = i < save.unlocked;
-                string icon = !open ? "lock_yellow" : Levels.All[i].boss ? "boss_walk_a" : done ? "block_empty" : "block_coin";
-                var n = hud.Picture(icon, new Vector2(.5f, .5f), Nodes[i], new Vector2(100, 100));
-                screenObjects.Add(n.gameObject);
-                var t = hud.Label(40, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Nodes[i] + new Vector2(0, -92), new Vector2(240, 60));
-                t.text = Rtl.V(Levels.All[i].Code); screenObjects.Add(t.gameObject);
-                for (int k = 0; k < 3; k++)
-                {
-                    var star = hud.Picture("star", new Vector2(.5f, .5f), Nodes[i] + new Vector2((k - 1) * 40, -146), new Vector2(40, 40));
-                    star.color = (save.stars[i] >> k & 1) != 0 ? Color.white : new Color(.12f, .14f, .22f, .75f);
-                    screenObjects.Add(star.gameObject);
-                }
-            }
-            mapHero = hud.Picture(run.power == 0 ? "hero_s_stand" : "hero_b_stand", new Vector2(.5f, .5f), Nodes[mapCursor] + new Vector2(0, 110), new Vector2(100, 120));
-            screenObjects.Add(mapHero.gameObject);
-            mapInfo = Line("", 52, -320);
-            mapStats = Line("", 40, -395);
-            Line(TouchUi.Available ? "הקשה על שלב בוחרת אותו, הקשה נוספת משחקת    כפתור חזור - תפריט" : "רווח - משחקים    Esc - תפריט", 34, -470, new Color(.9f, .95f, 1));
-            PaintMap();
-        }
-
-        Image mapHero; Text mapInfo, mapStats;
-
-        void PaintMap()
-        {
-            var d = Levels.All[mapCursor];
-            mapHero.rectTransform.anchoredPosition = Nodes[mapCursor] + new Vector2(0, 110);
-            mapInfo.text = Rtl.V($"{d.Code}: {d.name}");
-            int total = 0;
-            foreach (int bits in save.stars) for (int b = bits; b != 0; b >>= 1) total += b & 1;
-            mapStats.text = Rtl.V($"כוכבים: {total}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
-        }
-
-        void MapTap(Vector2 at)
-        {
-            var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
-            int last = Mathf.Min(save.unlocked, Levels.All.Length - 1);
-            for (int i = 0; i <= last; i++)
-            {
-                if (Vector2.Distance(at, mid + Nodes[i] * hud.Scale) > 115 * hud.Scale) continue;
-                if (i == mapCursor) { Enter(i); return; }
-                mapCursor = i; Sound.Play("select", .5f); PaintMap();
-                return;
-            }
-        }
-
-        void MapInput((int x, int y, bool ok, bool back) m)
-        {
-            // Left moves forward, because the path runs right to left
-            int d = -m.x;
-            if (d != 0)
-            {
-                int to = Mathf.Clamp(mapCursor + d, 0, Mathf.Min(save.unlocked, Levels.All.Length - 1));
-                if (to != mapCursor) { mapCursor = to; Sound.Play("select", .5f); PaintMap(); }
-            }
-            if (screen != Screen.Map) return;
-            if (m.ok) Enter(mapCursor);
-            else if (m.back) ShowTitle();
-        }
-
         public string ScreenName => screen.ToString();
         public int MapCursor => mapCursor;
         public void ShowCreditsForTour() => ShowCredits();
@@ -579,6 +494,7 @@ namespace Kfitsa
             game.Unload();
             if (Levels.All[i].boss) { ShowEnding(); return; }
             mapCursor = Mathf.Min(i + 1, Levels.All.Length - 1);
+            mapFrom = i;      // the map opens on the level just finished, and the hero walks on to the next
             ShowMap();
         }
 

@@ -260,7 +260,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -288,6 +288,14 @@ namespace Kfitsa
             }
             switch (step)
             {
+                case 29:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); app.run = new RunState { power = 1 }; app.save.stars[3] = 5; app.save.found[0] = 1; app.save.found[2] = 1; app.save.found[3] = 1;
+                    app.MapTestFinished(3); app.mapHold = true; app.MapTestTick(.85f);
+                    break;
+                }
+                case 30: app.mapHold = false; app.save.unlocked = Levels.All.Length - 1; for (int i = 0; i < Levels.All.Length; i++) { app.save.stars[i] = i % 3 == 0 ? 7 : 3; app.save.found[i] = 7; } app.run = new RunState { power = 3 }; app.ShowMap(); break;
                 case 1: app.save.unlocked = 4; app.save.stars[0] = 7; app.save.stars[1] = 3; app.save.stars[2] = 1; app.run = new RunState(); app.ShowMap(); break;
                 case 2: app.save.AddScore(12400, "הגיע לשלב 1-2"); app.save.AddScore(8300, "הגיע לשלב 1-1"); app.ShowScores(app.ShowTitle); break;
                 case 3: app.ShowSettings(app.ShowTitle); break;
@@ -390,7 +398,7 @@ namespace Kfitsa
             Check("normal is the first choice and gives 3 lives", app.save.difficulty == 0 && app.run.lives == 3, $"difficulty {app.save.difficulty}, lives {app.run.lives}");
             yield return Tap(mid + new Vector2(0, -300) * app.hud.Scale);
             Check("the intro leads to the map", app.ScreenName == "Map", app.ScreenName);
-            Vector2 node = mid + new Vector2(720, -120) * app.hud.Scale;
+            Vector2 node = mid + App.NodePos(0) * app.hud.Scale;
             yield return Tap(node);
             if (app.ScreenName == "Map") { Down(9, node); Up(9, node); yield return Wait(.3f); }   // down and up between two frames
             Check("instant tap on the selected level starts it", app.ScreenName == "Playing", app.ScreenName);
@@ -750,6 +758,32 @@ namespace Kfitsa
             Haptics.On = false; int off = Haptics.Count; g = Fresh(app); e = g.TestEnemy('e', 8, 2); Above(g.hero, e); g.TestStep(30, none);
             Check("vibration can be turned off", Haptics.Count == off);
             Haptics.On = true;
+
+            // Version 1.5: the live world map
+            {
+                g.Unload(); app.run = new RunState(); app.save.unlocked = 1;
+                app.MapTestFinished(1);
+                Check("map: after a level the hero starts on the level just finished", Mathf.Abs(app.MapHeroX - App.NodeX(1)) < 2 && app.MapCursor == 2 && app.MapWalking);
+                app.MapTestTick(.3f);
+                Check("map: the hero waits a moment before walking on", Mathf.Abs(app.MapHeroX - App.NodeX(1)) < 2);
+                app.MapTestTick(3);
+                Check("map: the hero walks along the path to the next level", Mathf.Abs(app.MapHeroX - App.NodeX(2)) < 2 && !app.MapWalking);
+                app.MapTestTick(.1f, -1);
+                Check("map: cannot walk past the last open level", app.MapCursor == 2);
+                app.MapTestTick(.05f, 1);
+                Check("map: going back starts a walk", app.MapCursor == 1 && app.MapWalking);
+                app.MapTestTick(.05f, 0, true);
+                Check("map: play pressed on the way waits for the hero to arrive", app.ScreenName == "Map");
+                app.MapTestTick(3);
+                Check("map: then the level starts", app.ScreenName == "Playing" && app.game.levelIndex == 1);
+                Check("map: secrets are counted per level", App.SecretTotal(0) >= 1 && App.SecretTotal(5) >= 2);
+                int had = app.save.found[app.game.levelIndex];
+                app.game.UseDoor();
+                Check("map: entering the bonus room is saved as a found secret", (app.save.found[1] & 1) == 1 && had == 0);
+                var kept = Save.Fit(new[] { 7, 3 });
+                Check("an older save keeps its stars when levels are added", kept.Length == Levels.All.Length && kept[0] == 7 && kept[1] == 3 && kept[2] == 0);
+                app.game.Unload();
+            }
 
             w.WriteLine(fails == 0 ? "ALL PASS" : fails + " FAILED");
             File.WriteAllText(Path.Combine(dir, "selftest.txt"), w.ToString());

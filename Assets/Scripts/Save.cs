@@ -19,6 +19,7 @@ namespace Kfitsa
         public bool fullscreen = true;
         public int difficulty;                               // 0 normal, 1 easy
         public int[] stars = new int[Levels.All.Length];     // one bit per star found
+        public int[] found = new int[Levels.All.Length];     // secrets found: bit 0 the bonus room, then one bit per hidden block
 
         // Touch controls
         public float buttonAlpha = .8f, buttonSize = 1;
@@ -39,13 +40,20 @@ namespace Kfitsa
                 if (File.Exists(FilePath))
                 {
                     var s = JsonUtility.FromJson<Save>(File.ReadAllText(FilePath));
-                    if (s.best == null || s.best.Length != Levels.All.Length) s.best = new int[Levels.All.Length];
-                    if (s.stars == null || s.stars.Length != Levels.All.Length) s.stars = new int[Levels.All.Length];
+                    // New levels are added at the end, so an older save keeps everything it had
+                    s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found);
                     return s;
                 }
             }
             catch (Exception e) { Debug.LogWarning("Save unreadable, starting fresh: " + e.Message); }
             return new Save();
+        }
+
+        public static int[] Fit(int[] a)
+        {
+            var b = new int[Levels.All.Length];
+            if (a != null) Array.Copy(a, b, Math.Min(a.Length, b.Length));
+            return b;
         }
 
         public void Write()
