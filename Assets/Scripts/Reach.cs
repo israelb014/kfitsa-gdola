@@ -21,13 +21,13 @@ namespace Kfitsa
 
     public struct Plan
     {
-        public sbyte d1, d2; public bool run1, run2, jump, heldAll; public short hold, split, max;
+        public sbyte d1, d2, v; public bool run1, run2, jump, heldAll; public short hold, split, max;
         public Pad At(int tick)
         {
             bool first = tick < split;
             return new Pad
             {
-                x = first ? d1 : d2, run = first ? run1 : run2,
+                x = first ? d1 : d2, run = first ? run1 : run2, up = v > 0, down = v < 0,
                 jumpPressed = jump && tick == 0, jumpHeld = heldAll || jump && tick < hold,
             };
         }
@@ -85,6 +85,7 @@ namespace Kfitsa
             surfaceAt = new int[g.W, g.H];
             overlapByColumn = new List<Goal>[g.W];
             cycle = FindCycle();
+            for (int c = 0; c < g.W && !ladders; c++) for (int r = 0; r < g.H; r++) if (g.Climbable(c, r)) { ladders = true; break; }
             BuildPlans();
             FindSurfaces();
         }
@@ -136,13 +137,23 @@ namespace Kfitsa
                             if (d2 != d1) plans.Add(new Plan { jump = true, hold = hold, d1 = d1, d2 = d2, run1 = true, run2 = true, split = split, max = MaxAir });
                 }
             }
+            climbFrom = plans.Count;
+            // Ladders and ropes: climb a short or a long way, and jump at a rope holding up to catch it
+            foreach (sbyte v in new sbyte[] { 1, -1 })
+                foreach (short max in new short[] { 10, 28, 64 })
+                    plans.Add(new Plan { v = v, split = 999, max = max });
+            foreach (short hold in new short[] { 24, 45, 90 })
+                foreach (sbyte d1 in new sbyte[] { 1, -1, 0 })
+                    plans.Add(new Plan { jump = true, v = 1, hold = hold, d1 = d1, d2 = d1, run1 = true, run2 = true, split = 999, max = MaxAir });
+            climbTo = plans.Count;
             // Holding jump through a spring bounce
             foreach (sbyte d1 in new sbyte[] { 1, -1, 0 })
                 foreach (sbyte d2 in new sbyte[] { 1, -1, 0 })
                     foreach (short split in Splits)
                         plans.Add(new Plan { jump = true, hold = 999, d1 = d1, d2 = d2, run1 = true, run2 = true, split = split, max = MaxAir });
         }
-        int ground;
+        int ground, climbFrom, climbTo;
+        readonly bool ladders;
 
         void FindSurfaces()
         {
@@ -207,6 +218,7 @@ namespace Kfitsa
             k = k * 64 + on;
             k = k * 2 + (s.sw & 1);
             k = k * 2 + (s.floodAt >= 0 || s.chaseAt >= 0 ? 1 : 0);
+            k = k * 2 + (p.climbing ? 1 : 0);
             int phase = cycle > 0 && Near(p.x, p.y) ? Mathf.FloorToInt(Mathf.Repeat(s.t, cycle) * 2) : 0;
             return k * 256 + phase;
         }
@@ -223,7 +235,7 @@ namespace Kfitsa
         {
             if (!seen.TryAdd(Key(n.p, n.s), nodes.Count)) return;
             nodes.Add(n);
-            int where = n.p.on != null ? -2 - g.Platforms.IndexOf(n.p.on) : SurfaceUnder(n.p);
+            int where = n.p.on != null ? -2 - g.Platforms.IndexOf(n.p.on) : n.p.climbing ? -100000 - Mathf.FloorToInt(n.p.x) * 64 - Mathf.FloorToInt(n.p.y) / 3 : SurfaceUnder(n.p);
             if (!places.TryGetValue(where, out var q)) { places[where] = q = new Place { x = n.p.x, y = n.p.y }; q.far = Distance(q.x, q.y); }
             q.waiting.Add(nodes.Count - 1); queued++;
         }
@@ -286,10 +298,16 @@ namespace Kfitsa
             bool springNear = false;
             foreach (var (c, r) in g.Springs) springNear |= Mathf.Abs(c + .5f - n.p.x) < 7 && Mathf.Abs(r - n.p.y) < 3;
             foreach (var w in g.Winds) springNear |= w.lift != 0 && n.p.x > w.x0 - 6 && n.p.x < w.x1 + 6;
+            bool ladderNear = false;
+            if (ladders)
+                for (int c = Mathf.FloorToInt(n.p.x) - 7; c <= Mathf.FloorToInt(n.p.x) + 7 && !ladderNear; c++)
+                    for (int r = Mathf.FloorToInt(n.p.y) - 4; r <= Mathf.FloorToInt(n.p.y) + 6; r++)
+                        if (g.Climbable(c, r)) { ladderNear = true; break; }
             for (int i = 0; i < plans.Count; i++)
             {
                 var pl = plans[i];
                 if ((pl.heldAll || pl.hold == 999) && !springNear) continue;
+                if (i >= climbFrom && i < climbTo && !ladderNear) continue;
                 Simulate(id, n, i, pl);
                 if (hits >= stopAfterHits) return;
             }
@@ -328,9 +346,9 @@ namespace Kfitsa
                         if (since >= 99 || since >= World.CrumbleDelay + World.CrumbleBack + 1) trail = new Trail { key = k, at = s.t, older = trail };
                     }
                 }
-                if (tick >= plan.max && h.grounded) break;
-                if (plan.jump && h.grounded && tick > 3) break;
-                if (tick >= plan.max && !h.grounded && !plan.jump)
+                if (tick >= plan.max && (h.grounded || h.climbing)) break;
+                if (plan.jump && (h.grounded || h.climbing && plan.v > 0) && tick > 3) break;
+                if (tick >= plan.max && !h.grounded && !h.climbing && !plan.jump)
                 {
                     // Walked off an edge: the input carries on until the landing
                     plan.max = MaxAir; plan.jump = false;

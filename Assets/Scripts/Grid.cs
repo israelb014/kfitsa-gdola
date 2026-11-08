@@ -62,7 +62,7 @@ namespace Kfitsa
                         case 'R': g.RoomStart = c; g.MainW = c; ch = 'g'; break;
                         case 'B': g.BossSpot = cell; g.HasBoss = true; ch = ' '; break;
                         case 'o': g.Coins.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
-                        case 'e': case 'n': case 'y': case 'j': case 'p': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': g.Enemies.Add((cell, ch)); ch = ' '; break;
                         case '?': g.Blocks.Add((c, r, BlockKind.Coin)); break;
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
                         case '*': g.Blocks.Add((c, r, BlockKind.Life)); break;
@@ -135,6 +135,7 @@ namespace Kfitsa
         {
             if (what == "springs") Springs.Clear();
             else if (what == "platforms") Platforms.Clear();
+            else if (what == "ladders") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (Climbable(c, r)) cells[c, r] = ' '; }
             else if (what == "crumble") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (cells[c, r] == 'u') cells[c, r] = ' '; }
             else throw new System.Exception("Unknown mechanic: " + what);
         }
@@ -175,6 +176,12 @@ namespace Kfitsa
             return Solid(c, r) || ch == 'h' || ch == 'H';
         }
 
+        /// Ladders and ropes: the hero can hold on anywhere in them.
+        public bool Climbable(int c, int r) { char ch = At(c, r); return ch == 'I' || ch == 't'; }
+
+        /// The top of a ladder is a ledge to stand on, and to climb down through. Ropes have none.
+        public bool LadderTop(int c, int r) => At(c, r) == 'I' && !Climbable(c, r + 1) && !Solid(c, r + 1);
+
         public bool Hazard(int c, int r)
         {
             char ch = At(c, r);
@@ -214,6 +221,8 @@ namespace Kfitsa
                 case '^': return "spikes";
                 case 'l': return At(c, r + 1) == 'l' ? "lava" : "lava_top";
                 case 'w': return At(c, r + 1) == 'w' ? "water" : "water_top";
+                case 'I': return At(c, r + 1) != 'I' ? "ladder_top" : At(c, r - 1) != 'I' ? "ladder_bottom" : "ladder_middle";
+                case 't': return "rope";
                 default: return null;
             }
         }

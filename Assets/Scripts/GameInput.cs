@@ -6,7 +6,7 @@ namespace Kfitsa
     public struct Pad
     {
         public float x;
-        public bool down, run, runPressed, throwPressed, jumpHeld, jumpPressed;
+        public bool up, down, run, runPressed, throwPressed, jumpHeld, jumpPressed;
     }
 
     /// Keyboard, gamepad and touch, read straight from the devices. Stick input is digital, like a D-pad.
@@ -21,6 +21,7 @@ namespace Kfitsa
                 if (k.leftArrowKey.isPressed || k.aKey.isPressed) p.x -= 1;
                 if (k.rightArrowKey.isPressed || k.dKey.isPressed) p.x += 1;
                 p.down |= k.downArrowKey.isPressed || k.sKey.isPressed;
+                p.up |= k.upArrowKey.isPressed || k.wKey.isPressed;
                 p.run |= k.leftShiftKey.isPressed || k.rightShiftKey.isPressed;
                 p.runPressed |= k.leftShiftKey.wasPressedThisFrame || k.rightShiftKey.wasPressedThisFrame;
                 p.jumpHeld |= k.spaceKey.isPressed;
@@ -32,6 +33,7 @@ namespace Kfitsa
                 Vector2 s = g.leftStick.ReadValue() + g.dpad.ReadValue();
                 if (Mathf.Abs(s.x) > 0.35f) p.x += Mathf.Sign(s.x);
                 p.down |= s.y < -0.6f;
+                p.up |= s.y > 0.6f;
                 p.run |= g.buttonWest.isPressed || g.buttonNorth.isPressed || g.rightTrigger.isPressed || g.rightShoulder.isPressed;
                 p.runPressed |= g.buttonWest.wasPressedThisFrame || g.buttonNorth.wasPressedThisFrame || g.rightTrigger.wasPressedThisFrame || g.rightShoulder.wasPressedThisFrame;
                 p.jumpHeld |= g.buttonSouth.isPressed || g.buttonEast.isPressed;

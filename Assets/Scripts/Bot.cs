@@ -260,7 +260,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -295,6 +295,10 @@ namespace Kfitsa
                     app.MapTestFinished(3); app.mapHold = true; app.MapTestTick(.85f);
                     break;
                 }
+                case 31: app.mapHold = false; At(7, 30, 2, 1); break;
+                case 32: At(7, 39.4f, 2, 1); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(80, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
+                case 33: At(7, 146.5f, 15, 2); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(20, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
+                case 34: if (G.Running) G.Unload(); app.hud.Show(false); app.WorldClearedForTour(); break;
                 case 30: app.mapHold = false; app.save.unlocked = Levels.All.Length - 1; for (int i = 0; i < Levels.All.Length; i++) { app.save.stars[i] = i % 3 == 0 ? 7 : 3; app.save.found[i] = 7; } app.run = new RunState { power = 3 }; app.ShowMap(); break;
                 case 1: app.save.unlocked = 4; app.save.stars[0] = 7; app.save.stars[1] = 3; app.save.stars[2] = 1; app.run = new RunState(); app.ShowMap(); break;
                 case 2: app.save.AddScore(12400, "הגיע לשלב 1-2"); app.save.AddScore(8300, "הגיע לשלב 1-1"); app.ShowScores(app.ShowTitle); break;
@@ -480,6 +484,18 @@ namespace Kfitsa
 
             // Back on open ground for the settings
             app.game.skipIntro = true; app.game.StartLevel(-1); yield return Wait(.2f); app.game.god = true;
+            // Version 1.6: the up arrow appears beside a ladder and climbs it
+            H.x = 62.4f; H.y = 2; H.vx = 0; yield return Wait(.3f);
+            Check("up button appears next to a ladder", Ui.ClimbShown);
+            Check("first time at a ladder: the hand points at the up button", Ui.HandShown && Ui.Teaching == "up", $"teaching {Ui.Teaching}");
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "touch_ladder.png"));
+            yield return Wait(.2f);
+            Vector2 upSpot = Ui.Spot("up"); Down(3, upSpot); yield return Wait(.5f);
+            Check("holding the up button climbs the ladder", H.climbing && H.y > 3, $"climbing {H.climbing}, y {H.y:F2}");
+            Up(3, upSpot); yield return Wait(.2f);
+            Check("on a ladder the down button shows too, and the lesson is learned", Ui.DoorShown && (app.save.taught & 32) != 0 && !Ui.HandShown);
+            H.climbing = false; H.x = 5; H.y = 2; app.game.SnapCamera(); yield return Wait(.3f);
+            Check("away from ladders the up button hides", !Ui.ClimbShown);
             var save = app.save;
             void Settings() => Ui.Configure(save);
             IEnumerator Run(float seconds) { H.x = 5; H.y = 2; H.vx = 0; right = Ui.Spot("right"); Down(1, right); yield return Wait(seconds); }
@@ -758,6 +774,42 @@ namespace Kfitsa
             Haptics.On = false; int off = Haptics.Count; g = Fresh(app); e = g.TestEnemy('e', 8, 2); Above(g.hero, e); g.TestStep(30, none);
             Check("vibration can be turned off", Haptics.Count == off);
             Haptics.On = true;
+
+            // Version 1.6: ladders, ropes and the block slime
+            {
+                var up = new Pad { up = true }; var down = new Pad { down = true };
+                g = Fresh(app); g.hero.x = 62.4f; g.hero.y = 2; g.TestStep(2, none); g.TestStep(1, up);
+                Check("up at the foot of a ladder holds on and lines up with it", g.hero.climbing && Mathf.Abs(g.hero.x - 62.5f) < .01f);
+                g.TestStep(150, up);
+                Check("climbing to the top steps off onto the ledge", !g.hero.climbing && g.hero.grounded && Mathf.Abs(g.hero.y - 7) < .01f);
+                g.TestStep(30, none);
+                Check("the top of a ladder holds the hero up", g.hero.grounded && Mathf.Abs(g.hero.y - 7) < .01f);
+                g.TestStep(3, down);
+                Check("down on top of a ladder climbs down into it", g.hero.climbing && g.hero.y < 7);
+                g.TestStep(200, down);
+                Check("climbing down to the floor lets go", !g.hero.climbing && g.hero.grounded && Mathf.Abs(g.hero.y - 2) < .01f);
+                g.TestStep(1, up); g.TestStep(40, up); float midY = g.hero.y;
+                Check("the hero can stop halfway up a ladder", g.hero.climbing && midY > 3 && midY < 6);
+                g.TestStep(30, none);
+                Check("letting go of up stays put on the ladder", g.hero.climbing && Mathf.Abs(g.hero.y - midY) < .01f);
+                g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true, x = -1 });
+                Check("jump lets go of the ladder with a normal jump", !g.hero.climbing && g.hero.vy > 10 && g.hero.vx < 0);
+                g = Fresh(app); g.hero.x = 44.5f; g.hero.y = 2; g.TestStep(2, none);
+                g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true, up = true }); g.TestStep(60, new Pad { jumpHeld = true, up = true });
+                Check("up in the air catches a rope", g.hero.climbing);
+                g.TestStep(240, up);
+                Check("a rope ends where it hangs", g.hero.climbing && g.hero.y <= 10.01f && g.hero.y > 8);
+                g.TestStep(400, down);
+                Check("climbing off the bottom of a rope drops to the floor", !g.hero.climbing && g.hero.grounded && Mathf.Abs(g.hero.y - 2) < .01f);
+                g = Fresh(app); int d0 = g.deaths; e = g.TestEnemy('q', 8, 2); g.TestStep(2, none); Above(g.hero, e); g.TestStep(30, none);
+                Check("a stomped block slime turns into a block", !e.alive && e.block != null && app.run.power == 0 && g.deaths == d0);
+                g.hero.x = e.x; g.hero.y = e.y + 1.5f; g.hero.vy = 0; g.hero.vx = 0; g.TestStep(40, none);
+                Check("the hero can stand on the block", g.hero.grounded && g.hero.on == e.block && Mathf.Abs(g.hero.y - (e.y + 1)) < .01f);
+                g.TestStep(600, none);
+                Check("the block stays", e.block != null && g.EnemyCount >= 1);
+                g = Fresh(app); d0 = g.deaths; e = g.TestEnemy('q', 8, 2); g.hero.x = 6; g.hero.y = 2; g.TestStep(60, new Pad { x = 1 });
+                Check("walking into a block slime hurts", g.deaths == d0 + 1);
+            }
 
             // Version 1.5: the live world map
             {

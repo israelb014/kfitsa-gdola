@@ -4,14 +4,14 @@
                                                                                            ####ggggggggggggggggggggggggg
                                                                                            ####g                       g
                                                                                            ####g                       g
-                                                                                           ####g                       g
-                                                                                           ####g                       g
-                                                                  #                        ####g                       g
-                                                                  #                        ####g                       g
-            +       b   ?   !   h                                 #                        ####g                       g
-                                                                  #                        ####g                       g
-                                                                  #                        ####g                       g
-                                                                  #                        ####g                       g
-   S                                T   uuu           s s s       #   C     D       G      ####g  E                    g
+                                           ggg                                             ####g                       g
+                                            t                                              ####g                       g
+                                            t                     #                        ####g                       g
+                                            t                     #                        ####g                       g
+            +       b   ?   !   h           t                 I####                        ####g                       g
+                                            t                 I   #                        ####g                       g
+                                                              I   #                        ####g                       g
+                                                              I   #                        ####g                       g
+   S                                T   uuu           s s s   I   #   C     D       G      ####g  E                    g
 ##############################################}}}}}############################################ggggggggggggggggggggggggg
 ###############################################################################################Rgggggggggggggggggggggggg

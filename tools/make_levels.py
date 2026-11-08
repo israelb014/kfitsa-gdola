@@ -3,7 +3,8 @@
 Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life block, h/H hidden coin/life,
 P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
-{ } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp.
+{ } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp,
+I ladder (its top is a ledge), t rope, q block slime.
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
 in three parts: met safely, developed, then combined with a twist."""
 import sys
@@ -286,6 +287,48 @@ def boss():
     l.put(147, 5, '+')   # bubble shield box (v1.4)
     return l
 
+def w3l1():
+    """Ladders and ropes. A short ladder first, then walls too high to jump; then ropes over a pit; the twist is
+    a tall climb past a fly and a high crossing from rope to rope."""
+    W, H = 232, 28
+    l = L(W, H, 'ladders')
+    l.note('needs ladders')
+    def ladder(x, y0, y1):
+        for y in range(y0, y1+1): l.put(x, y, 'I')
+    def rope(x, y0, y1):
+        for y in range(y0, y1+1): l.put(x, y, 't')
+        l.row(x-1, x+1, y1+1, 'g')      # the beam it hangs from
+    # Met safely: a short ladder onto a low ledge, which a jump also reaches
+    l.ground(0, 64, 2); l.put(9, 2, 'S'); l.put(7, 2, '>'); l.put(11, 2, ',')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!'); l.put(20, 2, 'e')
+    ladder(26, 2, 5); l.row(27, 34, 5); l.line(28, 33, 6); l.put(31, 6, 'q')
+    # The wall: nine tiles high, the ladder is the only way up
+    l.ground(40, 52, 11); ladder(39, 2, 10); l.line(42, 50, 12); l.put(47, 11, 'q'); l.put(44, 11, ',')
+    # A rope beside the wall holds the first star at its top
+    rope(56, 6, 14); l.put(56, 15, 's')
+    l.put(60, 2, 'n'); l.note('easyflag 61 2')
+    # Developed: ropes over a pit with nothing below
+    rope(69, 4, 9); rope(76, 4, 9); l.coins([(72, 8), (73, 8)])
+    l.ground(81, 129, 2); l.put(83, 2, ','); l.put(90, 5, '+'); l.put(96, 2, 'e')
+    l.put(100, 2, 'C'); l.put(98, 2, ',')
+    l.put(104, 5, '!'); l.put(103, 5, 'b'); l.put(105, 5, 'b'); l.put(108, 6, 'h'); l.put(112, 2, 'D'); l.put(118, 2, 'q')
+    # The twist: a tall climb with a fly crossing the ladder, then rope to rope high over a chasm
+    l.ground(130, 140, 14); ladder(129, 2, 13); l.put(127, 9, 'y'); l.put(136, 14, 'e'); l.line(132, 139, 15)
+    rope(146, 12, 21); rope(153, 12, 21); l.coins([(149, 18), (150, 18)])
+    l.ground(158, 166, 12); l.put(161, 12, 'n')
+    ladder(165, 12, 19); l.row(166, 169, 19); l.put(168, 20, 's')
+    ladder(167, 2, 11)
+    l.ground(167, 214, 2); l.put(180, 2, 'q'); l.put(190, 2, 'n'); l.line(193, 199, 5); l.note('easyflag 172 2')
+    l.put(205, 2, 'G'); l.put(202, 2, ','); l.put(209, 2, '%')
+    x0, x1 = l.box(215)
+    # Bonus room: a race up the ladders and ropes to the star at the top
+    l.note('room climb 12')
+    l.put(x0+1, 2, 'E')
+    ladder(x0+4, 2, 5); l.row(x0+5, x0+7, 5, 'g')
+    for y in range(6, 13): l.put(x0+10, y, 't')      # this rope hangs from the ceiling
+    l.row(x0+12, x1, 9, 'g'); l.put(x1-1, 10, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -294,9 +337,13 @@ def test():
     l.put(20, 6, 'b'); l.put(24, 6, '?'); l.put(28, 6, '!'); l.put(32, 6, 'h'); l.put(36, 2, 'T'); l.put(12, 6, '+')
     l.row(40, 42, 2, 'u'); l.row(46, 50, 1, '}'); l.put(54, 2, 's'); l.put(56, 2, 's'); l.put(58, 2, 's')
     l.fill(66, 66, 2, 8, '#'); l.fill(91, 94, 0, 14, '#')
+    for y in range(2, 7): l.put(62, y, 'I')     # a ladder onto a ledge (v1.6)
+    l.row(63, 65, 6)
+    for y in range(5, 10): l.put(44, y, 't')    # a rope from a beam
+    l.row(43, 45, 10, 'g')
     x0, x1 = l.box(95); l.put(x0+2, 2, 'E')
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('test',test)):
     f().save(n, out)

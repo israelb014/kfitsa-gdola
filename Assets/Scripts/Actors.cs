@@ -32,7 +32,7 @@ namespace Kfitsa
 
     public class Enemy : Body
     {
-        public char kind;              // e slime, n snail, y fly, j frog, p spike slime
+        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime
         public SpriteRenderer view;
         public bool awake, alive = true, flying;
         public int state;              // snail: 0 walking, 1 in shell, 2 sliding
@@ -41,6 +41,7 @@ namespace Kfitsa
         public Platform ice;           // the ice's top, which the hero can stand on
         public float thawT;            // just out of the ice: harmless for a moment, so the hero on top is not hurt
         public int dir = -1;
+        public Platform block;         // a stomped block slime: it stays as a block to stand on
         float baseX, baseY, hop = .8f;
 
         public void Init()
@@ -87,7 +88,7 @@ namespace Kfitsa
             if (speed > 0 && MoveX(dir * speed * dt)) dir = -dir;
             MoveY(vy * dt);
             // Snails and spike slimes are careful; plain slimes walk off edges
-            if (grounded && state == 0 && (kind == 'n' || kind == 'p'))
+            if (grounded && state == 0 && (kind == 'n' || kind == 'p' || kind == 'q'))
             {
                 int ahead = Mathf.FloorToInt(x + dir * (w / 2 + .1f));
                 if (!grid.Solid(ahead, Mathf.FloorToInt(y - .1f))) dir = -dir;
@@ -109,6 +110,7 @@ namespace Kfitsa
                 case 'n': view.sprite = Art.Feet(state > 0 || !alive ? "snail_shell" : a ? "snail_walk_a" : "snail_walk_b"); break;
                 case 'y': view.sprite = Art.Feet(!alive ? "fly_rest" : (int)(t * 14) % 2 == 0 ? "fly_a" : "fly_b"); break;
                 case 'j': view.sprite = Art.Feet(!alive ? "frog_rest" : grounded ? "frog_idle" : "frog_jump"); break;
+                case 'q': view.sprite = Art.Feet(block != null || !alive ? "slime_block_rest" : !grounded ? "slime_block_jump" : a ? "slime_block_walk_a" : "slime_block_walk_b"); break;
             }
         }
     }

@@ -111,7 +111,8 @@ namespace Kfitsa
             {
                 int a = System.Array.FindIndex(Levels.All, d => d.world == w), b = System.Array.FindLastIndex(Levels.All, d => d.world == w);
                 if (a < 0) break;
-                float x0 = Nodes[a].x + 120, x1 = Nodes[b].x - 120;
+                int end = Nodes.Length - 1;     // neighbouring worlds meet halfway between their stops
+                float x0 = a == 0 ? Nodes[a].x + 120 : (Nodes[a - 1].x + Nodes[a].x) / 2, x1 = b == end ? Nodes[b].x - 120 : (Nodes[b].x + Nodes[b + 1].x) / 2;
                 var patch = hud.Picture("bg_" + Levels.All[a].sky, new Vector2(.5f, .5f), new Vector2((x0 + x1) / 2, 60), new Vector2(x0 - x1, 560));
                 patch.preserveAspect = false; patch.color = new Color(1, 1, 1, .5f);
                 screenObjects.Add(patch.gameObject);

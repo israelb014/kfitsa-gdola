@@ -53,6 +53,13 @@ namespace Kfitsa
                         return;
                     }
                 int row = Mathf.FloorToInt(y);
+                if (LandsOnLadders && y - dy >= row + 1 - Eps)
+                    for (int c = Mathf.FloorToInt(x - .3f); c <= Mathf.FloorToInt(x + .3f); c++)
+                        if (grid.LadderTop(c, row))
+                        {
+                            y = row + 1; vy = 0; grounded = true;
+                            return;
+                        }
                 for (int c = ColLo; c <= ColHi; c++)
                     if (grid.Solid(c, row))
                     {
@@ -70,6 +77,9 @@ namespace Kfitsa
                 if (hits > 0) HitHead(row, hits, hit);
             }
         }
+
+        /// Feet stop on top of a ladder; a hero climbing down goes through.
+        protected virtual bool LandsOnLadders => true;
 
         protected virtual void HitHead(int row, int hits, int col)
         {

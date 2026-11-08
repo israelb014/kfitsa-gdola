@@ -185,7 +185,7 @@ namespace Kfitsa
             }
 
             look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0; coinStreak = 0; bossWarned = false;
-            heroGone = 0; growFlash = 0; inRoom = false; shake = 0; pendingDoor = false;
+            heroGone = 0; growFlash = 0; inRoom = false; climbedHere = false; shake = 0; pendingDoor = false;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
             camY = Mathf.Clamp(hero.y + 3, HalfH, camTop);
@@ -196,7 +196,7 @@ namespace Kfitsa
             app.hud.Stars(gotStars | SavedStars, grid.Stars.Count);
             string tip = index == 0 ? (TouchUi.Available ? "משמאל זזים    מימין קופצים ורצים" : "חצים או WASD - זזים    Space - קופצים    Shift - רצים    Esc - הפסקה") : Def.tip;
             app.hud.Hint(skipIntro ? 0 : 8f, Rtl.V(tip));
-            TouchUi.Current?.ShowDoor(false);
+            TouchUi.Current?.ShowDoor(false); TouchUi.Current?.ShowClimb(false);
             TouchUi.Current?.Teach(null); lessonWait = 0;
             Sound.Music(Def.music);
             paused = false;
@@ -216,7 +216,7 @@ namespace Kfitsa
         void AddEnemy(Vector2 at, char kind)
         {
             var v = Art.Spawn("Enemy", root, Art.Feet("slime_normal_walk_a"), 5);
-            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = .8f, h = .7f, view = v, kind = kind };
+            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : .8f, h = kind == 'q' ? .9f : .7f, view = v, kind = kind };
             e.Init();
             enemies.Add(e);
         }
@@ -388,16 +388,34 @@ namespace Kfitsa
             lastDown = input.down;
             bool nearDoor = !inRoom ? grid.HasDoor && Mathf.Abs(hero.x - grid.Door.x) < 1.5f : grid.HasRoomDoor && Mathf.Abs(hero.x - grid.RoomDoor.x) < 1.5f;
             if (nearDoor) app.hud.Hint(.5f, Rtl.V(TouchUi.Available && !GameInput.GamepadActive ? "כפתור החץ - נכנסים לדלת" : "חץ למטה - נכנסים לדלת"));
-            TouchUi.Current?.ShowDoor(nearDoor);
+            bool nearLadder = NearLadder();
+            if (hero.climbing) climbedHere = true;
+            if (nearLadder && !hero.climbing && !climbedHere && !nearDoor)
+                app.hud.Hint(.5f, Rtl.V(TouchUi.Available && !GameInput.GamepadActive ? "כפתור החץ למעלה - מטפסים" : "חץ למעלה - מטפסים"));
+            TouchUi.Current?.ShowDoor(nearDoor || nearLadder && (hero.climbing || OnLadderTop));
+            TouchUi.Current?.ShowClimb(nearLadder);
             TouchUi.Current?.ShowThrow(hero.shooter);
             StepLessons(input, nearDoor);
             bool gateOpen = boss == null || !boss.alive;
             if (gateOpen && !inRoom && grid.AtGate(hero)) Win();
         }
 
+        bool climbedHere;
+        bool OnLadderTop => hero.grounded && grid.LadderTop(Mathf.FloorToInt(hero.x), Mathf.FloorToInt(hero.y - .05f));
+        /// The up button is worth showing: a ladder or rope within reach, or the hero already on one.
+        bool NearLadder()
+        {
+            if (hero.climbing || OnLadderTop) return true;
+            int c = Mathf.FloorToInt(hero.x);
+            for (int dc = -1; dc <= 1; dc++)
+                for (int r = Mathf.FloorToInt(hero.y) - 1; r <= Mathf.FloorToInt(hero.Top) + 2; r++)
+                    if (grid.Climbable(c + dc, r)) return true;
+            return false;
+        }
+
         // ---- touch lessons: the first time each button is needed, a hand points at it until it is used ----
 
-        [System.Flags] enum Lesson { Move = 1, Jump = 2, Run = 4, Throw = 8, Door = 16 }
+        [System.Flags] enum Lesson { Move = 1, Jump = 2, Run = 4, Throw = 8, Door = 16, Climb = 32 }
         float lessonWait;
 
         bool Taught(Lesson l) => (app.save.taught & (int)l) != 0;
@@ -420,6 +438,7 @@ namespace Kfitsa
             string want = null;
             bool first = levelIndex == 0 && !inRoom;
             if (nearDoor && !Taught(Lesson.Door)) want = "door";
+            else if (t.ClimbShown && !Taught(Lesson.Climb) && !hero.climbing && !OnLadderTop) want = "up";
             else if (hero.shooter && !Taught(Lesson.Throw)) want = "throw";
             else if (first && !Taught(Lesson.Move))
             {
@@ -436,6 +455,7 @@ namespace Kfitsa
                 want = "run";
                 if (input.run) Learn(Lesson.Run);
             }
+            if (hero.climbing) Learn(Lesson.Climb);
             t.Teach(lessonWait > 0 || Taught(Lesson.Move) && want == "right" ? null : want);
         }
 
@@ -532,6 +552,7 @@ namespace Kfitsa
                 else if (stomp)
                 {
                     if (e.kind == 'n') { e.state = 1; e.shellT = 6; }
+                    else if (e.kind == 'q') BecomeBlock(e);
                     else if (e.kind == 'y') { e.alive = false; e.flying = true; e.vy = 0; }
                     else { e.alive = false; e.flat = .45f; }
                     Stomped();
@@ -606,7 +627,7 @@ namespace Kfitsa
             Sound.Play("throw");
         }
 
-        float heroThrow, mainClock;
+        float heroThrow, mainClock, climbAnim;
         Pad input0;
 
         void StepTops(float dt)
@@ -922,6 +943,8 @@ namespace Kfitsa
         void Dust(int n, float spread, float rise)
         {
             if (hero.on != null || inRoom && grid.RoomPool != null) return;
+            int fc = Mathf.FloorToInt(hero.x), fr = Mathf.FloorToInt(hero.y - .05f);
+            if (!grid.Solid(fc, fr) && !grid.Solid(Mathf.FloorToInt(hero.Left + .05f), fr) && !grid.Solid(Mathf.FloorToInt(hero.Right - .05f), fr)) return;   // jumping off a ladder
             for (int i = 0; i < n; i++)
             {
                 float side = n == 1 ? 0 : i / (n - 1f) * 2 - 1;
@@ -932,7 +955,7 @@ namespace Kfitsa
         void Puff(Vector2 at, Vector2 vel, float size)
         {
             var v = Art.Spawn("Dust", root, Art.Center("puff"), 11);
-            var tint = Def.terrain == "sand" ? DustSand : Def.terrain == "stone" || inRoom ? DustStone : Def.terrain == "dirt" ? DustDirt : DustGrass;
+            var tint = Def.terrain == "snow" && !inRoom ? Color.white : Def.terrain == "sand" ? DustSand : Def.terrain == "stone" || inRoom ? DustStone : Def.terrain == "dirt" ? DustDirt : DustGrass;
             v.color = tint;
             float s = size * (hero.big ? 1.7f : 1.35f);
             v.transform.localScale = Vector3.one * s;
@@ -965,6 +988,16 @@ namespace Kfitsa
 
         public const float FrozenSeconds = 5;
 
+        /// A stomped block slime turns into a block for good: it stops, and its top is a ledge.
+        void BecomeBlock(Enemy e)
+        {
+            e.alive = false; e.flat = float.MaxValue; e.vx = 0;
+            var o = new GameObject("Block slime").transform; o.SetParent(root, false);
+            e.block = new Platform(e.x, e.y + 1, 0, 0, 1, 0, 1) { view = o };
+            grid.Platforms.Add(e.block);
+            Sound.Play("brick", .7f);
+        }
+
         void Thaw(Enemy e)
         {
             e.frozen = 0; e.thawT = .6f;
@@ -991,6 +1024,7 @@ namespace Kfitsa
             string pose;
             if (hero.dead) pose = "hurt";
             else if (phase == Phase.Won) pose = "cheer1";
+            else if (hero.climbing) { climbAnim += dt * Mathf.Abs(hero.vy) * 1.6f + dt * Mathf.Abs(hero.vx); pose = (int)climbAnim % 2 == 0 ? "climb1" : "climb2"; }
             else if (heroThrow > 0) pose = "action1";
             else if (!hero.grounded) pose = hero.vy > 0 ? "jump" : "fall";
             else if (hero.skidding) pose = "skid";

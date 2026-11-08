@@ -40,6 +40,8 @@ namespace Kfitsa
                 tip = "חשוך כאן. לפידים ומסועים מראים את הדרך", roomTip = "הדליקו את שלושת הלפידים" },
             new LevelDef { file = "boss", name = "מלך הג'לי", terrain = "stone", sky = "ember", music = "m_boss", world = 2, stage = 4, boss = true,
                 tip = "המלך רודף אחריכם! רוצו!", roomTip = "הביסו את כל הג'לי לפני שהזמן נגמר" },
+            new LevelDef { file = "w3l1", name = "מגדל הסולמות", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 1,
+                tip = "חץ למעלה מטפס בסולם ובחבל, וקפיצה עוזבת", roomTip = "מרוץ טיפוס! הגיעו לכוכב לפני שהזמן נגמר" },
         };
     }
 }

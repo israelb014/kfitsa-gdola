@@ -492,11 +492,23 @@ namespace Kfitsa
             save.Write();
             hud.Banner("");
             game.Unload();
-            if (Levels.All[i].boss) { ShowEnding(); return; }
+            if (i == Levels.All.Length - 1) { ShowEnding(); return; }
             mapCursor = Mathf.Min(i + 1, Levels.All.Length - 1);
             mapFrom = i;      // the map opens on the level just finished, and the hero walks on to the next
+            if (Levels.All[i].boss) { WorldCleared(i); return; }
             ShowMap();
         }
+
+        /// A boss that is not the last level: a moment of victory, then on along the map to the next world.
+        void WorldCleared(int boss)
+        {
+            hud.Show(false);
+            Sound.Music("m_ending");
+            Menu(Levels.All[boss].name + " הובס!", new List<MenuItem> { Item("ממשיכים במסע", ShowMap) }, ShowMap, -220, .25f, true, 300);
+            Line("הדרך לעולם " + (Levels.All[boss].world + 1) + " נפתחה", 52, 120);
+            Line($"ניקוד: {run.score}", 46, 30);
+        }
+        public void WorldClearedForTour() => WorldCleared(6);
 
         void ShowEnding()
         {
@@ -504,7 +516,7 @@ namespace Kfitsa
             Sound.Music("m_ending");
             int rank = save.AddScore(run.score, "סיים את המשחק");
             Menu("ניצחת!", new List<MenuItem> { Item("לשיאים", () => ShowScores(ShowTitle)) }, () => ShowScores(ShowTitle), -220, .25f, true, 300);
-            Line("מלך הג'לי הובס והדרך הביתה פתוחה", 52, 120);
+            Line(Levels.All[Levels.All.Length - 1].boss ? "מלך הג'לי הובס והדרך הביתה פתוחה" : "סיימת את כל השלבים שיש כרגע! עוד שלבים בדרך", 52, 120);
             Line($"ניקוד סופי: {run.score}    סודות שנמצאו: {run.secrets}", 46, 30);
             if (rank >= 0) Line($"מקום {rank + 1} בטבלת השיאים!", 46, -60, new Color(1, .86f, .3f));
             NewRun();

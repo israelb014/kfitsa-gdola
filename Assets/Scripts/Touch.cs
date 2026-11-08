@@ -45,13 +45,13 @@ namespace Kfitsa
         }
 
         readonly GameObject root;
-        readonly Button left, right, jump, run, toss, door, pause;
+        readonly Button left, right, jump, run, toss, door, climb, pause;
         readonly Button[] all;
         readonly HashSet<int> ignored = new HashSet<int>(), live = new HashSet<int>();
         readonly System.Func<float> scale;
         Save save;
         int polled = -1;
-        bool jumpWas, runWas, tossWas, pausePressed, doorShown, throwShown, preview, locked;
+        bool jumpWas, runWas, tossWas, pausePressed, doorShown, throwShown, climbShown, preview, locked;
         Vector2? tap, finger;
         Color theme = Themes[0].color; float alpha = .8f; bool flip;
         readonly Image hand; Button taught; float handT;
@@ -70,9 +70,9 @@ namespace Kfitsa
             var disc = Disc(); var circle = Ring(); var soft = Shadow(); var arrow = Arrow();
             left = Make(arrow, 90, null); right = Make(arrow, -90, null);
             run = Make(null, 0, "ריצה"); jump = Make(null, 0, "קפיצה"); toss = Make(null, 0, "זריקה");
-            door = Make(arrow, 180, null); pause = Make(null, 0, "II");
-            all = new[] { left, right, run, jump, toss, door, pause };
-            door.rect.gameObject.SetActive(false); toss.rect.gameObject.SetActive(false);
+            door = Make(arrow, 180, null); climb = Make(arrow, 0, null); pause = Make(null, 0, "II");
+            all = new[] { left, right, run, jump, toss, door, climb, pause };
+            door.rect.gameObject.SetActive(false); toss.rect.gameObject.SetActive(false); climb.rect.gameObject.SetActive(false);
 
             // The teaching hand: its fingertip rests on the button it is pointing at
             var h = new GameObject("Hand", typeof(Image)); h.transform.SetParent(root.transform, false);
@@ -126,6 +126,7 @@ namespace Kfitsa
             Place(run, act, sa * (gap + J * 2 + 30 * k + R), gap + R, R * 2);
             Place(toss, act, sa * (gap + J * 2 + 30 * k + R), gap + R * 3 + 30 * k, R * 2);
             Place(door, move, sm * (gap + R * 2 + 20 * k), gap + R * 2 + 85 * k + 75 * k, 150 * k);
+            Place(climb, move, sm * (gap + R * 2 + 20 * k), gap + R * 2 + 85 * k + 75 * k + 165 * k, 150 * k);
             pause.rect.anchorMin = pause.rect.anchorMax = new Vector2(0, 1); pause.rect.anchoredPosition = new Vector2(75, -70); Resize(pause, 100);
             if (Mode != RunMode.Toggle) locked = false;
             RefreshRun();
@@ -156,6 +157,7 @@ namespace Kfitsa
 
         public bool Visible => root.activeSelf && !preview;
         public bool DoorShown => doorShown;
+        public bool ClimbShown => climbShown;
         public bool ThrowShown => throwShown;
         public bool RunShown => run.rect.gameObject.activeSelf;
         public float ButtonWidth(string name) => name == "jump" ? jump.size : left.size;
@@ -164,19 +166,19 @@ namespace Kfitsa
         /// Where a button sits on screen, for the touch test.
         public Vector2 Spot(string name) => name switch
         {
-            "left" => left.Center, "right" => right.Center, "jump" => jump.Center, "run" => run.Center, "door" => door.Center, "throw" => toss.Center, _ => pause.Center,
+            "left" => left.Center, "right" => right.Center, "jump" => jump.Center, "run" => run.Center, "door" => door.Center, "up" => climb.Center, "throw" => toss.Center, _ => pause.Center,
         };
 
         /// Points at one button until it has been used: left, right, jump, run, throw or door. Null hides the hand.
         public void Teach(string name)
         {
-            var b = name switch { "left" => left, "right" => right, "jump" => jump, "run" => run, "throw" => toss, "door" => door, _ => null };
+            var b = name switch { "left" => left, "right" => right, "jump" => jump, "run" => run, "throw" => toss, "door" => door, "up" => climb, _ => null };
             if (b != taught) handT = 0;
             taught = b;
             DrawHand();
         }
 
-        public string Teaching => taught == null ? null : taught == left ? "left" : taught == right ? "right" : taught == jump ? "jump" : taught == run ? "run" : taught == toss ? "throw" : "door";
+        public string Teaching => taught == null ? null : taught == left ? "left" : taught == right ? "right" : taught == jump ? "jump" : taught == run ? "run" : taught == toss ? "throw" : taught == climb ? "up" : "door";
         public bool HandShown => hand.enabled;
         public Vector2 HandTip => hand.rectTransform.position;
 
@@ -210,6 +212,13 @@ namespace Kfitsa
             doorShown = on; door.rect.gameObject.SetActive(on);
         }
 
+        /// The up arrow, for ladders and ropes.
+        public void ShowClimb(bool on)
+        {
+            if (climbShown == on) return;
+            climbShown = on; climb.rect.gameObject.SetActive(on);
+        }
+
         public void ShowThrow(bool on)
         {
             if (throwShown == on) return;
@@ -229,6 +238,7 @@ namespace Kfitsa
             if (left.held) p.x -= 1;
             if (right.held) p.x += 1;
             p.down |= door.held;
+            p.up |= climb.held;
             var mode = Mode;
             if (mode == RunMode.Hold)
             {
@@ -247,7 +257,7 @@ namespace Kfitsa
             polled = Time.frameCount;
             jumpWas = jump.held; runWas = run.held; tossWas = toss.held;
             tap = null; finger = null; pausePressed = false;
-            bool l = false, r = false, j = false, u = false, d = false, w = false;
+            bool l = false, r = false, j = false, u = false, d = false, w = false, c = false;
             live.Clear();
             float px = scale();
             var mode = Mode;
@@ -272,7 +282,8 @@ namespace Kfitsa
                 bool moveSide = at.x < UnityEngine.Screen.width / 2f != flip;
                 if (moveSide)
                 {
-                    if (doorShown && Vector2.Distance(at, door.Center) < door.size * .63f) d = true;
+                    if (climbShown && Vector2.Distance(at, climb.Center) < climb.size * .6f) c = true;
+                    else if (doorShown && Vector2.Distance(at, door.Center) < door.size * .63f) d = true;
                     else if ((at - left.Center).sqrMagnitude <= (at - right.Center).sqrMagnitude) l = true;
                     else r = true;
                 }
@@ -290,7 +301,7 @@ namespace Kfitsa
             ignored.IntersectWith(live);
             if (mode == RunMode.Toggle && u && !run.held) { locked = !locked; Sound.Play("select", .5f); RefreshRun(); }
             bool changed = false;
-            Set(left, l); Set(right, r); Set(jump, j); Set(run, u); Set(door, d); Set(toss, w);
+            Set(left, l); Set(right, r); Set(jump, j); Set(run, u); Set(door, d); Set(toss, w); Set(climb, c);
             if (changed) PaintAll();
             DrawHand();
 
