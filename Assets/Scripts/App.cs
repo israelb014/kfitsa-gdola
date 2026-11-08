@@ -70,6 +70,8 @@ namespace Kfitsa
             if (!save.fullscreen && !Application.isMobilePlatform) UnityEngine.Screen.SetResolution(1280, 720, false);
             Haptics.On = save.haptics;
             hud = new Hud();
+            Achievements.save = () => save;
+            Achievements.shown = d => { hud.Toast(d.icon, "הישג חדש: " + d.name); Sound.Play("magic"); };
             hud.Touch.Configure(save);
             game = gameObject.AddComponent<Game>();
             game.Init(this);
@@ -319,6 +321,7 @@ namespace Kfitsa
             {
                 save.unlocked > 0 ? Item("המשך משחק", () => { NewRun(); ShowMap(); }) : Item("משחק חדש", () => ShowDifficulty(false)),
                 Item("ארון הבגדים", () => ShowWardrobe(ShowTitle)),
+                Item("הישגים", () => ShowAchievements(ShowTitle)),
                 Item("שיאים", () => ShowScores(ShowTitle)),
                 Item("הגדרות", () => ShowSettings(ShowTitle)),
                 Item("קרדיטים", ShowCredits),
@@ -508,9 +511,52 @@ namespace Kfitsa
                 int k = ((at + d * i) % n + n) % n;
                 if (!Outfit.Open(hat, k, stars)) continue;
                 if (hat) Outfit.Hat = save.hat = k; else Outfit.Pant = save.pant = k;
+                if (hat && k > 0) Achievements.Unlock(Achievements.Id.Hat);
                 break;
             }
             Sound.Play("select");
+        }
+
+        /// Achievements that depend on the whole save: every star, every secret of a world.
+        void CheckProgressAchievements()
+        {
+            int stars = 0, all = 0;
+            var worldDone = new Dictionary<int, bool>();
+            for (int i = 0; i < Levels.All.Length; i++)
+            {
+                for (int b = save.stars[i]; b != 0; b >>= 1) stars += b & 1;
+                all += 3;
+                int got = 0; for (int b = save.found[i]; b != 0; b >>= 1) got += b & 1;
+                int w = Levels.All[i].world;
+                worldDone[w] = (!worldDone.ContainsKey(w) || worldDone[w]) && got >= SecretTotal(i);
+            }
+            if (stars >= all) Achievements.Unlock(Achievements.Id.AllStars);
+            if (worldDone.TryGetValue(1, out bool w1) && w1) Achievements.Unlock(Achievements.Id.Secrets1);
+            if (worldDone.TryGetValue(2, out bool w2) && w2) Achievements.Unlock(Achievements.Id.Secrets2);
+            if (worldDone.TryGetValue(3, out bool w3) && w3) Achievements.Unlock(Achievements.Id.Secrets3);
+        }
+        public void CheckProgressForTest() => CheckProgressAchievements();
+
+        /// Every achievement with its icon and goal; the closed ones dark.
+        public void ShowAchievements(Action back)
+        {
+            Menu("הישגים", new List<MenuItem> { Item("חזרה", back) }, back, -455, .35f, true, 440);
+            Line($"נפתחו {Achievements.Count} מתוך {Achievements.All.Length}", 38, 355, new Color(1, .9f, .4f));
+            for (int i = 0; i < Achievements.All.Length; i++)
+            {
+                var d = Achievements.All[i]; bool has = Achievements.Has((Achievements.Id)i);
+                int col = i % 4, row = i / 4;
+                float x = 690 - col * 460, y = 245 - row * 160;       // right to left
+                var icon = hud.Picture(d.icon, new Vector2(.5f, .5f), new Vector2(x + 150, y), new Vector2(86, 86));
+                icon.color = has ? Color.white : new Color(.2f, .22f, .3f, .85f);
+                screenObjects.Add(icon.gameObject);
+                var name = hud.Label(32, TextAnchor.MiddleRight, new Vector2(.5f, .5f), new Vector2(x + 95, y + 20), new Vector2(340, 44), null, new Vector2(1, .5f));
+                name.text = Rtl.V(d.name); name.color = has ? new Color(1, .9f, .4f) : new Color(.75f, .78f, .85f);
+                screenObjects.Add(name.gameObject);
+                var goal = hud.Label(24, TextAnchor.MiddleRight, new Vector2(.5f, .5f), new Vector2(x + 95, y - 22), new Vector2(340, 40), null, new Vector2(1, .5f));
+                goal.text = Rtl.V(d.goal); goal.color = new Color(.85f, .9f, 1, has ? 1 : .7f);
+                screenObjects.Add(goal.gameObject);
+            }
         }
 
         /// The wardrobe: a hat and pants, each chosen among the open ones; every 3 stars opens one more.
@@ -563,6 +609,7 @@ namespace Kfitsa
             if (starsBefore >= 0 && Outfit.OpenCount(StarCount) > Outfit.OpenCount(starsBefore))
                 OutfitNote = newOutfit = "חדש בארון הבגדים: " + Outfit.ItemName(Outfit.OpenCount(StarCount)) + "!";
             starsBefore = -1;
+            CheckProgressAchievements();
             if (Levels.All[i].boss) { WorldCleared(i); return; }
             ShowMap();
         }
@@ -606,7 +653,7 @@ namespace Kfitsa
     {
         readonly Transform canvas;
         readonly GameObject stats;
-        readonly Text scoreText, coinText, lifeText, bannerText, bossName, hintText, timerText;
+        readonly Text scoreText, coinText, lifeText, bannerText, bossName, hintText, timerText, clockText;
         readonly Image[] starIcons = new Image[3], powerIcons = new Image[4];
         Image shieldIcon;
         float hintT;
@@ -657,6 +704,7 @@ namespace Kfitsa
             shieldIcon = Picture("bubble", new Vector2(0, 1), new Vector2(170 + 4 * 74 + 16, -58), new Vector2(60, 60), stats.transform);
             shieldIcon.enabled = false;
             timerText = Label(70, TextAnchor.MiddleCenter, new Vector2(.5f, 1), new Vector2(0, -130), new Vector2(400, 90), stats.transform);
+            clockText = Label(36, TextAnchor.UpperRight, new Vector2(1, 1), new Vector2(-40, -96), new Vector2(400, 50), stats.transform, new Vector2(1, 1));
 
             hintText = Label(34, TextAnchor.LowerCenter, new Vector2(.5f, 0), new Vector2(0, 36), new Vector2(1800, 60), stats.transform, new Vector2(.5f, 0));
 
@@ -672,6 +720,15 @@ namespace Kfitsa
             bossName = Label(34, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 44), new Vector2(800, 50), bossBar.transform, new Vector2(.5f, .5f));
 
             bannerText = Label(76, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 80), new Vector2(1700, 400), canvas, new Vector2(.5f, .5f));
+            // The achievement toast: a dark strip at the top with the icon, over the game and the menus alike
+            toast = new GameObject("Toast", typeof(Image));
+            toast.transform.SetParent(canvas, false);
+            var tr = (RectTransform)toast.transform; tr.anchorMin = tr.anchorMax = new Vector2(.5f, 1); tr.pivot = new Vector2(.5f, 1);
+            tr.sizeDelta = new Vector2(760, 120); tr.anchoredPosition = new Vector2(0, -210);
+            var tbg = toast.GetComponent<Image>(); tbg.color = new Color(.08f, .1f, .18f, .92f); tbg.raycastTarget = false;
+            toastIcon = Picture("star", new Vector2(1, .5f), new Vector2(-70, 0), new Vector2(84, 84), toast.transform);
+            toastText = Label(36, TextAnchor.MiddleRight, new Vector2(1, .5f), new Vector2(-130, 0), new Vector2(600, 110), toast.transform, new Vector2(1, .5f));
+            toast.SetActive(false);
             fade = Panel(Color.clear);
             fade.gameObject.name = "Fade";
             BossBar(-1);
@@ -750,7 +807,25 @@ namespace Kfitsa
 
         public void Show(bool on) { stats.SetActive(on); if (!on) { Banner(""); Fade(0); Hint(0, ""); } }
         public void Hint(float seconds, string text) { hintT = seconds; hintText.text = seconds > 0 ? text : ""; }
-        public void Tick() { FitScreen(); if (hintT > 0 && (hintT -= Time.unscaledDeltaTime) <= 0) hintText.text = ""; }
+        public void Tick()
+        {
+            FitScreen(); if (hintT > 0 && (hintT -= Time.unscaledDeltaTime) <= 0) hintText.text = "";
+            if (toastT > 0 && (toastT -= Time.unscaledDeltaTime) <= 0) toast.SetActive(false);
+        }
+
+        GameObject toast; Image toastIcon; Text toastText; float toastT;
+        public bool ToastShown => toast.activeSelf;
+        public string ToastText => toastText.text;
+        /// Shows a newly opened achievement for a few seconds.
+        public void Toast(string icon, string text)
+        {
+            toast.SetActive(true); toast.transform.SetAsLastSibling(); toastT = 3.5f;
+            toastIcon.sprite = Art.Center(icon); toastText.text = Rtl.V(text);
+        }
+
+        /// The level clock under the score; a negative time hides it.
+        public void Clock(float seconds) => clockText.text = seconds < 0 ? "" : Rtl.V("זמן " + TimeText(seconds));
+        public static string TimeText(float s) => string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}:{1:00.0}", (int)(s / 60), s % 60);
         public void Banner(string s) { bannerText.text = s; bannerText.transform.SetAsLastSibling(); }
         public void Fade(float a) { fade.color = new Color(0, 0, 0, a); fade.transform.SetAsLastSibling(); }
 

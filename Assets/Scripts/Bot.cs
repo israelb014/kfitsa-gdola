@@ -271,7 +271,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -316,6 +316,18 @@ namespace Kfitsa
                     At(9, 20, 2, 1); G.paused = true; var mouse = G.enemies.Find(x => x.kind == 'z');
                     for (int i = 0; i < 300 && mouse != null && !mouse.scared; i++) G.TestStep(1, new Pad { x = 1, run = true });
                     G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 44:
+                {
+                    if (G.Running) G.Unload();
+                    Outfit.Hat = Outfit.Pant = 0; app.hud.Show(false); app.save.achievements = 0b1010_0101_1001_0111; app.ShowAchievements(app.ShowTitle);
+                    break;
+                }
+                case 45: app.save.achievements = 0; app.hud.Show(true); At(0, 20, 2, 1); G.paused = true; Achievements.Unlock(Achievements.Id.Chain); G.DrawNow(); break;
+                case 46:
+                {
+                    app.hud.Show(true); At(0, 20, 2, 1); G.paused = true; app.save.bestTime[0] = 341; G.TestStep(90, default); G.WinForTest(); G.TestStep(20, default); G.DrawNow();
                     break;
                 }
                 case 41:
@@ -902,6 +914,37 @@ namespace Kfitsa
                 Check("a stomp silences the mouse: the sleepers sleep on", !m.alive && !m.scared && sl.asleep);
                 g = Fresh(app); d2 = g.deaths; m = g.TestEnemy('z', 12, 2); g.hero.x = 10; g.hero.y = 2; g.TestStep(150, new Pad { x = 1 });
                 Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
+            }
+
+            // Version 2.2: achievements and the level clock
+            {
+                Check("achievements: 16, each with an icon", Achievements.All.Length == 16 && Achievements.All.All(d => Resources.Load<Texture2D>("Art/" + d.icon) != null));
+                app.save.achievements = 0; app.save.coinsTotal = 0;
+                Achievements.Unlock(Achievements.Id.Freeze);
+                Check($"achievements: opening one shows a toast ({app.hud.ToastText})", Achievements.Has(Achievements.Id.Freeze) && app.hud.ToastShown && Achievements.Count == 1);
+                app.save.achievements = 0;
+                app.run = new RunState { lives = 9 }; app.game.skipIntro = true; app.game.StartLevel(0); g = app.game;
+                for (int i = 0; i < app.save.bestTime.Length; i++) app.save.bestTime[i] = 0;
+                g.TestStep(120, none); g.WinForTest();
+                Check($"clock: the first finish is the best time ({g.LastTime:F1}s, saved {app.save.bestTime[0]})", g.NewBestTime && app.save.bestTime[0] == Mathf.RoundToInt(g.LastTime * 10));
+                int b0 = app.save.bestTime[0];
+                Check("achievements: a finished level without a hit opens two", Achievements.Has(Achievements.Id.First) && Achievements.Has(Achievements.Id.NoHit));
+                g.StartLevel(0); g.TestStep(240, none); g.WinForTest();
+                Check("clock: a slower finish keeps the old best", !g.NewBestTime && app.save.bestTime[0] == b0);
+                g.StartLevel(0); g.TestStep(60, none); g.hero.invuln = 0; g.god = true; g.TestEnemy('e', g.hero.x + .2f, g.hero.y); g.TestStep(30, none); g.god = false; g.WinForTest();
+                Check($"clock: a faster finish is the new best ({app.save.bestTime[0]})", g.NewBestTime && app.save.bestTime[0] < b0);
+                app.save.achievements = 0; g.StartLevel(0); g.hero.invuln = 0; g.god = true; g.TestEnemy('e', g.hero.x + .2f, g.hero.y); g.TestStep(30, none); g.god = false; g.WinForTest();
+                Check("achievements: a hit in the level, no 'without a hit'", Achievements.Has(Achievements.Id.First) && !Achievements.Has(Achievements.Id.NoHit));
+                g = Fresh(app); app.save.coinsTotal = 98;
+                g.AddCoinForTest(); g.AddCoinForTest();
+                Check($"achievements: the 100th coin over all games ({app.save.coinsTotal})", Achievements.Has(Achievements.Id.Coins));
+                var keepStars = (int[])app.save.stars.Clone(); var keepFound = (int[])app.save.found.Clone();
+                for (int i = 0; i < Levels.All.Length; i++) { app.save.stars[i] = 7; app.save.found[i] = Levels.All[i].world == 1 ? (1 << 10) - 1 : 0; }
+                app.CheckProgressForTest();
+                Check("achievements: every star and the secrets of world 1 only", Achievements.Has(Achievements.Id.AllStars) && Achievements.Has(Achievements.Id.Secrets1) && !Achievements.Has(Achievements.Id.Secrets2));
+                app.save.stars = keepStars; app.save.found = keepFound; app.save.achievements = 0; app.save.coinsTotal = 0;
+                for (int i = 0; i < app.save.bestTime.Length; i++) app.save.bestTime[i] = 0;
+                g.Unload();
             }
 
             // Version 2.1: outfits

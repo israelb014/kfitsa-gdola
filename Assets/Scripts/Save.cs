@@ -27,6 +27,8 @@ namespace Kfitsa
         public int buttonColor, runMode;                     // runMode: see TouchUi.RunMode
         public int taught;                                   // touch lessons already shown, one bit each
         public int hat, pant;                                // what the hero wears (v2.1), see Outfit
+        public int achievements, coinsTotal;                 // v2.2: one bit per achievement; coins over all games
+        public int[] bestTime = new int[Levels.All.Length];  // v2.2: best finish per level in tenths of a second, 0 = none
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;
@@ -42,7 +44,7 @@ namespace Kfitsa
                 {
                     var s = JsonUtility.FromJson<Save>(File.ReadAllText(FilePath));
                     // New levels are added at the end, so an older save keeps everything it had
-                    s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found);
+                    s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found); s.bestTime = Fit(s.bestTime);
                     // A level finished before the next one existed: the next one is open now
                     while (s.unlocked < Levels.All.Length - 1 && s.best[s.unlocked] > 0) s.unlocked++;
                     return s;

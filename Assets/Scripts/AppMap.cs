@@ -178,7 +178,7 @@ namespace Kfitsa
             mapMissing.color = miss.Count == 0 && got == total ? new Color(1, .9f, .4f) : new Color(.9f, .95f, 1);
             int all = 0;
             foreach (int bits in save.stars) all += Bits(bits);
-            mapStats.text = Rtl.V($"כוכבים: {all}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
+            mapStats.text = Rtl.V($"כוכבים: {all}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}" + (save.bestTime[mapCursor] > 0 ? "    זמן שיא: " + Hud.TimeText(save.bestTime[mapCursor] / 10f) : "") + $"    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
         }
 
         /// The hero walks toward the chosen stop, and the path lights up as far as it is open.

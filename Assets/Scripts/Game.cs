@@ -37,6 +37,8 @@ namespace Kfitsa
         public bool RoomSolved => roomDone;
         public bool LampLit(float x, float y) => lights.Exists(l => l.lit && Mathf.Abs(l.at.x - x) < .1f && Mathf.Abs(l.at.y - y) < .1f);
         public void ApplyPowerForTest(int p) => ApplyPower(p);
+        public void WinForTest() => Win();
+        public void AddCoinForTest() => AddCoin();
         public void RemoveEnemies()
         {
             foreach (var e in enemies) Destroy(e.view.gameObject);
@@ -81,6 +83,8 @@ namespace Kfitsa
         float acc, freeze, phaseT, camX, camY = HalfH, look, heroAnim, squash, simT, skidDust, growFlash, heroGone, shake, throwT;
         float camMin, camMax, camTop;
         int stompChain, coinStreak;
+        int hitsAtStart, squeaks;      // v2.2: for the achievements of this level
+        public bool NewBestTime; public float LastTime;
         float coinStreakT;
         SpriteRenderer bubbleView;
         bool bossWarned;
@@ -190,7 +194,7 @@ namespace Kfitsa
                 boss.shadow.enabled = false;
             }
 
-            look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0; coinStreak = 0; bossWarned = false;
+            look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0; coinStreak = 0; bossWarned = false; hitsAtStart = hits; squeaks = 0;
             heroGone = 0; growFlash = 0; inRoom = false; climbedHere = false; shake = 0; pendingDoor = false;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
@@ -505,6 +509,7 @@ namespace Kfitsa
         {
             hero.Stomped(pad.jumpHeld);
             stompChain++;
+            if (stompChain >= 3) Achievements.Unlock(Achievements.Id.Chain);
             app.run.score += 100 << Mathf.Min(stompChain, 5);
             freeze = .07f; shake = Mathf.Max(shake, .12f);      // a beat of stillness and a small kick sells the hit
             Sound.Play("stomp");
@@ -621,6 +626,8 @@ namespace Kfitsa
             if (boss.hp <= 0)
             {
                 boss.alive = false; boss.vy = 12;
+                Achievements.Unlock(boss.frost ? Achievements.Id.Giant : Achievements.Id.King);
+                if (n == 1) Achievements.Unlock(Achievements.Id.TopWin);      // only a sevivon does 1
                 app.run.score += 5000;
                 foreach (var e in enemies) KillFlying(e, 1);
                 foreach (var b in snowBalls) b.gone = true;
@@ -812,6 +819,7 @@ namespace Kfitsa
         void AddCoin()
         {
             app.run.coins++; app.run.score += 100; levelCoins++;
+            if (++app.save.coinsTotal >= 100) Achievements.Unlock(Achievements.Id.Coins);
             coinStreak = simT - coinStreakT < .5f ? Mathf.Min(coinStreak + 1, 12) : 0;
             coinStreakT = simT;
             Sound.Play("coin", .7f, Mathf.Pow(2, coinStreak / 12f));      // one semitone per coin, up to an octave
@@ -885,6 +893,7 @@ namespace Kfitsa
             if (app.run.shield)
             {
                 app.run.shield = false;
+                Achievements.Unlock(Achievements.Id.Bubble);
                 hero.invuln = Tune.Invulnerable;
                 freeze = .15f; shake = Mathf.Max(shake, .2f);
                 Sound.Play("pop");
@@ -935,7 +944,21 @@ namespace Kfitsa
             Sound.Music(null); Sound.Play("win");
             int found = 0;
             for (int b = gotStars | SavedStars; b != 0; b >>= 1) found += b & 1;
-            app.hud.Banner(Rtl.V($"השלב הושלם!\nניקוד {app.run.score}    כוכבים {found}/3"));
+            // The clock: a new best time is kept per level
+            LastTime = levelTime; NewBestTime = false;
+            string time = "";
+            if (levelIndex >= 0)
+            {
+                int tenths = Mathf.Max(1, Mathf.RoundToInt(levelTime * 10)), best = app.save.bestTime[levelIndex];
+                NewBestTime = best == 0 || tenths < best;
+                if (NewBestTime) app.save.bestTime[levelIndex] = tenths;
+                time = "\nזמן " + Hud.TimeText(levelTime) + (NewBestTime ? (best == 0 ? "" : "    שיא חדש!") : "    שיא " + Hud.TimeText(best / 10f));
+                Achievements.Unlock(Achievements.Id.First);
+                if (hits == hitsAtStart) Achievements.Unlock(Achievements.Id.NoHit);
+                if (found == 3) Achievements.Unlock(Achievements.Id.ThreeStars);
+                if (Def.file == "w3l3" && squeaks == 0) Achievements.Unlock(Achievements.Id.Quiet);
+            }
+            app.hud.Banner(Rtl.V($"השלב הושלם!\nניקוד {app.run.score}    כוכבים {found}/3" + time));
         }
 
         void AddFx(Sprite s, Vector2 at, Vector2 vel, float life, float gravity, int order, float scale = 1)
@@ -1001,6 +1024,7 @@ namespace Kfitsa
             }
             DrawBubble();
             app.hud.Stats(app.run.score, app.run.coins, app.run.lives);
+            app.hud.Clock(levelIndex >= 0 ? levelTime : -1);
         }
 
         static readonly Color DustGrass = new Color(.88f, .84f, .7f), DustSand = new Color(.97f, .86f, .62f), DustStone = new Color(.86f, .86f, .9f), DustDirt = new Color(.86f, .75f, .6f);
@@ -1042,6 +1066,7 @@ namespace Kfitsa
         /// The frost sevivon locks an enemy in ice for a few seconds; the ice's top is a ledge.
         void Freeze(Enemy e)
         {
+            Achievements.Unlock(Achievements.Id.Freeze);
             e.frozen = FrozenSeconds; e.vx = 0; e.vy = 0;
             var o = new GameObject("Ice").transform; o.SetParent(root, false);
             var cube = Art.Spawn("IceCube", o, Art.Tile("ice"), 6);
@@ -1073,6 +1098,7 @@ namespace Kfitsa
 
         void Squeak(Enemy m)
         {
+            squeaks++;
             m.scared = true; m.dir = hero.x < m.x ? 1 : -1;
             Sound.Play("select", 1, 1.9f);
             AddFx(Art.Center("bubble"), new Vector2(m.x, m.y + 1.1f), new Vector2(0, 2.5f), .5f, 0, 9, .25f);
