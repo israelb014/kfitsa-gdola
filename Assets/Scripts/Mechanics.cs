@@ -119,10 +119,10 @@ namespace Kfitsa
             if (star == null) { app.hud.Hint(3f, Rtl.V("את הכוכב של החדר כבר לקחת")); return; }
             roomDone = false; roomOpen = true; roomTimer = grid.RoomSeconds;
             string mode = grid.RoomMode;
-            star.hidden = mode == "coins" || mode == "lights" || mode == "stomp";
+            star.hidden = mode == "coins" || mode == "lights" || mode == "stomp" || mode == "blocks";
             star.view.enabled = !star.hidden;
             foreach (var c in coinItems) if (c.room && mode == "coins") c.view.enabled = true;
-            if (mode == "stomp" && !enemies.Exists(e => e.alive && e.x >= grid.MainW))
+            if ((mode == "stomp" || mode == "blocks") && !enemies.Exists(e => e.alive && e.x >= grid.MainW))
                 foreach (var (at, kind) in grid.Enemies)
                     if (at.x >= grid.MainW) AddEnemy(at, kind);
             app.hud.Hint(4f, Rtl.V(Def.roomTip));

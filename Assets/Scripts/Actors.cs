@@ -8,6 +8,9 @@ namespace Kfitsa
         public float x, y, dx, dy;
         public readonly float baseX, baseY, halfW, moveX, moveY, period, phase;
         public Transform view;
+        public bool cloud;              // a snow cloud: sinks while stood on, comes back up when left
+        public int cloudId;
+        public float maxSink = 999;     // a cloud over solid ground stops when it reaches it
 
         public float Left => x - halfW;
         public float Right => x + halfW;
@@ -32,7 +35,7 @@ namespace Kfitsa
 
     public class Enemy : Body
     {
-        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime
+        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime, m worm
         public SpriteRenderer view;
         public bool awake, alive = true, flying;
         public int state;              // snail: 0 walking, 1 in shell, 2 sliding
@@ -48,6 +51,26 @@ namespace Kfitsa
         {
             baseX = x; baseY = y + 2;
             if (kind == 'y') y = baseY;
+            if (kind == 'm') t = Mathf.Repeat(x * .618f, 1) * WormPeriod;     // neighbours keep different times
+        }
+
+        // The worm keeps a fixed clock: hidden, a peek as a warning, out, and back down
+        public const float WormPeriod = 3.4f, WormPeek = 1.3f, WormOut = 1.8f, WormBack = 3.15f;
+        float WormClock => Mathf.Repeat(t, WormPeriod);
+        /// Out of the ground, so it can hurt and be stomped.
+        public bool Out => kind != 'm' || WormClock >= WormOut && WormClock < WormBack;
+        /// How far out of the ground it is drawn, 0 to 1.
+        public float Rise
+        {
+            get
+            {
+                float k = WormClock;
+                if (k < WormPeek) return 0;
+                if (k < WormOut) return Mathf.Lerp(0, .35f, (k - WormPeek) / (WormOut - WormPeek - .15f));
+                if (k < WormOut + .1f) return Mathf.Lerp(.35f, 1, (k - WormOut) / .1f);
+                if (k < WormBack) return 1;
+                return Mathf.Lerp(1, 0, (k - WormBack) / (WormPeriod - WormBack));
+            }
         }
 
         public void Step(float dt, float heroX)
@@ -57,6 +80,7 @@ namespace Kfitsa
             if (!alive) { flat -= dt; return; }
             switch (kind)
             {
+                case 'm': return;       // stays in its hole
                 case 'y':
                     float nx = baseX + Mathf.Sin(t * .9f) * 3.5f;
                     dir = nx > x ? 1 : -1;
@@ -97,7 +121,7 @@ namespace Kfitsa
 
         public void Draw()
         {
-            view.transform.position = new Vector3(x, y, 0);
+            view.transform.position = new Vector3(x, y - (kind == 'm' && alive ? (1 - Rise) * .55f : 0), 0);
             view.flipX = dir > 0;
             view.flipY = flying;
             // Frozen: ice blue, and blinking for the last second before it thaws
@@ -110,6 +134,7 @@ namespace Kfitsa
                 case 'n': view.sprite = Art.Feet(state > 0 || !alive ? "snail_shell" : a ? "snail_walk_a" : "snail_walk_b"); break;
                 case 'y': view.sprite = Art.Feet(!alive ? "fly_rest" : (int)(t * 14) % 2 == 0 ? "fly_a" : "fly_b"); break;
                 case 'j': view.sprite = Art.Feet(!alive ? "frog_rest" : grounded ? "frog_idle" : "frog_jump"); break;
+                case 'm': view.sprite = Art.Feet(!alive ? "worm_normal_rest" : Out ? (a ? "worm_normal_move_a" : "worm_normal_move_b") : "worm_normal_rest"); view.sortingOrder = alive ? -1 : 5; break;
                 case 'q': view.sprite = Art.Feet(block != null || !alive ? "slime_block_rest" : !grounded ? "slime_block_jump" : a ? "slime_block_walk_a" : "slime_block_walk_b"); break;
             }
         }

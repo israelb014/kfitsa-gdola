@@ -93,7 +93,7 @@ namespace Kfitsa
         float FindCycle()
         {
             var periods = new List<float>();
-            foreach (var p in g.Platforms) periods.Add(p.period);
+            foreach (var p in g.Platforms) if (!p.cloud) periods.Add(p.period);
             if (g.Storm != null) periods.Add(g.Storm.Period);
             if (g.Tide != null) periods.Add(g.Tide.period);
             int l = 1;
@@ -111,7 +111,7 @@ namespace Kfitsa
         bool Near(float x, float y)
         {
             foreach (var p in g.Platforms)
-                if (Mathf.Abs(x - p.baseX) < Mathf.Abs(p.moveX) + 10 && Mathf.Abs(y - p.baseY) < Mathf.Abs(p.moveY) + 6) return true;
+                if (!p.cloud && Mathf.Abs(x - p.baseX) < Mathf.Abs(p.moveX) + 10 && Mathf.Abs(y - p.baseY) < Mathf.Abs(p.moveY) + 6) return true;
             if (g.Storm != null && !room) return true;
             return g.Tide != null && x > g.Tide.x0 - 6 && x < g.Tide.x1 + 2;
         }
@@ -219,6 +219,8 @@ namespace Kfitsa
             k = k * 2 + (s.sw & 1);
             k = k * 2 + (s.floodAt >= 0 || s.chaseAt >= 0 ? 1 : 0);
             k = k * 2 + (p.climbing ? 1 : 0);
+            k = k * 64 + (s.cloudA & 63);
+            k = k * 64 + Mathf.Min(63, Mathf.RoundToInt(s.sinkA * 3));
             int phase = cycle > 0 && Near(p.x, p.y) ? Mathf.FloorToInt(Mathf.Repeat(s.t, cycle) * 2) : 0;
             return k * 256 + phase;
         }
@@ -227,7 +229,7 @@ namespace Kfitsa
         {
             start.grid = g;
             g.Sw = s.sw;
-            foreach (var p in g.Platforms) { p.At(s.t); p.At(s.t); }
+            World.Place(g, s); World.Place(g, s);
             Push(new Node { p = start, s = s, parent = -1, planIndex = -1, surface = -1 });
         }
 
@@ -316,7 +318,7 @@ namespace Kfitsa
         void Simulate(int id, Node n, int planIndex, in Plan pl)
         {
             var h = n.p.Copy(); var s = n.s; g.Sw = s.sw;
-            foreach (var p in g.Platforms) { p.At(s.t); }
+            World.Place(g, s);
             var trail = n.trail;
             int tick = 0, pi = planIndex;
             var plan = pl;

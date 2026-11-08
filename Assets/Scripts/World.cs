@@ -64,6 +64,8 @@ namespace Kfitsa
     {
         public float t, floodAt, chaseAt;
         public int sw;
+        public int cloudA, cloudB;      // the clouds still sunk (id + 1, 0 for none): the one stood on last, and the one before
+        public float sinkA, sinkB;
         public bool onSwitch;
         public static WorldState Fresh => new WorldState { floodAt = -1, chaseAt = -1 };
     }
@@ -74,13 +76,52 @@ namespace Kfitsa
     {
         public const float BeltSpeed = 3f, SpringSpeed = 22f, CrumbleDelay = .5f, CrumbleBack = 3.5f;
         public const float WindGroundScale = .55f;
+        public const float CloudSink = 1.5f, CloudRise = 3f;
+
+        /// Moves every platform to where the clock and the clouds say it is.
+        public static void Place(Grid2 g, in WorldState s)
+        {
+            foreach (var p in g.Platforms) if (p.cloud) PlaceCloud(p, s); else p.At(s.t);
+        }
+
+        static void PlaceCloud(Platform p, in WorldState s)
+        {
+            float ny = p.baseY - SinkOf(p, s);
+            p.dx = 0; p.dy = ny - p.y; p.y = ny;
+        }
+
+        public static float SinkOf(Platform p, in WorldState s)
+        {
+            int id = p.cloudId + 1;
+            return Mathf.Min(p.maxSink, id == s.cloudA ? s.sinkA : id == s.cloudB ? s.sinkB : 0);
+        }
+
+        /// The cloud under the feet sinks; the others float back up. Only two can be down at once, which the
+        /// levels respect by spacing clouds so that one is back up before the hero reaches a third.
+        static void Clouds(Grid2 g, ref WorldState s, Player h, float dt)
+        {
+            int on = h.on != null && h.on.cloud ? h.on.cloudId + 1 : 0;
+            if (on != 0)
+            {
+                if (s.cloudA != on)
+                {
+                    if (s.cloudB == on) { (s.cloudA, s.cloudB) = (s.cloudB, s.cloudA); (s.sinkA, s.sinkB) = (s.sinkB, s.sinkA); }
+                    else { s.cloudB = s.cloudA; s.sinkB = s.sinkA; s.cloudA = on; s.sinkA = 0; }
+                }
+                s.sinkA = Mathf.Min(s.sinkA + CloudSink * dt, h.on.maxSink);
+            }
+            else if (s.cloudA != 0) s.sinkA = Mathf.Max(0, s.sinkA - CloudRise * dt);
+            if (s.cloudB != 0) { s.sinkB = Mathf.Max(0, s.sinkB - CloudRise * dt); if (s.sinkB == 0) s.cloudB = 0; }
+            if (on == 0 && s.cloudA != 0 && s.sinkA == 0) { s.cloudA = s.cloudB; s.sinkA = s.sinkB; s.cloudB = 0; s.sinkB = 0; }
+        }
 
         public static void Step(Grid2 g, ref WorldState s, Player h, float dt, Pad input)
         {
             s.t += dt;
+            if (g.Clouds.Count > 0) Clouds(g, ref s, h, dt);
             foreach (var p in g.Platforms)
             {
-                p.At(s.t);
+                if (p.cloud) PlaceCloud(p, s); else p.At(s.t);
                 if (h.on == p) { h.MoveX(p.dx); h.y += p.dy; }
             }
             if (h.grounded)

@@ -161,7 +161,8 @@ namespace Kfitsa
                 for (int i = 0; i < n; i++)
                 {
                     string part = n == 1 ? "block" : i == 0 ? "horizontal_left" : i == n - 1 ? "horizontal_right" : "horizontal_middle";
-                    var s = Art.Spawn("Part", o, Art.Tile($"t_{Def.terrain}_{part}"), 2);
+                    string art = !p.cloud ? $"t_{Def.terrain}_{part}" : n == 1 ? "snow_cloud" : i == 0 ? "snow_cloud_left" : i == n - 1 ? "snow_cloud_right" : "snow_cloud_middle";
+                    var s = Art.Spawn("Part", o, Art.Tile(art), 2);
                     s.transform.localPosition = new Vector3(i - p.halfW, -1, 0);
                 }
                 p.view = o;
@@ -216,7 +217,7 @@ namespace Kfitsa
         void AddEnemy(Vector2 at, char kind)
         {
             var v = Art.Spawn("Enemy", root, Art.Feet("slime_normal_walk_a"), 5);
-            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : .8f, h = kind == 'q' ? .9f : .7f, view = v, kind = kind };
+            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : kind == 'm' ? .85f : .8f, h = kind == 'q' ? .9f : kind == 'm' ? .45f : .7f, view = v, kind = kind };
             e.Init();
             enemies.Add(e);
         }
@@ -533,9 +534,9 @@ namespace Kfitsa
 
                 if (e.kind == 'n' && e.state == 2)
                     foreach (var o in enemies)
-                        if (o != e && o.alive && e.Overlaps(o)) KillFlying(o, e.dir);
+                        if (o != e && o.alive && o.Out && e.Overlaps(o)) KillFlying(o, e.dir);
 
-                if (!hero.Overlaps(e)) continue;
+                if (!e.Out || !hero.Overlaps(e)) continue;       // a worm in the ground is out of reach
                 bool stomp = hero.vy < 0 && hero.y > e.y + e.h * .35f;
                 if (e.thawT > 0 && !stomp) continue;
                 if (e.kind == 'p') Hurt();
@@ -637,7 +638,7 @@ namespace Kfitsa
                 var d = tops[i];
                 d.Step(dt);
                 foreach (var e in enemies)
-                    if (e.alive && e.awake && d.Hits(e))
+                    if (e.alive && e.awake && e.Out && d.Hits(e))
                     {
                         if (d.frost && e.frozen <= 0) Freeze(e); else KillFlying(e, d.dir);
                         d.gone = true; break;

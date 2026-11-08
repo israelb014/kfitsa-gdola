@@ -4,7 +4,7 @@ Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life 
 P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
 { } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp,
-I ladder (its top is a ledge), t rope, q block slime.
+I ladder (its top is a ledge), t rope, q block slime, c sinking snow cloud (each run of c is one cloud), m worm.
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
 in three parts: met safely, developed, then combined with a twist."""
 import sys
@@ -329,6 +329,36 @@ def w3l1():
     l.row(x0+12, x1, 9, 'g'); l.put(x1-1, 10, 's')
     return l
 
+def w3l2():
+    """Sinking clouds. Over a shallow ditch first, where a cloud only sets you down; then over pits; the twist is a
+    climb from cloud to cloud that never lets you stand still, with worms on the islands between."""
+    l = L(230, 18, 'clouds')
+    l.note('needs clouds')
+    def cloud(x0, x1, y): l.row(x0, x1, y, 'c')
+    # Met safely: a ditch with a floor, so a cloud that sinks just sets you down
+    l.ground(0, 30, 3); l.put(9, 3, 'S'); l.put(7, 3, '>'); l.put(11, 3, ',')
+    l.put(12, 6, '!'); l.put(13, 6, 'b'); l.put(14, 6, 'b'); l.put(15, 6, '!'); l.put(24, 3, 'm')
+    l.ground(31, 47, 1); l.stairs(45, 2, 1, '#'); cloud(34, 36, 2); cloud(40, 42, 2); l.line(34, 36, 5); l.line(40, 42, 5)
+    l.ground(47, 64, 3); l.put(52, 3, 'e'); l.put(58, 3, 'm'); l.note('easyflag 50 3')
+    # Developed: clouds over pits with nothing below
+    cloud(69, 71, 2); cloud(75, 77, 4); l.put(76, 9, 's'); cloud(82, 84, 3); l.arc(80, 7, 5)
+    l.ground(89, 118, 3); l.put(92, 6, '+'); l.put(95, 3, 'm'); l.put(100, 7, 'h'); l.put(101, 3, 'm')
+    l.put(106, 3, 'C'); l.put(104, 3, ',')
+    l.put(110, 6, '!'); l.put(109, 6, 'b'); l.put(111, 6, 'b'); l.put(114, 3, 'D')
+    # The twist: up and down from cloud to cloud, with an island where a worm keeps time
+    cloud(123, 125, 4); cloud(129, 130, 6); cloud(134, 136, 8); cloud(140, 142, 6)
+    l.ground(146, 150, 5); l.put(148, 5, 'm')
+    cloud(155, 157, 5); cloud(161, 163, 7); cloud(167, 169, 9); l.put(168, 13, 's'); cloud(173, 175, 6)
+    l.ground(180, 212, 3); l.put(186, 3, 'q'); l.put(192, 3, 'm'); l.line(194, 199, 6); l.note('easyflag 182 3')
+    l.put(205, 3, 'G'); l.put(202, 3, ','); l.put(209, 3, '%')
+    x0, x1 = l.box(213)
+    # Bonus room: stomp every block slime and the star appears
+    l.note('room blocks 0')
+    l.put(x0+1, 2, 'E')
+    for x in (x0+4, x0+7, x0+10): l.put(x, 2, 'q')
+    l.row(x1-2, x1, 4, 'g'); l.put(x1-1, 5, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -341,9 +371,10 @@ def test():
     l.row(63, 65, 6)
     for y in range(5, 10): l.put(44, y, 't')    # a rope from a beam
     l.row(43, 45, 10, 'g')
+    l.row(6, 8, 10, 'c')                        # a snow cloud high over the floor (v1.7)
     x0, x1 = l.box(95); l.put(x0+2, 2, 'E')
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('test',test)):
     f().save(n, out)

@@ -42,6 +42,8 @@ namespace Kfitsa
                 tip = "המלך רודף אחריכם! רוצו!", roomTip = "הביסו את כל הג'לי לפני שהזמן נגמר" },
             new LevelDef { file = "w3l1", name = "מגדל הסולמות", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 1,
                 tip = "חץ למעלה מטפס בסולם ובחבל, וקפיצה עוזבת", roomTip = "מרוץ טיפוס! הגיעו לכוכב לפני שהזמן נגמר" },
+            new LevelDef { file = "w3l2", name = "ענני השלג", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 2,
+                tip = "ענן שלג שוקע כשעומדים עליו. אל תתעכבו", roomTip = "דרכו על כל הג'לי-בלוקים והכוכב יופיע" },
         };
     }
 }

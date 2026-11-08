@@ -35,6 +35,7 @@ namespace Kfitsa
         public readonly List<(int c, int r)> Springs = new List<(int, int)>(), Torches = new List<(int, int)>();
         public bool Tall => H > 15;
         public readonly List<Platform> Platforms = new List<Platform>();
+        public readonly List<Platform> Clouds = new List<Platform>();
         char[,] cells;
 
         public static Grid2 Parse(string text)
@@ -62,7 +63,7 @@ namespace Kfitsa
                         case 'R': g.RoomStart = c; g.MainW = c; ch = 'g'; break;
                         case 'B': g.BossSpot = cell; g.HasBoss = true; ch = ' '; break;
                         case 'o': g.Coins.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
-                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': g.Enemies.Add((cell, ch)); ch = ' '; break;
                         case '?': g.Blocks.Add((c, r, BlockKind.Coin)); break;
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
                         case '*': g.Blocks.Add((c, r, BlockKind.Life)); break;
@@ -83,7 +84,29 @@ namespace Kfitsa
                     g.cells[c, r] = ch;
                 }
             foreach (var n in notes) g.Note(n.Substring(1).Split(' '));
+            g.FindClouds();
             return g;
+        }
+
+        /// Each run of 'c' in a row is one cloud, standing where its cells are; the cells themselves are empty.
+        void FindClouds()
+        {
+            for (int r = 0; r < H; r++)
+                for (int c = 0; c < W; c++)
+                {
+                    if (cells[c, r] != 'c') continue;
+                    int end = c;
+                    while (end + 1 < W && cells[end + 1, r] == 'c') end++;
+                    float drop = 999;
+                    for (int x = c; x <= end; x++)
+                    {
+                        cells[x, r] = ' ';
+                        for (int y = r - 1; y >= 0; y--) if (Solid(x, y)) { drop = Mathf.Min(drop, r - y); break; }
+                    }
+                    var p = new Platform((c + end + 1) / 2f, r + 1, 0, 0, 1, 0, end - c + 1) { cloud = true, cloudId = Clouds.Count, maxSink = drop };
+                    Clouds.Add(p); Platforms.Add(p);
+                    c = end;
+                }
         }
 
         /// One "@" line of a level file: everything a level does beyond its tiles.
@@ -134,7 +157,8 @@ namespace Kfitsa
         public void Without(string what)
         {
             if (what == "springs") Springs.Clear();
-            else if (what == "platforms") Platforms.Clear();
+            else if (what == "platforms") Platforms.RemoveAll(p => !p.cloud);
+            else if (what == "clouds") { Platforms.RemoveAll(p => p.cloud); Clouds.Clear(); }
             else if (what == "ladders") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (Climbable(c, r)) cells[c, r] = ' '; }
             else if (what == "crumble") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (cells[c, r] == 'u') cells[c, r] = ' '; }
             else throw new System.Exception("Unknown mechanic: " + what);

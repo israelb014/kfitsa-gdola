@@ -1,0 +1,23 @@
+@idea clouds
+@needs clouds
+@easyflag 50 3
+@easyflag 182 3
+@room blocks 0
+                                                                                                                                                                                                                     g
+                                                                                                                                                                                                                     g
+                                                                                                                                                                                                                     g
+                                                                                                                                                                                                                     ggggggggggggggggg
+                                                                                                                                                                        s                                            ggggggggggggggggg
+                                                                                                                                                                                                                     g               g
+                                                                                                                                                                                                                     g               g
+                                                                                                                                                                                                                     g               g
+                                                                            s     o                                                                                    ccc                                           g               g
+                                                                                 o o                                                  ccc                                                                            g               g
+                                                                                o   o               h                                                            ccc                                                 g               g
+            !bb!                                                                            +                b!b                 cc         ccc                              ccc                  oooooo             g               g
+                                  ooo   ooo                                                                                                         m      ccc                                                       g             s g
+                                                                           ccc                                             ccc                    #####                                                              g            gggg
+       > S ,            m                           e     m                       ccc          m     m  , C       D                               #####                                   q     m         ,  G   %   g               g
+###############################   ccc   ccc   ###################    ccc                 ##############################                           #####                             #################################g E  q  q  q    g
+###############################              ####################                        ##############################                           #####                             #################################ggggggggggggggggg
+#################################################################                        ##############################                           #####                             #################################Rgggggggggggggggg

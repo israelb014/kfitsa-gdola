@@ -180,7 +180,7 @@ namespace Kfitsa
                 for (int i = 0; i < 40 && G.RoomCoinsLeft > 0; i++) Drive(def, q => q.kind == "coin" && G.RoomCoinAt(q.x, q.y), true, 10);
             if (mode == "lights")
                 for (int i = 0; i < 6 && !G.RoomSolved; i++) Drive(def, q => q.kind == "lamp" && !G.LampLit(q.x, q.y), true, 10);
-            if (mode == "stomp")
+            if (mode == "stomp" || mode == "blocks")
             {
                 app.run.power = 2; G.ApplyPowerForTest(2);
                 for (int i = 0; i < 2400 && !G.RoomSolved; i++)
@@ -260,7 +260,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -299,6 +299,15 @@ namespace Kfitsa
                 case 32: At(7, 39.4f, 2, 1); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(80, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
                 case 33: At(7, 146.5f, 15, 2); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(20, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
                 case 34: if (G.Running) G.Unload(); app.hud.Show(false); app.WorldClearedForTour(); break;
+                case 35: app.hud.Show(true); At(8, 135, 10, 1); G.paused = true; G.TestStep(90, default); G.SnapCamera(); G.DrawNow(); break;
+                case 36:
+                {
+                    At(8, 93, 3, 1); G.paused = true;
+                    var w = G.enemies.Find(x => x.kind == 'm' && x.x > 94);
+                    for (int i = 0; i < 600 && w != null && !(w.Out && w.Rise >= 1); i++) G.TestStep(1, default);
+                    G.SnapCamera(); G.DrawNow();
+                    break;
+                }
                 case 30: app.mapHold = false; app.save.unlocked = Levels.All.Length - 1; for (int i = 0; i < Levels.All.Length; i++) { app.save.stars[i] = i % 3 == 0 ? 7 : 3; app.save.found[i] = 7; } app.run = new RunState { power = 3 }; app.ShowMap(); break;
                 case 1: app.save.unlocked = 4; app.save.stars[0] = 7; app.save.stars[1] = 3; app.save.stars[2] = 1; app.run = new RunState(); app.ShowMap(); break;
                 case 2: app.save.AddScore(12400, "הגיע לשלב 1-2"); app.save.AddScore(8300, "הגיע לשלב 1-1"); app.ShowScores(app.ShowTitle); break;
@@ -809,6 +818,30 @@ namespace Kfitsa
                 Check("the block stays", e.block != null && g.EnemyCount >= 1);
                 g = Fresh(app); d0 = g.deaths; e = g.TestEnemy('q', 8, 2); g.hero.x = 6; g.hero.y = 2; g.TestStep(60, new Pad { x = 1 });
                 Check("walking into a block slime hurts", g.deaths == d0 + 1);
+            }
+
+            // Version 1.7: sinking clouds and the worm
+            {
+                g = Fresh(app); var cl = g.grid.Clouds[0];
+                g.hero.x = 7.5f; g.hero.y = 11.3f; g.hero.vy = 0; g.TestStep(30, none);
+                Check("the hero can stand on a snow cloud", g.hero.on == cl && Mathf.Abs(g.hero.y - cl.y) < .01f);
+                g.TestStep(120, none);
+                Check("a cloud sinks while stood on, carrying the hero", cl.y < 10 && cl.y > 9 && g.hero.on == cl && Mathf.Abs(g.hero.y - cl.y) < .01f);
+                g.hero.x = 20; g.hero.y = 2; g.hero.on = null; g.TestStep(120, none);
+                Check("left alone, the cloud floats back up", Mathf.Abs(cl.y - 11) < .01f);
+                g.hero.x = 7.5f; g.hero.y = 11.3f; g.hero.vy = 0; g.SnapCamera(); g.TestStep(120 * 8, none);
+                Check($"over ground, a cloud stops when it reaches the floor (cloud {cl.y:F2}, hero {g.hero.y:F2} {g.hero.grounded})", Mathf.Abs(cl.y - 2) < .01f && g.hero.grounded);
+                g = Fresh(app); int d1 = g.deaths; e = g.TestEnemy('m', 20, 2); g.hero.x = 30;
+                for (int i = 0; i < 1000 && e.Out; i++) g.TestStep(1, none);
+                g.hero.x = 20; g.hero.y = 2; g.hero.vx = 0; g.hero.invuln = 0; g.TestStep(2, none);
+                Check("a worm in the ground does no harm", !e.Out && g.deaths == d1);
+                for (int i = 0; i < 1000 && !e.Out; i++) g.TestStep(1, none);
+                g.TestStep(3, none);
+                Check("a worm out of the ground hurts", g.deaths == d1 + 1);
+                g = Fresh(app); e = g.TestEnemy('m', 20, 2); g.hero.x = 30;
+                for (int i = 0; i < 1000 && !e.Out; i++) g.TestStep(1, none);
+                Above(g.hero, e); g.TestStep(20, none);
+                Check("a worm that is out can be stomped", !e.alive);
             }
 
             // Version 1.5: the live world map
