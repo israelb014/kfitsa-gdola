@@ -10,12 +10,15 @@ boot() {
   setsid nohup ~/work/_tools/heavy.sh $ANDROID_SDK_ROOT/emulator/emulator -avd s24 -no-window -no-boot-anim -no-snapshot -gpu host > ~/work/_tools/android-emu/emu.log 2>&1 &
   STARTED=1
   timeout 240 "$ADB" wait-for-device || exit 1
-  until [ "$(timeout 10 "$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done; sleep 15
+  for i in $(seq 80); do [ "$(timeout 10 "$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break; sleep 3; done
+  [ "$(timeout 10 "$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] || { echo "FAIL emulator did not boot"; exit 1; }
+  sleep 15
 }
 [ "$("$ADB" get-state 2>/dev/null)" != device ] && boot
 # No adb call may wait forever if the emulator dies mid-test
 adb() { timeout 30 "$ADB" "$@"; }
 "$ADB" get-state > /dev/null 2>&1 || { echo "FAIL emulator not running"; exit 1; }
+alive() { "$ADB" get-state > /dev/null 2>&1; }
 # Before each part: the game fully stopped, and a fresh emulator (with the game installed) if the last one died
 fresh() {
   if ! "$ADB" get-state > /dev/null 2>&1; then
@@ -31,7 +34,7 @@ adb uninstall $P > /dev/null 2>&1; timeout 180 "$ADB" install Builds/android/Kfi
 # 1. The same audio test as on the desktop, inside the APK
 adb logcat -c
 adb shell am start -n $A -e unity "-audiotest" > /dev/null
-for i in $(seq 90); do sleep 1; adb logcat -d -s Unity:I | grep -qE "AUDIO (ALL PASS|[0-9]+ FAILED)" && break; done
+for i in $(seq 90); do alive || break; sleep 1; adb logcat -d -s Unity:I | grep -qE "AUDIO (ALL PASS|[0-9]+ FAILED)" && break; done
 adb logcat -d -s Unity:I | grep -E " AUDIO " | sed 's/.* AUDIO //' > "$V/audio_android_test.txt"
 grep -vE "^PASS (clip|effect|music)" "$V/audio_android_test.txt" | cut -c1-90 | tee -a "$R"
 grep -q "^ALL PASS" "$V/audio_android_test.txt" || fail "audio test in the APK"
@@ -39,10 +42,14 @@ sleep 3
 
 fresh
 # 1b. The sandstorm test inside the APK, with pictures of the real screen while it runs
-adb logcat -c
-adb shell am start -n $A -e unity "-stormtest" > /dev/null
-for i in $(seq 1 18); do sleep 2; adb exec-out screencap -p > "$V/android_storm_$i.png"; done
-for i in $(seq 120); do adb logcat -d -s Unity:I | grep -qE "STORM (ALL PASS|[0-9]+ FAILED)" && break; sleep 1; done
+# The emulator has died during this part; a death gets one more try on a freshly booted emulator
+storm() {
+  adb logcat -c
+  adb shell am start -n $A -e unity "-stormtest" > /dev/null
+  for i in $(seq 1 18); do alive || return; sleep 2; adb exec-out screencap -p > "$V/android_storm_$i.png"; done
+  for i in $(seq 120); do alive || return; adb logcat -d -s Unity:I | grep -qE "STORM (ALL PASS|[0-9]+ FAILED)" && break; sleep 1; done
+}
+storm; alive || { fresh; storm; }
 adb logcat -d -s Unity:I | grep -E " STORM " | sed 's/.* STORM //' > "$V/storm_android_test.txt"
 grep -vE "^PASS shelter" "$V/storm_android_test.txt" | cut -c1-110 | tee -a "$R"
 grep -q "^ALL PASS" "$V/storm_android_test.txt" || fail "storm test in the APK"
