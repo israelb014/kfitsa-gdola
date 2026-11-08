@@ -70,6 +70,10 @@ namespace Kfitsa
         static int heldX, heldY;
 
         /// Menu navigation: one step per press, with auto-repeat while held.
+        /// T on the keyboard, Y on a gamepad: the time trial from the map (v2.3).
+        public static bool TrialPressed =>
+            Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame;
+
         public static (int x, int y, bool ok, bool back) Menu()
         {
             var k = Keyboard.current; var g = Gamepad.current;

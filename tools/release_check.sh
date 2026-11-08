@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: tools/release_check.sh ; every test on the final Linux build, after the three platform builds.
-cd "$(dirname "$0")/.."; V=$PWD/verification/v2.2; B=Builds/linux/KfitsaGdola.x86_64; export PULSE_SERVER=/nonexistent
+cd "$(dirname "$0")/.."; V=$PWD/verification/v2.3; B=Builds/linux/KfitsaGdola.x86_64; export PULSE_SERVER=/nonexistent
 sed 's#Builds/test-linux#Builds/linux#' tools/playtest.sh > /tmp/claude-1000/playtest_final.sh
 cp /tmp/claude-1000/playtest_final.sh tools/.playtest_final.sh; bash tools/.playtest_final.sh | cut -c1-120; rm -f tools/.playtest_final.sh
 timeout -s KILL 120 $B -batchmode -nographics -selftest -captureDir $V -logFile $V/self.log > /dev/null 2>&1; grep -E "^FAIL|ALL PASS|FAILED" $V/selftest.txt | cut -c1-110 | head

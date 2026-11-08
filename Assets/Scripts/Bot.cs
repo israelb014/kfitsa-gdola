@@ -45,6 +45,7 @@ namespace Kfitsa
             int index = Array.IndexOf(Levels.All, def);
             Note("--- " + def.file + " " + def.Code);
             bool stormy = Grid2.Parse(Levels.Text(def.file)).Storm != null;
+            System.Collections.Generic.List<Pad> trialRoute = null; Goal trialGoal = null;
             foreach (var (big, calm) in new[] { (false, false), (true, false), (false, true), (true, true) })
             {
                 if (calm && !stormy) continue;
@@ -59,6 +60,7 @@ namespace Kfitsa
                     if (q.kind != "gate" && q.kind != "star" && q.kind != "box" && q.kind != "secret" && q.kind != "door" && q.kind != "flag" && q.kind != "shelter") continue;
                     Fresh(index, big ? 1 : 0, false);
                     bool done = q.hit && Replay(s.Route(q), q);
+                    if (!big && !calm && q.kind == "gate" && q.hit) { trialRoute = s.Route(q); trialGoal = q; }
                     if (!q.hit && def.file != null)
                     {
                         // The wide search ran out of time; the far end gets its own search from the flag, as in the validator
@@ -77,6 +79,18 @@ namespace Kfitsa
             Flag(def, index);
             Full(def, index);
             app.save.difficulty = 1; Full(def, index, true); app.save.difficulty = 0;
+            // v2.3: the time trial of the level, on the small hero's way to the gate
+            if (!def.boss && trialRoute != null)
+            {
+                app.save.trialTime[index] = 0; app.save.ghost[index] = null;
+                app.run = new RunState { lives = 1 }; G.god = false; G.tidy = true; G.trial = true; G.StartLevel(index);
+                bool none = G.EnemyCount == 0;
+                bool done = Replay(trialRoute, trialGoal);
+                for (int i = 0; i < 240 && !G.Won; i++) G.TestStep(1, default);
+                Check($"{def.file} time trial: no enemies, finished, best time and ghost saved", none && G.Won && app.save.trialTime[index] > 0 && G.record.Count > 0,
+                    $"{G.LastTime:F1}s, ghost {G.record.Count} frames");
+                G.trial = false;
+            }
         }
 
         System.Collections.Generic.List<(int tick, float x, float y)> marks;
@@ -271,7 +285,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -316,6 +330,21 @@ namespace Kfitsa
                     At(9, 20, 2, 1); G.paused = true; var mouse = G.enemies.Find(x => x.kind == 'z');
                     for (int i = 0; i < 300 && mouse != null && !mouse.scared; i++) G.TestStep(1, new Pad { x = 1, run = true });
                     G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 47:
+                {
+                    if (G.Running) G.Unload();
+                    app.save.best[2] = 900; app.save.trialTime[2] = 287; app.hud.Show(false); app.run = new RunState(); app.mapHold = true;
+                    app.MapTestFinished(1); app.MapTestTick(3);
+                    break;
+                }
+                case 48:
+                {
+                    app.mapHold = false; app.save.best[0] = 900; app.save.trialTime[0] = 0; app.save.ghost[0] = null;
+                    G.skipIntro = true; app.EnterTrial(0); G.god = true;
+                    G.TestStep(420, new Pad { x = 1, run = true }); G.WinForTest(); app.TrialDone();
+                    app.EnterTrial(0); G.paused = true; G.TestStep(300, new Pad { x = 1 }); G.SnapCamera(); G.DrawNow(); app.hud.Hint(0, "");
                     break;
                 }
                 case 44:
@@ -914,6 +943,35 @@ namespace Kfitsa
                 Check("a stomp silences the mouse: the sleepers sleep on", !m.alive && !m.scared && sl.asleep);
                 g = Fresh(app); d2 = g.deaths; m = g.TestEnemy('z', 12, 2); g.hero.x = 10; g.hero.y = 2; g.TestStep(150, new Pad { x = 1 });
                 Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
+            }
+
+            // Version 2.3: the time trial and its ghost
+            {
+                var gh = new Ghost(); for (int i = 0; i < 90; i++) gh.Add(3 + i * .1f, 2 + (i % 7) * .3f, i % 2 == 0 ? "walk1" : "jump", i < 45 ? 's' : 'p', i % 3 == 0);
+                var back = Ghost.Unpack(gh.Pack()); var f1 = back.At(1); var f0 = gh.At(1);
+                Check($"ghost: packs small and comes back the same ({gh.Pack().Length} chars for 3 s)", back.Count == 90 && Mathf.Abs(f1.x - f0.x) < .03f && Mathf.Abs(f1.y - f0.y) < .03f
+                    && f1.pose == f0.pose && f1.form == f0.form && f1.flip == f0.flip);
+                int boss = Array.FindIndex(Levels.All, l => l.boss);
+                var keepBest = (int[])app.save.best.Clone(); app.save.best[0] = 100; app.save.trialTime[0] = 0; app.save.ghost[0] = null;
+                Check("time trial: only finished levels that are not bosses", app.TrialOpen(0) && !app.TrialOpen(1) && !app.TrialOpen(boss));
+                app.run = new RunState { lives = 3, score = 4321 }; app.game.skipIntro = true; app.EnterTrial(0); g = app.game;
+                Check("time trial: no enemies and no lives to lose", g.trial && g.EnemyCount == 0 && app.run.lives == 1);
+                g.TestStep(240, new Pad { x = 1 }); float rx = g.hero.x; g.WinForTest();
+                Check($"time trial: the first finish is the record, with its ghost ({app.save.trialTime[0]}, {g.record.Count} frames)", g.NewBestTime && app.save.trialTime[0] == Mathf.RoundToInt(g.LastTime * 10)
+                    && !string.IsNullOrEmpty(app.save.ghost[0]) && g.record.Count >= 59);
+                app.TrialDone();
+                Check("time trial: back on the map, the run as it was", app.ScreenName == "Map" && app.run.score == 4321 && app.run.lives == 3 && !app.game.trial);
+                app.EnterTrial(0); g = app.game; g.TestStep(120, none); g.DrawNow();
+                var want = Ghost.Unpack(app.save.ghost[0]).At(1);
+                Check($"time trial: the ghost runs the best run (at {g.GhostAt.x:F2}, recorded {want.x:F2})", g.GhostShown && Mathf.Abs(g.GhostAt.x - want.x) < .05f);
+                g.TestStep(60, none); g.FallForTest();
+                for (int i = 0; i < 600 && g.levelTime > .4f; i++) g.TestStep(1, none);
+                Check($"time trial: a fall starts the run over, no life lost (clock {g.levelTime:F1})", g.trial && g.levelTime < .5f && app.run.lives == 1 && Mathf.Abs(g.hero.x - rx) > 1);
+                int rec = app.save.trialTime[0]; string recGhost = app.save.ghost[0];
+                g.TestStep(360, none); g.WinForTest();
+                Check("time trial: a slower run keeps the record and its ghost", !g.NewBestTime && app.save.trialTime[0] == rec && app.save.ghost[0] == recGhost);
+                app.TrialDone();
+                app.save.best = keepBest; app.save.trialTime[0] = 0; app.save.ghost[0] = null; g.Unload();
             }
 
             // Version 2.2: achievements and the level clock

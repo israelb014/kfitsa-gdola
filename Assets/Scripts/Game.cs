@@ -23,7 +23,14 @@ namespace Kfitsa
         public bool Won => phase == Phase.Won;
         public bool Running => grid != null;
         public LevelDef Def => levelIndex < 0 ? Levels.Test : Levels.All[levelIndex];
-        int SavedStars { get => levelIndex < 0 ? 0 : app.save.stars[levelIndex]; set { if (levelIndex >= 0) app.save.stars[levelIndex] = value; } }
+        int SavedStars { get => levelIndex < 0 ? 0 : app.save.stars[levelIndex]; set { if (levelIndex >= 0 && !trial) app.save.stars[levelIndex] = value; } }
+
+        // ---- time trial (v2.3): no enemies, no lives, no flags, and a ghost of the best run ----
+        public bool trial;
+        public Ghost record = new Ghost(), best = new Ghost();
+        SpriteRenderer ghostView;
+        public bool GhostShown => ghostView != null && ghostView.enabled;
+        public Vector2 GhostAt => ghostView != null ? (Vector2)ghostView.transform.position : Vector2.zero;
 
         // For the tests
         public bool tidy;       // bricks stay and pickups do nothing, so a route replays exactly as the search saw it
@@ -38,6 +45,7 @@ namespace Kfitsa
         public bool LampLit(float x, float y) => lights.Exists(l => l.lit && Mathf.Abs(l.at.x - x) < .1f && Mathf.Abs(l.at.y - y) < .1f);
         public void ApplyPowerForTest(int p) => ApplyPower(p);
         public void WinForTest() => Win();
+        public void FallForTest() { hero.y = -4; hero.vy = -5; }
         public void AddCoinForTest() => AddCoin();
         public void RemoveEnemies()
         {
@@ -49,8 +57,8 @@ namespace Kfitsa
         public void RestartAtFlag() { flagAt = grid.FlagSpots(app.Easy).IndexOf(grid.Checkpoint); StartLevel(levelIndex, true); RemoveEnemies(); }
         public int FlagCount => flags.Count;
         public void DrawNow() => Draw();     // screenshots: draw a frame the test stepped to
-        public int EnemyCount => enemies.Count;
 
+        public int EnemyCount => enemies.Count;
         
         const float HalfH = 7.5f;
         float HalfW => HalfH * cam.aspect;
@@ -97,7 +105,7 @@ namespace Kfitsa
 
         public void StartLevel(int index, bool keepCheckpoint = false)
         {
-            if (!keepCheckpoint) { flagAt = -1; gotStars = 0; }
+            if (!keepCheckpoint || trial) { flagAt = -1; gotStars = 0; }
             levelIndex = index;
             Unload();
             root = new GameObject("Level").transform;
@@ -209,13 +217,22 @@ namespace Kfitsa
             TouchUi.Current?.ShowDoor(false); TouchUi.Current?.ShowClimb(false);
             TouchUi.Current?.Teach(null); lessonWait = 0;
             Sound.Music(Def.music);
+            if (trial && levelIndex >= 0)
+            {
+                RemoveEnemies();
+                record = new Ghost(); best = Ghost.Unpack(app.save.ghost[levelIndex]);
+                ghostView = Art.Spawn("Ghost", root, Art.Hero('s', "stand"), 9);
+                ghostView.color = new Color(.7f, .85f, 1, .45f); ghostView.enabled = false;
+                int t = app.save.trialTime[levelIndex];
+                app.hud.Hint(4f, Rtl.V("מרוץ נגד השעון!  " + (t > 0 ? "השיא: " + Hud.TimeText(t / 10f) + ", ורוח הרפאים רצה איתך" : "עוד אין שיא")));
+            }
             paused = false;
         }
 
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; dark = null; water = null; wind = null; storm = null; chaser = null;
+            root = null; grid = null; boss = null; ghostView = null; dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); snowBalls.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
@@ -342,7 +359,7 @@ namespace Kfitsa
                 hero.vx = 0;
                 hero.x = Mathf.MoveTowards(hero.x, grid.GateX, 3f * dt);
                 if (Mathf.Abs(hero.x - grid.GateX) < .05f) heroGone = Mathf.Min(1, heroGone + dt * 3);
-                if (phaseT > 1.2f && input.jumpPressed || phaseT > 7f) app.LevelDone();
+                if (phaseT > 1.2f && input.jumpPressed || phaseT > 7f) { if (trial) app.TrialDone(); else app.LevelDone(); }
                 return;
             }
             if (phase == Phase.Door)
@@ -365,6 +382,7 @@ namespace Kfitsa
             }
 
             levelTime += dt;
+            if (trial) while (record.Count < levelTime * Ghost.Rate) record.Add(hero.x, hero.y, heroPose, heroForm, hero.facing < 0);
             app.hud.Shield(app.run.shield);
             int switchWas = world.sw;
             World.Step(grid, ref world, hero, dt, input);
@@ -931,6 +949,7 @@ namespace Kfitsa
 
         void AfterDeath()
         {
+            if (trial) { app.run.power = 0; StartLevel(levelIndex); return; }    // a fall starts the run over, with no lives to lose
             app.run.lives--;
             if (app.run.lives <= 0) { app.GameOver(); return; }
             StartLevel(levelIndex, true);
@@ -940,6 +959,16 @@ namespace Kfitsa
         {
             phase = Phase.Won; phaseT = 0;
             TouchUi.Current?.Teach(null);
+            if (trial && levelIndex >= 0)
+            {
+                Sound.Music(null); Sound.Play("win");
+                LastTime = levelTime;
+                int tenths = Mathf.Max(1, Mathf.RoundToInt(levelTime * 10)), was = app.save.trialTime[levelIndex];
+                NewBestTime = was == 0 || tenths < was;
+                if (NewBestTime) { app.save.trialTime[levelIndex] = tenths; app.save.ghost[levelIndex] = record.Pack(); app.save.Write(); }
+                app.hud.Banner(Rtl.V("מרוץ נגד השעון\nזמן " + Hud.TimeText(levelTime) + (NewBestTime ? (was == 0 ? "" : "    שיא חדש!") : "    השיא " + Hud.TimeText(was / 10f))));
+                return;
+            }
             app.run.score += 1000 + (hero.big ? 500 : 0);
             Sound.Music(null); Sound.Play("win");
             int found = 0;
@@ -1170,6 +1199,17 @@ namespace Kfitsa
             heroView.sortingOrder = storm != null ? storm.HeroOrder : 10;
             heroView.enabled = hero.invuln <= 0 || (int)(simT * 14) % 2 == 0;
             Outfit.Place(hatView, heroView, form, pose);
+            if (ghostView != null)
+            {
+                bool on = trial && best.Count > 0 && (phase == Phase.Play || phase == Phase.Won) && levelTime <= best.Length + .3f;
+                ghostView.enabled = on;
+                if (on)
+                {
+                    var f = best.At(levelTime);
+                    ghostView.sprite = Art.Hero(f.form, f.pose); ghostView.flipX = f.flip;
+                    ghostView.transform.position = new Vector3(f.x, f.y, 0);
+                }
+            }
             heroPose = pose; heroForm = form;
         }
         SpriteRenderer hatView;

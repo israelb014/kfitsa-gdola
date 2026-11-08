@@ -29,6 +29,8 @@ namespace Kfitsa
         public int hat, pant;                                // what the hero wears (v2.1), see Outfit
         public int achievements, coinsTotal;                 // v2.2: one bit per achievement; coins over all games
         public int[] bestTime = new int[Levels.All.Length];  // v2.2: best finish per level in tenths of a second, 0 = none
+        public int[] trialTime = new int[Levels.All.Length]; // v2.3: best time trial per level, tenths, 0 = none
+        public string[] ghost = new string[Levels.All.Length];   // v2.3: that run, packed by Ghost
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;
@@ -44,7 +46,7 @@ namespace Kfitsa
                 {
                     var s = JsonUtility.FromJson<Save>(File.ReadAllText(FilePath));
                     // New levels are added at the end, so an older save keeps everything it had
-                    s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found); s.bestTime = Fit(s.bestTime);
+                    s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found); s.bestTime = Fit(s.bestTime); s.trialTime = Fit(s.trialTime); s.ghost = Fit(s.ghost);
                     // A level finished before the next one existed: the next one is open now
                     while (s.unlocked < Levels.All.Length - 1 && s.best[s.unlocked] > 0) s.unlocked++;
                     return s;
@@ -52,6 +54,13 @@ namespace Kfitsa
             }
             catch (Exception e) { Debug.LogWarning("Save unreadable, starting fresh: " + e.Message); }
             return new Save();
+        }
+
+        public static string[] Fit(string[] a)
+        {
+            var b = new string[Levels.All.Length];
+            if (a != null) Array.Copy(a, b, Math.Min(a.Length, b.Length));
+            return b;
         }
 
         public static int[] Fit(int[] a)

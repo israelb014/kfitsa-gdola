@@ -50,7 +50,7 @@ namespace Kfitsa
         int mapFrom = -1;
         bool mapEnter;
         public bool mapHold;      // screenshots: the map stops on the frame the tour stepped to
-        Image mapHero, mapHat; Text mapInfo, mapMissing, mapStats;
+        Image mapHero, mapHat, trialBox; Text trialText; Text mapInfo, mapMissing, mapStats;
         readonly List<(Image dot, float at)> mapDots = new List<(Image, float)>();
         readonly List<(Image icon, Image glow, int level)> mapNodes = new List<(Image, Image, int)>();
         readonly List<float> mapPop = new List<float>();
@@ -91,6 +91,7 @@ namespace Kfitsa
 
         public void ShowMap()
         {
+            EndTrial();
             ClearScreen();
             hud.Show(false); screen = Screen.Map;
             Sound.Music("m_map");
@@ -160,6 +161,11 @@ namespace Kfitsa
             mapInfo = Line("", 52, -300);
             mapMissing = Line("", 38, -362);
             mapStats = Line("", 36, -414);
+            // The time trial button: a dark box at the left, live for finished levels that are not bosses
+            trialBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(-760, -330), new Vector2(330, 110));
+            trialBox.sprite = null; trialBox.preserveAspect = false; trialBox.raycastTarget = false;
+            screenObjects.Add(trialBox.gameObject);
+            trialText = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), trialBox.transform, new Vector2(.5f, .5f));
             Line(TouchUi.Available ? "הקשה על שלב בוחרת אותו, הקשה נוספת משחקת    כפתור חזור - תפריט" : "רווח - משחקים    Esc - תפריט", 34, -470, new Color(.9f, .95f, 1));
             PaintMap();
             MapTick(0);
@@ -168,6 +174,14 @@ namespace Kfitsa
         void PaintMap()
         {
             var d = Levels.All[mapCursor];
+            if (trialBox != null)
+            {
+                bool open = TrialOpen(mapCursor); int t = save.trialTime[mapCursor];
+                trialBox.color = open ? new Color(.1f, .14f, .26f, .85f) : new Color(.1f, .12f, .18f, .45f);
+                string key = TouchUi.Available ? "" : "  (T)";
+                trialText.text = Rtl.V("מרוץ נגד השעון" + key + "\n" + (!open ? (d.boss ? "לא בשלב בוס" : "מסיימים את השלב קודם") : t > 0 ? "שיא " + Hud.TimeText(t / 10f) : "עוד אין שיא"));
+                trialText.color = open ? new Color(1, .9f, .45f) : new Color(.7f, .72f, .8f);
+            }
             mapInfo.text = Rtl.V($"{d.Code}: {d.name}");
             var miss = new List<string>();
             for (int k = 0; k < 3; k++) if ((save.stars[mapCursor] >> k & 1) == 0) miss.Add((k + 1).ToString());
@@ -256,6 +270,14 @@ namespace Kfitsa
         }
 
         /// Plays the chosen level, or, if the hero is still on the way, as soon as the hero gets there.
+        /// The time trial of the chosen level, once the hero stands on it.
+        void MapTrial()
+        {
+            if (!TrialOpen(mapCursor)) { Sound.Play("bump", .5f); return; }
+            if (!MapWalking && mapWait <= 0) EnterTrial(mapCursor);
+        }
+        public void MapTrialForTest() => MapTrial();
+
         void MapGo()
         {
             if (!MapWalking && mapWait <= 0) Enter(mapCursor);
@@ -264,6 +286,7 @@ namespace Kfitsa
 
         void MapTap(Vector2 at)
         {
+            if (trialBox != null && RectTransformUtility.RectangleContainsScreenPoint(trialBox.rectTransform, at, null)) { MapTrial(); return; }
             var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
             float reach = Mathf.Min(115, (MapRight - MapLeft) / (Nodes.Length - 1) * .55f);
             for (int i = 0; i <= MapLast; i++)
@@ -280,6 +303,7 @@ namespace Kfitsa
             if (m.x != 0) MapChoose(mapCursor - m.x);
             if (screen != Screen.Map) return;
             if (m.ok) MapGo();
+            else if (GameInput.TrialPressed) MapTrial();
             else if (m.back) ShowTitle();
         }
     }

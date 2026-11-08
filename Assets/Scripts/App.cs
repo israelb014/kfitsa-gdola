@@ -482,7 +482,31 @@ namespace Kfitsa
         public void ShowCreditsForTour() => ShowCredits();
         public void ResumeForTour() => Resume();
         public void ShowEndingForTour() { run.score = 45200; run.secrets = 5; ShowEnding(); }
-        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; starsBefore = StarCount; game.StartLevel(level); }
+        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; starsBefore = StarCount; game.trial = false; game.StartLevel(level); }
+
+        // ---- time trial (v2.3) ----
+
+        RunState runBeforeTrial;
+        public bool TrialOpen(int level) => level >= 0 && level < Levels.All.Length && !Levels.All[level].boss && save.best[level] > 0;
+
+        /// A run of a finished level against the clock, with the game's own run kept aside until it ends.
+        public void EnterTrial(int level)
+        {
+            if (!TrialOpen(level)) return;
+            ClearScreen(); hud.Show(true); screen = Screen.Playing;
+            if (runBeforeTrial == null) runBeforeTrial = run;
+            run = new RunState { lives = 1 };
+            game.trial = true; game.StartLevel(level);
+        }
+
+        public void TrialDone() { save.Write(); game.Unload(); hud.Banner(""); mapFrom = -1; ShowMap(); }
+
+        /// Back from a time trial in any way: the run as it was before.
+        void EndTrial()
+        {
+            if (runBeforeTrial != null) { run = runBeforeTrial; runBeforeTrial = null; }
+            game.trial = false;
+        }
 
         // ---- outfits (v2.1) ----
 
