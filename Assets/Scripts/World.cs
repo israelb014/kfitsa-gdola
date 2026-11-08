@@ -171,6 +171,9 @@ namespace Kfitsa
                 on |= h.Left < c + .9f && h.Right > c + .1f && h.y < r + .6f && h.Top > r;
             if (on && !s.onSwitch) { s.sw ^= 1; g.Sw = s.sw; }
             s.onSwitch = on;
+            // A colour switch sets its colour, so pressing it again changes nothing
+            foreach (var (c, r, color) in g.ColorSwitches)
+                if (h.Left < c + .9f && h.Right > c + .1f && h.y < r + .6f && h.Top > r) { s.sw = color; g.Sw = color; }
         }
 
         /// The spring under the hero this tick, or -1. Launching is up to the caller, as the game also animates it.

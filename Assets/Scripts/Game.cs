@@ -77,6 +77,7 @@ namespace Kfitsa
         readonly List<Crumble> crumbles = new List<Crumble>();
         readonly List<(SpriteRenderer view, char kind)> gates = new List<(SpriteRenderer, char)>();
         readonly List<(SpriteRenderer view, int c, int r)> switches = new List<(SpriteRenderer, int, int)>();
+        readonly List<(SpriteRenderer view, int color)> colorSwitches = new List<(SpriteRenderer, int)>();
         readonly List<SpriteRenderer> belts = new List<SpriteRenderer>();
         readonly List<(SpriteRenderer view, Block box)> powerHints = new List<(SpriteRenderer, Block)>();
         readonly List<(Vector2 at, SpriteRenderer view, bool lit)> lights = new List<(Vector2, SpriteRenderer, bool)>();
@@ -195,9 +196,10 @@ namespace Kfitsa
             BuildGate();
             if (grid.HasBoss)
             {
-                bool giant = Def.terrain == "snow";
-                var v = Art.Spawn("Boss", root, Art.Feet(giant ? "giant_walk_a" : "boss_walk_a"), 6);
+                bool giant = Def.terrain == "snow", colours = grid.ColorSwitches.Count > 0;
+                var v = Art.Spawn("Boss", root, Art.Feet(giant ? "giant_walk_a" : colours ? "king_red_walk_a" : "boss_walk_a"), 6);
                 boss = new Boss { grid = grid, x = grid.BossSpot.x, y = grid.BossSpot.y, w = 2.7f, h = 2.5f, view = v, onLand = BossLanded, frost = giant, onThrow = GiantThrow };
+                if (colours) { boss.color = 0; boss.active = () => world.sw; }
                 boss.shadow = Art.Spawn("Shadow", root, Art.Center("shadow"), 4);
                 boss.shadow.enabled = false;
             }
@@ -235,7 +237,7 @@ namespace Kfitsa
             root = null; grid = null; boss = null; ghostView = null; dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); snowBalls.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
-            stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
+            stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); colorSwitches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
         }
 
         float Pace => app.Easy ? .7f : 1;
@@ -243,7 +245,7 @@ namespace Kfitsa
         void AddEnemy(Vector2 at, char kind)
         {
             var v = Art.Spawn("Enemy", root, Art.Feet("slime_normal_walk_a"), 5);
-            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : kind == 'm' ? .85f : .8f, h = kind == 'q' ? .9f : kind == 'm' ? .45f : kind == 'z' ? .6f : .7f, view = v, kind = kind };
+            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : kind == 'm' ? .85f : .8f, h = kind == 'q' ? .9f : kind == 'm' ? .45f : kind == 'z' ? .6f : kind == 'K' ? .6f : .7f, view = v, kind = kind };
             e.Init();
             enemies.Add(e);
         }
@@ -570,6 +572,7 @@ namespace Kfitsa
                 if (!e.Out || !hero.Overlaps(e)) continue;       // a worm in the ground is out of reach
                 bool stomp = hero.vy < 0 && hero.y > e.y + e.h * .35f;
                 if (e.thawT > 0 && !stomp) continue;
+                if (e.kind == 'K' && e.safe > 0) continue;       // just taken off: no second stomp or hit in the same bounce
                 if (e.kind == 'z')
                 {
                     // A mouse never hurts: a stomp silences it, a bump makes it squeak
@@ -593,7 +596,8 @@ namespace Kfitsa
                 {
                     if (e.kind == 'n') { e.state = 1; e.shellT = 6; }
                     else if (e.kind == 'q') BecomeBlock(e);
-                    else if (e.kind == 'y') { e.alive = false; e.flying = true; e.vy = 0; }
+                    else if (e.kind == 'y' || e.kind == 'W' || e.kind == 'N' || e.kind == 'K' && e.state == 1) { e.alive = false; e.flying = true; e.vy = 0; }
+                    else if (e.kind == 'K' && e.state == 0) { e.TakeOff(); e.safe = .3f; }       // a ladybug flies after the first stomp
                     else { e.alive = false; e.flat = .45f; }
                     Stomped();
                 }
@@ -621,7 +625,7 @@ namespace Kfitsa
                     // The giant is not stuck: the hero bounces off its icy head
                     hero.Stomped(true);
                     Sound.Play("bump", 1, .7f);
-                    if (!giantTold) { giantTold = true; app.hud.Hint(3f, Rtl.V("רק כשהענק תקוע אחרי זריקה")); }
+                    if (!giantTold) { giantTold = true; app.hud.Hint(3f, Rtl.V(boss.frost ? "רק כשהענק תקוע אחרי זריקה" : "קודם המתג בצבע של המלך")); }
                 }
                 else if (stomp)
                 {
@@ -637,6 +641,7 @@ namespace Kfitsa
         void DamageBoss(int n)
         {
             boss.hp -= n; boss.hurt = 1.2f; boss.stuck = 0;
+            if (boss.color >= 0) { boss.color = (boss.color + 1) % 4; giantTold = false; }     // a new colour, and a new switch to find
             freeze = .12f; shake = Mathf.Max(shake, .35f);
             app.run.score += 500;
             app.hud.BossBar(Mathf.Max(0, boss.hp) / (float)Boss.MaxHp, Rtl.V(Def.name));
@@ -659,7 +664,7 @@ namespace Kfitsa
         {
             shake = .3f;
             Sound.Play("brick");
-            if (!boss.frost && boss.landings % 2 == 0 && enemies.Count < 3)
+            if (!boss.frost && boss.color < 0 && boss.landings % 2 == 0 && enemies.Count < 3)
             {
                 AddEnemy(new Vector2(boss.x + boss.dir * 2f, boss.y), boss.hp <= 3 ? 'p' : 'e');
                 var e = enemies[enemies.Count - 1]; e.dir = boss.dir; e.awake = true;

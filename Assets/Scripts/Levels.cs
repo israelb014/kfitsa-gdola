@@ -7,7 +7,7 @@ namespace Kfitsa
     {
         public string file, name, terrain, sky, music, tip, roomTip;
         public int world, stage;
-        public bool boss;
+        public bool boss, hidden;      // hidden: the world on the map's second page (v2.4)
         public string Code => boss ? "בוס" : world + "-" + stage;
     }
 
@@ -48,6 +48,15 @@ namespace Kfitsa
                 tip = "עכבר ששומע ריצה מעיר את כולם. לידו הולכים לאט, או דורכים עליו", roomTip = "הכוכב מעבר לעכבר. הולכים, לא רצים" },
             new LevelDef { file = "boss2", name = "ענק הכפור", terrain = "snow", sky = "snow", music = "m_boss", world = 3, stage = 4, boss = true,
                 tip = "הענק זורק קוביות שלג ואז נתקע לרגע. זה הזמן לקפוץ עליו", roomTip = "אספו את כל המטבעות שעל החבלים לפני שהזמן נגמר" },
+            // v2.4: the hidden world, open once every star of worlds 1 to 3 is found
+            new LevelDef { file = "w4l1", name = "גשר הצבעים", terrain = "purple", sky = "clouds", music = "m_world4", world = 4, stage = 1, hidden = true,
+                tip = "מתג בצבע מוציא את הבלוקים בצבע שלו ומעלים את האחרים", roomTip = "דלקו את כל המנורות. המתגים פותחים את הדרך" },
+            new LevelDef { file = "w4l2", name = "כוורת בשמיים", terrain = "purple", sky = "clouds", music = "m_world4", world = 4, stage = 2, hidden = true,
+                tip = "הדבורה עפה בשמינייה. החיפושית עפה אחרי הדריכה הראשונה", roomTip = "דרכו על כל החיפושיות. כל אחת צריכה שתי דריכות" },
+            new LevelDef { file = "w4l3", name = "אגם הדגים", terrain = "purple", sky = "clouds", music = "m_world4", world = 4, stage = 3, hidden = true,
+                tip = "הדגים קופצים מהמים בקצב קבוע. חכו שהם ירדו", roomTip = "מרוץ! ארבעה מתגים בדרך לכוכב" },
+            new LevelDef { file = "boss3", name = "מלך הג'לי חוזר", terrain = "purple", sky = "clouds", music = "m_boss", world = 4, stage = 4, boss = true, hidden = true,
+                tip = "המלך חוזר בצבעים! דרכו עליו רק אחרי המתג בצבע שלו", roomTip = "אספו את המטבעות בכל הצבעים" },
         };
     }
 }

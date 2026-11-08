@@ -10,18 +10,30 @@ namespace Kfitsa
     {
         const float MapRight = 720, MapLeft = -720, MapLow = -40, MapHigh = 130, MapWalk = 560, MapReveal = 900;
 
-        static Vector2[] nodes;
         /// Evenly spread from right to left, zigzagging up and down; the last stop sits a little lower.
-        static Vector2[] Nodes
+        static Vector2 Layout(int i, int n) => new Vector2(Mathf.Lerp(MapRight, MapLeft, i / (n - 1f)), i == n - 1 ? 20 : i % 2 == 0 ? MapLow : MapHigh);
+
+        // v2.4: two pages. The first holds worlds 1 to 3; the hidden world has a page of its own, open once
+        // every star of the first page is found.
+        public static int MainCount => System.Array.FindIndex(Levels.All, d => d.hidden) is int k && k >= 0 ? k : Levels.All.Length;
+        int pageFirst, pageEnd;          // the levels on the page shown, both ends included
+        bool HiddenPage => pageFirst >= MainCount;
+        Vector2 Node(int level) => Layout(level - pageFirst, pageEnd - pageFirst + 1);
+        public bool HiddenOpen
         {
             get
             {
-                if (nodes != null) return nodes;
-                int n = Levels.All.Length; nodes = new Vector2[n];
-                for (int i = 0; i < n; i++)
-                    nodes[i] = new Vector2(Mathf.Lerp(MapRight, MapLeft, i / (n - 1f)), i == n - 1 ? 20 : i % 2 == 0 ? MapLow : MapHigh);
-                return nodes;
+                if (MainCount >= Levels.All.Length) return false;
+                for (int i = 0; i < MainCount; i++) if (Bits(save.stars[i]) < 3) return false;
+                return true;
             }
+        }
+        public int MainStarsMissing { get { int n = 0; for (int i = 0; i < MainCount; i++) n += 3 - Bits(save.stars[i]); return n; } }
+        void SetPage()
+        {
+            if (mapCursor >= MainCount && !HiddenOpen) mapCursor = MainCount - 1;
+            bool hidden = mapCursor >= MainCount;
+            pageFirst = hidden ? MainCount : 0; pageEnd = hidden ? Levels.All.Length - 1 : MainCount - 1;
         }
 
         static int[] secretTotals;
@@ -50,24 +62,24 @@ namespace Kfitsa
         int mapFrom = -1;
         bool mapEnter;
         public bool mapHold;      // screenshots: the map stops on the frame the tour stepped to
-        Image mapHero, mapHat, trialBox; Text trialText; Text mapInfo, mapMissing, mapStats;
+        Image mapHero, mapHat, trialBox, pageBox; Text trialText; Text mapInfo, mapMissing, mapStats;
         readonly List<(Image dot, float at)> mapDots = new List<(Image, float)>();
         readonly List<(Image icon, Image glow, int level)> mapNodes = new List<(Image, Image, int)>();
         readonly List<float> mapPop = new List<float>();
 
-        int MapLast => Mathf.Min(save.unlocked, Levels.All.Length - 1);
+        int MapLast => Mathf.Min(HiddenPage ? Mathf.Max(save.unlocked, pageFirst) : save.unlocked, pageEnd);
         public bool MapWalking => Mathf.Abs(mapAt - nodeAt[mapCursor]) > .5f;
         public float MapHeroX => mapHero.rectTransform.anchoredPosition.x;
 
         void BuildPath()
         {
-            pathPts.Clear(); pathLen.Clear(); nodeAt = new float[Nodes.Length];
-            pathPts.Add(Nodes[0]); pathLen.Add(0);
+            pathPts.Clear(); pathLen.Clear(); nodeAt = new float[Levels.All.Length];
+            pathPts.Add(Node(pageFirst)); pathLen.Add(0); nodeAt[pageFirst] = 0;
             float len = 0;
             const int Steps = 24;
-            for (int i = 1; i < Nodes.Length; i++)
+            for (int i = pageFirst + 1; i <= pageEnd; i++)
             {
-                Vector2 p0 = Nodes[Mathf.Max(0, i - 2)], p1 = Nodes[i - 1], p2 = Nodes[i], p3 = Nodes[Mathf.Min(Nodes.Length - 1, i + 1)];
+                Vector2 p0 = Node(Mathf.Max(pageFirst, i - 2)), p1 = Node(i - 1), p2 = Node(i), p3 = Node(Mathf.Min(pageEnd, i + 1));
                 for (int k = 1; k <= Steps; k++)
                 {
                     float t = k / (float)Steps, t2 = t * t, t3 = t2 * t;
@@ -96,63 +108,64 @@ namespace Kfitsa
             hud.Show(false); screen = Screen.Map;
             Sound.Music("m_map");
             Backdrop(.1f);
+            SetPage();
             BuildPath();
             mapDots.Clear(); mapNodes.Clear(); mapPop.Clear();
             int last = MapLast;
             // Coming back from a finished level: the hero starts there, and the new part of the path draws itself
-            bool walkOn = mapFrom >= 0 && mapFrom < mapCursor;
+            bool walkOn = mapFrom >= pageFirst && mapFrom < mapCursor;
             mapAt = nodeAt[walkOn ? mapFrom : mapCursor];
             mapReveal = walkOn ? nodeAt[mapFrom] : nodeAt[last];
             mapWait = walkOn ? .6f : 0;
             mapFrom = -1; mapEnter = false;
 
-            Line("מפת המסע", 72, 430);
+            Line(HiddenPage ? "ארץ הצבעים" : "מפת המסע", 72, 430);
             // Each world gets its own patch of sky behind its stops
-            for (int w = 1; ; w++)
+            for (int w = 1; w <= 9; w++)
             {
                 int a = System.Array.FindIndex(Levels.All, d => d.world == w), b = System.Array.FindLastIndex(Levels.All, d => d.world == w);
-                if (a < 0) break;
-                int end = Nodes.Length - 1;     // neighbouring worlds meet halfway between their stops
-                float x0 = a == 0 ? Nodes[a].x + 120 : (Nodes[a - 1].x + Nodes[a].x) / 2, x1 = b == end ? Nodes[b].x - 120 : (Nodes[b].x + Nodes[b + 1].x) / 2;
+                if (a < pageFirst || a > pageEnd) continue;
+                int end = pageEnd;     // neighbouring worlds meet halfway between their stops
+                float x0 = a == pageFirst ? Node(a).x + 120 : (Node(a - 1).x + Node(a).x) / 2, x1 = b == end ? Node(b).x - 120 : (Node(b).x + Node(b + 1).x) / 2;
                 var patch = hud.Picture("bg_" + Levels.All[a].sky, new Vector2(.5f, .5f), new Vector2((x0 + x1) / 2, 60), new Vector2(x0 - x1, 560));
                 patch.preserveAspect = false; patch.color = new Color(1, 1, 1, .5f);
                 screenObjects.Add(patch.gameObject);
                 var name = hud.Label(40, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2((x0 + x1) / 2, 335), new Vector2(x0 - x1, 60));
-                name.text = Rtl.V("עולם " + w); name.color = new Color(1, .95f, .75f);
+                name.text = Rtl.V(Levels.All[a].hidden ? "עולם נסתר" : "עולם " + w); name.color = new Color(1, .95f, .75f);
                 screenObjects.Add(name.gameObject);
             }
             // Dots along the path, spaced evenly, leaving room around each stop
             for (float d = 0; d <= pathLen[pathLen.Count - 1]; d += 30)
             {
                 bool nearStop = false;
-                foreach (float n in nodeAt) nearStop |= Mathf.Abs(d - n) < 58;
+                for (int i = pageFirst; i <= pageEnd; i++) nearStop |= Mathf.Abs(d - nodeAt[i]) < 58;
                 if (nearStop) continue;
                 var dot = hud.Picture("hud_coin", new Vector2(.5f, .5f), PathPoint(d), new Vector2(18, 18));
                 screenObjects.Add(dot.gameObject);
                 mapDots.Add((dot, d));
             }
-            for (int i = 0; i < Nodes.Length; i++)
+            for (int i = pageFirst; i <= pageEnd; i++)
             {
-                var glow = hud.Picture("bubble", new Vector2(.5f, .5f), Nodes[i], new Vector2(150, 150));
+                var glow = hud.Picture("bubble", new Vector2(.5f, .5f), Node(i), new Vector2(150, 150));
                 screenObjects.Add(glow.gameObject);
-                var n = hud.Picture("lock_yellow", new Vector2(.5f, .5f), Nodes[i], new Vector2(100, 100));
+                var n = hud.Picture("lock_yellow", new Vector2(.5f, .5f), Node(i), new Vector2(100, 100));
                 screenObjects.Add(n.gameObject);
                 mapNodes.Add((n, glow, i)); mapPop.Add(0);
-                var t = hud.Label(40, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Nodes[i] + new Vector2(0, -92), new Vector2(240, 60));
+                var t = hud.Label(40, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Node(i) + new Vector2(0, -92), new Vector2(240, 60));
                 t.text = Rtl.V(Levels.All[i].Code); screenObjects.Add(t.gameObject);
                 if (i > last) continue;
                 for (int k = 0; k < 3; k++)
                 {
-                    var star = hud.Picture("star", new Vector2(.5f, .5f), Nodes[i] + new Vector2((k - 1) * 40, -142), new Vector2(40, 40));
+                    var star = hud.Picture("star", new Vector2(.5f, .5f), Node(i) + new Vector2((k - 1) * 40, -142), new Vector2(40, 40));
                     star.color = (save.stars[i] >> k & 1) != 0 ? Color.white : new Color(.12f, .14f, .22f, .75f);
                     screenObjects.Add(star.gameObject);
                 }
                 int total = SecretTotal(i), got = Mathf.Min(total, Bits(save.found[i]));
                 if (total == 0) continue;
-                var door = hud.Picture("door_closed", new Vector2(.5f, .5f), Nodes[i] + new Vector2(28, -186), new Vector2(34, 34));
+                var door = hud.Picture("door_closed", new Vector2(.5f, .5f), Node(i) + new Vector2(28, -186), new Vector2(34, 34));
                 door.color = got == total ? Color.white : new Color(.6f, .62f, .7f);
                 screenObjects.Add(door.gameObject);
-                var count = hud.Label(28, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Nodes[i] + new Vector2(-18, -186), new Vector2(80, 40));
+                var count = hud.Label(28, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Node(i) + new Vector2(-18, -186), new Vector2(80, 40));
                 count.text = got + "/" + total; count.color = got == total ? new Color(1, .9f, .4f) : Color.white;
                 screenObjects.Add(count.gameObject);
             }
@@ -166,6 +179,19 @@ namespace Kfitsa
             trialBox.sprite = null; trialBox.preserveAspect = false; trialBox.raycastTarget = false;
             screenObjects.Add(trialBox.gameObject);
             trialText = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), trialBox.transform, new Vector2(.5f, .5f));
+            // The way between the pages: shown once the last boss of the first page is beaten
+            pageBox = null;
+            if (HiddenPage || MainCount < Levels.All.Length && save.unlocked >= MainCount)
+            {
+                pageBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(760, -330), new Vector2(330, 110));
+                pageBox.sprite = null; pageBox.preserveAspect = false; pageBox.raycastTarget = false;
+                bool can = HiddenPage || HiddenOpen;
+                pageBox.color = can ? new Color(.28f, .12f, .36f, .85f) : new Color(.1f, .12f, .18f, .45f);
+                screenObjects.Add(pageBox.gameObject);
+                var pt = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), pageBox.transform, new Vector2(.5f, .5f));
+                pt.text = Rtl.V(HiddenPage ? "חזרה למפת המסע" : HiddenOpen ? "לארץ הצבעים!" : $"עולם נסתר\nחסרים {MainStarsMissing} כוכבים");
+                pt.color = can ? new Color(1, .85f, 1) : new Color(.7f, .72f, .8f);
+            }
             Line(TouchUi.Available ? "הקשה על שלב בוחרת אותו, הקשה נוספת משחקת    כפתור חזור - תפריט" : "רווח - משחקים    Esc - תפריט", 34, -470, new Color(.9f, .95f, 1));
             PaintMap();
             MapTick(0);
@@ -191,8 +217,8 @@ namespace Kfitsa
             mapMissing.text = Rtl.V(stars + secrets);
             mapMissing.color = miss.Count == 0 && got == total ? new Color(1, .9f, .4f) : new Color(.9f, .95f, 1);
             int all = 0;
-            foreach (int bits in save.stars) all += Bits(bits);
-            mapStats.text = Rtl.V($"כוכבים: {all}/{Levels.All.Length * 3}    שיא בשלב: {save.best[mapCursor]}" + (save.bestTime[mapCursor] > 0 ? "    זמן שיא: " + Hud.TimeText(save.bestTime[mapCursor] / 10f) : "") + $"    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
+            for (int i = pageFirst; i <= pageEnd; i++) all += Bits(save.stars[i]);
+            mapStats.text = Rtl.V($"כוכבים: {all}/{(pageEnd - pageFirst + 1) * 3}    שיא בשלב: {save.best[mapCursor]}" + (save.bestTime[mapCursor] > 0 ? "    זמן שיא: " + Hud.TimeText(save.bestTime[mapCursor] / 10f) : "") + $"    ניקוד: {run.score}    חיים: {run.lives}" + (Easy ? "    קושי: קל" : ""));
         }
 
         /// The hero walks toward the chosen stop, and the path lights up as far as it is open.
@@ -222,7 +248,8 @@ namespace Kfitsa
                 var (icon, glow, level) = mapNodes[i];
                 bool open2 = level <= MapLast && nodeAt[level] <= mapReveal + 1;
                 bool done = level < save.unlocked;
-                string want = !open2 ? "lock_yellow" : Levels.All[level].boss ? (Levels.All[level].terrain == "snow" ? "giant_walk_a" : "boss_walk_a") : done ? "block_empty" : "block_coin";
+                var ld = Levels.All[level];
+                string want = !open2 ? "lock_yellow" : ld.boss ? (ld.terrain == "snow" ? "giant_walk_a" : ld.hidden ? "king_blue_walk_a" : "boss_walk_a") : done ? "block_empty" : "block_coin";
                 var sprite = Art.Center(want);
                 if (icon.sprite != sprite)
                 {
@@ -238,7 +265,7 @@ namespace Kfitsa
 
             // Feet on the path between stops, standing on top of the block at a stop
             float near = float.MaxValue;
-            foreach (float n in nodeAt) near = Mathf.Min(near, Mathf.Abs(mapAt - n));
+            for (int i = pageFirst; i <= pageEnd; i++) near = Mathf.Min(near, Mathf.Abs(mapAt - nodeAt[i]));
             float lift = Mathf.Lerp(110, 52, Mathf.SmoothStep(0, 1, (near - 30) / 50));
             var at = PathPoint(mapAt) + new Vector2(0, lift);
             char form = run.power == 3 ? 'f' : run.power == 2 ? 'p' : run.power == 1 ? 'b' : 's';
@@ -258,12 +285,15 @@ namespace Kfitsa
             MapInput((x, 0, ok, false));
             for (float t = 0; t < seconds && screen == Screen.Map; t += 1 / 60f) MapTick(1 / 60f);
         }
-        public static float NodeX(int level) => Nodes[level].x;
-        public static Vector2 NodePos(int level) => Nodes[level];
+        public static float NodeX(int level) => Layout(level, MainCount).x;
+        public static Vector2 NodePos(int level) => Layout(level, MainCount);
 
         void MapChoose(int to)
         {
-            to = Mathf.Clamp(to, 0, MapLast);
+            // Past either end of a page: over to the other page, when it is open
+            if (to > pageEnd && !HiddenPage && HiddenOpen) { MapPage(); return; }
+            if (to < pageFirst && HiddenPage) { MapPage(); return; }
+            to = Mathf.Clamp(to, pageFirst, MapLast);
             if (to == mapCursor) return;
             mapCursor = to; mapEnter = false; mapWait = 0;
             Sound.Play("select", .5f); PaintMap();
@@ -284,14 +314,26 @@ namespace Kfitsa
             else { mapEnter = true; mapWait = 0; }
         }
 
+        /// Over to the other page of the map.
+        void MapPage()
+        {
+            if (!HiddenPage && !HiddenOpen) { Sound.Play("bump", .5f); return; }
+            mapCursor = HiddenPage ? MainCount - 1 : MainCount; mapFrom = -1;
+            Sound.Play("magic", .7f);
+            ShowMap();
+        }
+        public void MapPageForTest() => MapPage();
+        public int PageFirst => pageFirst;
+
         void MapTap(Vector2 at)
         {
+            if (pageBox != null && RectTransformUtility.RectangleContainsScreenPoint(pageBox.rectTransform, at, null)) { MapPage(); return; }
             if (trialBox != null && RectTransformUtility.RectangleContainsScreenPoint(trialBox.rectTransform, at, null)) { MapTrial(); return; }
             var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
-            float reach = Mathf.Min(115, (MapRight - MapLeft) / (Nodes.Length - 1) * .55f);
-            for (int i = 0; i <= MapLast; i++)
+            float reach = Mathf.Min(115, (MapRight - MapLeft) / Mathf.Max(1, pageEnd - pageFirst) * .55f);
+            for (int i = pageFirst; i <= MapLast; i++)
             {
-                if (Vector2.Distance(at, mid + Nodes[i] * hud.Scale) > reach * hud.Scale) continue;
+                if (Vector2.Distance(at, mid + Node(i) * hud.Scale) > reach * hud.Scale) continue;
                 if (i == mapCursor) MapGo(); else MapChoose(i);
                 return;
             }

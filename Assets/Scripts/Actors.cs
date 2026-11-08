@@ -35,7 +35,7 @@ namespace Kfitsa
 
     public class Enemy : Body
     {
-        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime, m worm, z mouse
+        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime, m worm, z mouse; v2.4: W bee, K ladybug, N fish
         public SpriteRenderer view;
         public bool awake, alive = true, flying;
         public int state;              // snail: 0 walking, 1 in shell, 2 sliding
@@ -53,7 +53,8 @@ namespace Kfitsa
         public void Init()
         {
             baseX = x; baseY = y + 2;
-            if (kind == 'y') y = baseY;
+            if (kind == 'y' || kind == 'W') y = baseY;
+            if (kind == 'N') { baseY = y; t = Mathf.Repeat(x * .37f, 1) * FishPeriod; y = baseY - 1.8f; }
             if (kind == 'm') t = Mathf.Repeat(x * .618f, 1) * WormPeriod;     // neighbours keep different times
         }
 
@@ -61,7 +62,12 @@ namespace Kfitsa
         public const float WormPeriod = 3.4f, WormPeek = 1.3f, WormOut = 1.8f, WormBack = 3.15f;
         float WormClock => Mathf.Repeat(t, WormPeriod);
         /// Out of the ground, so it can hurt and be stomped.
-        public bool Out => kind != 'm' || WormClock >= WormOut && WormClock < WormBack;
+        public bool Out => kind == 'N' ? y > baseY - .6f : kind != 'm' || WormClock >= WormOut && WormClock < WormBack;
+
+        // v2.4: the fish leaps out of the pit on a fixed clock, 2 seconds up and down, then a rest below
+        public const float FishPeriod = 3.2f, FishLeap = 2f, FishHigh = 6f;
+        /// The ladybug's first stomp sends it up: it hovers from then on, and the next stomp ends it.
+        public void TakeOff() { state = 1; baseX = x; baseY = y + 1.6f; t = 0; vy = 0; }
         /// How far out of the ground it is drawn, 0 to 1.
         public float Rise
         {
@@ -89,6 +95,25 @@ namespace Kfitsa
                     if (scared && MoveX(dir * MouseRun * dt)) dir = -dir;
                     MoveY(vy * dt);
                     return;
+                case 'W':
+                    // The bee flies a figure of eight around where it started
+                    float bx = baseX + Mathf.Sin(t * .8f) * 2.5f;
+                    dir = bx > x ? 1 : -1;
+                    x = bx; y = baseY + Mathf.Sin(t * 1.6f) * 1.2f;
+                    return;
+                case 'N':
+                    float k = Mathf.Repeat(t, FishPeriod);
+                    y = k < FishLeap ? baseY - 1.8f + (FishHigh + 1.8f) * 4 * (k / FishLeap) * (1 - k / FishLeap) : baseY - 1.8f;
+                    dir = k < FishLeap / 2 ? 1 : -1;     // nose up, then down
+                    return;
+                case 'K':
+                    if (state == 1)
+                    {
+                        x = baseX + Mathf.Sin(t * .9f) * 2f; y = baseY + Mathf.Sin(t * 2.4f) * .5f;
+                        dir = Mathf.Cos(t * .9f) > 0 ? 1 : -1;
+                        return;
+                    }
+                    break;
                 case 'y':
                     float nx = baseX + Mathf.Sin(t * .9f) * 3.5f;
                     dir = nx > x ? 1 : -1;
@@ -120,7 +145,7 @@ namespace Kfitsa
             if (speed > 0 && MoveX(dir * speed * dt)) dir = -dir;
             MoveY(vy * dt);
             // Snails and spike slimes are careful; plain slimes walk off edges
-            if (grounded && state == 0 && (kind == 'n' || kind == 'p' || kind == 'q'))
+            if (grounded && state == 0 && (kind == 'n' || kind == 'p' || kind == 'q' || kind == 'K'))
             {
                 int ahead = Mathf.FloorToInt(x + dir * (w / 2 + .1f));
                 if (!grid.Solid(ahead, Mathf.FloorToInt(y - .1f))) dir = -dir;
@@ -152,6 +177,9 @@ namespace Kfitsa
                 case 'j': view.sprite = Art.Feet(!alive ? "frog_rest" : grounded ? "frog_idle" : "frog_jump"); break;
                 case 'z': view.sprite = Art.Feet(!alive ? "mouse_rest" : scared ? ((int)(t * 12) % 2 == 0 ? "mouse_walk_a" : "mouse_walk_b") : "mouse_rest"); break;
                 case 'm': view.sprite = Art.Feet(!alive ? "worm_normal_rest" : Out ? (a ? "worm_normal_move_a" : "worm_normal_move_b") : "worm_normal_rest"); view.sortingOrder = alive ? -1 : 5; break;
+                case 'W': view.sprite = Art.Feet(!alive ? "bee_rest" : (int)(t * 14) % 2 == 0 ? "bee_a" : "bee_b"); break;
+                case 'K': view.sprite = Art.Feet(!alive ? "ladybug_rest" : state == 1 ? "ladybug_fly" : a ? "ladybug_walk_a" : "ladybug_walk_b"); break;
+                case 'N': view.sprite = Art.Feet(!alive ? "fish_purple_rest" : dir > 0 ? "fish_purple_up" : "fish_purple_down"); view.flipX = false; view.sortingOrder = alive ? -1 : 5; break;
                 case 'q': view.sprite = Art.Feet(block != null || !alive ? "slime_block_rest" : !grounded ? "slime_block_jump" : a ? "slime_block_walk_a" : "slime_block_walk_b"); break;
             }
         }
@@ -177,7 +205,11 @@ namespace Kfitsa
         public bool frost, thrown;
         public float stuck;
         public System.Action<int> onThrow;
-        public bool Open => !frost || stuck > 0;
+        public bool Open => frost ? stuck > 0 : color < 0 || active == null || color == active();
+        // v2.4, the jelly king returns in the land of colours: he wears one colour at a time, and only the switch
+        // of that colour makes him soft enough to stomp. Every hit changes his colour.
+        public int color = -1;
+        public System.Func<int> active;
         public float StuckTime => hp <= 3 ? 1f : 1.2f;
 
         public void Step(float dt, float heroX)
@@ -220,7 +252,7 @@ namespace Kfitsa
             view.transform.localScale = held ? new Vector3(1.1f, .86f, 1) : new Vector3(1 + .12f * k, 1 - .14f * k, 1);
             view.flipX = dir > 0;
             view.flipY = !alive;
-            string n = frost ? "giant" : "boss";
+            string n = frost ? "giant" : color >= 0 ? "king_" + Grid2.ColorNames[color] : "boss";
             view.sprite = Art.Feet(!grounded || held ? n + "_rest" : (int)(t * 5) % 2 == 0 ? n + "_walk_a" : n + "_walk_b");
             view.color = hurt > 0 && (int)(t * 16) % 2 == 0 ? new Color(1, .5f, .5f)
                 : warn && (int)(t * 12) % 2 == 0 ? new Color(1, .92f, .55f)

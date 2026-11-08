@@ -192,9 +192,9 @@ namespace Kfitsa
             var g = G.grid; float clock = G.levelTime; string mode = g.RoomMode; int star = g.Stars.FindIndex(p => p.x >= g.MainW);
             if (g.RoomCoins)
                 for (int i = 0; i < 40 && G.RoomCoinsLeft > 0; i++) Drive(def, q => q.kind == "coin" && G.RoomCoinAt(q.x, q.y), true, 10);
-            if (mode == "lights")
+            if (g.RoomLamps)
                 for (int i = 0; i < 6 && !G.RoomSolved; i++) Drive(def, q => q.kind == "lamp" && !G.LampLit(q.x, q.y), true, 10);
-            if (mode == "stomp" || mode == "blocks")
+            if (g.RoomStomp)
             {
                 app.run.power = 2; G.ApplyPowerForTest(2);
                 for (int i = 0; i < 2400 && !G.RoomSolved; i++)
@@ -265,6 +265,22 @@ namespace Kfitsa
             {
                 var b = G.boss;
                 float dx = b.x - G.hero.x;
+                if (b.color >= 0)
+                {
+                    // The king in colours: first the switch of his colour, then on top of him
+                    bool soft = b.Open && b.hurt <= 0;
+                    float target = b.x;
+                    if (!b.Open)
+                    {
+                        // The nearest switch of his colour: the level may have another one far back, past water
+                        var sw = G.grid.ColorSwitches.Where(c => c.color == b.color).OrderBy(c => Mathf.Abs(c.c + .5f - G.hero.x)).First();
+                        target = sw.c + .5f;
+                    }
+                    float go = target - G.hero.x;
+                    G.TestStep(1, new Pad { x = Mathf.Abs(go) > .3f ? Mathf.Sign(go) : 0, run = Mathf.Abs(go) > 3,
+                        jumpPressed = soft && G.hero.grounded && Mathf.Abs(dx) < 4, jumpHeld = soft });
+                    continue;
+                }
                 if (b.frost)
                 {
                     // Keep away while it throws; when it is stuck, run in and jump on it
@@ -285,7 +301,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -330,6 +346,29 @@ namespace Kfitsa
                     At(9, 20, 2, 1); G.paused = true; var mouse = G.enemies.Find(x => x.kind == 'z');
                     for (int i = 0; i < 300 && mouse != null && !mouse.scared; i++) G.TestStep(1, new Pad { x = 1, run = true });
                     G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 49: app.hud.Show(true); At(11, 19, 2, 1); G.paused = true; G.TestStep(30, new Pad { x = 1 }); G.SnapCamera(); G.DrawNow(); app.hud.Hint(0, ""); break;
+                case 50: At(12, 37.5f, 2, 1); G.paused = true; G.TestStep(240, default); G.SnapCamera(); G.DrawNow(); break;
+                case 51:
+                {
+                    At(13, 52.5f, 2, 1); G.paused = true; G.TestStep(10, default);
+                    var f = G.enemies.Find(x => x.kind == 'N' && x.x > 59 && x.x < 61);
+                    for (int i = 0; i < 900 && f != null && !(f.Out && f.y > 4); i++) G.TestStep(1, default);
+                    G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 52:
+                {
+                    At(14, 133.5f, 2, 1); G.paused = true; G.boss.awake = true; app.hud.BossBar(1, Rtl.V(Levels.All[14].name));
+                    G.boss.hp = 6; G.boss.color = 1; G.TestStep(60, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 53:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < App.MainCount ? 7 : i == App.MainCount ? 5 : 0;
+                    app.save.unlocked = App.MainCount + 1; app.mapHold = false; app.ShowMap(); app.MapPageForTest();
                     break;
                 }
                 case 47:
@@ -945,6 +984,59 @@ namespace Kfitsa
                 Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
             }
 
+            // Version 2.4: the land of colours
+            {
+                int c1 = Array.FindIndex(Levels.All, l => l.file == "w4l1"), k3 = Array.FindIndex(Levels.All, l => l.file == "boss3");
+                Check("colours: four hidden levels after the frost giant", Levels.All.Length == App.MainCount + 4 && Levels.All[App.MainCount - 1].file == "boss2" && c1 == App.MainCount && Levels.All[k3].hidden);
+                app.run = new RunState { lives = 9 }; app.game.skipIntro = true; app.game.StartLevel(c1); g = app.game; g.god = true;
+                Check("colours: a level starts red, so red blocks are solid and blue ones open", g.world.sw == 0 && g.grid.Solid(24, 5) && !g.grid.Solid(45, 1));
+                g.hero.x = 18.5f; g.hero.y = 2; g.hero.vx = 0; g.SnapCamera(); g.TestStep(10, none);
+                Check("colours: the blue switch opens the red wall and brings out the blue bridge", g.world.sw == 1 && !g.grid.Solid(24, 5) && g.grid.Solid(45, 1));
+                g.TestStep(30, none);
+                Check("colours: standing on it again changes nothing", g.world.sw == 1);
+                g.hero.x = 20.5f; g.TestStep(240, new Pad { x = 1 });
+                Check($"colours: the hero walks through the open red wall ({g.hero.x:F1})", g.hero.x > 25);
+                g.god = false;
+
+                g = Fresh(app); var bee = g.TestEnemy('W', 30, 3); g.hero.x = 3;
+                float bx0 = 99, bx1 = -99, by0 = 99, by1 = -99;
+                for (int i = 0; i < 120 * 8; i++) { g.TestStep(1, none); bx0 = Mathf.Min(bx0, bee.x); bx1 = Mathf.Max(bx1, bee.x); by0 = Mathf.Min(by0, bee.y); by1 = Mathf.Max(by1, bee.y); }
+                Check($"bee: flies a figure of eight ({bx1 - bx0:F1} wide, {by1 - by0:F1} high)", bx1 - bx0 > 4.5f && bx1 - bx0 < 5.5f && by1 - by0 > 2 && by1 - by0 < 2.8f);
+                g = Fresh(app); var bug = g.TestEnemy('K', 20, 2); g.TestStep(2, none); float gy = bug.y;
+                Above(g.hero, bug); g.TestStep(20, none);
+                Check("ladybug: the first stomp sends it flying", bug.alive && bug.state == 1);
+                g.TestStep(120, none);
+                Check($"ladybug: then it hovers above the ground ({bug.y:F1})", bug.y > gy + .8f);
+                g.hero.invuln = 0; Above(g.hero, bug); g.TestStep(20, none);
+                Check("ladybug: the second stomp ends it", !bug.alive);
+                g = Fresh(app); var fish = g.TestEnemy('N', 30, 0); g.hero.x = 3; float fy = -9; int outT = 0;
+                for (int i = 0; i < 120 * 6; i++) { g.TestStep(1, none); fy = Mathf.Max(fy, fish.y); if (fish.Out) outT++; }
+                Check($"fish: leaps about 6 tiles out of the water and back (top {fy:F1}, out {outT / 120f:F1} of 6 s)", fy > 5.5f && fy < 6.5f && outT > 120 * 2 && outT < 120 * 4.5f);
+
+                app.run = new RunState { lives = 9 }; app.game.StartLevel(k3); g = app.game; g.god = true; var king = g.boss;
+                Check("returning king: starts red, so the red of the start makes him soft", king != null && king.color == 0 && king.Open);
+                king.awake = true; Above(g.hero, king); g.TestStep(20, none);
+                Check("returning king: a stomp hurts him and turns him blue", king.hp == Boss.MaxHp - 2 && king.color == 1 && !king.Open);
+                king.hurt = 0; g.hero.invuln = 0; Above(g.hero, king); g.TestStep(12, none);
+                Check("returning king: blue, he cannot be stomped while red is on", king.hp == Boss.MaxHp - 2);
+                g.hero.x = 126.5f; g.hero.y = 2; g.hero.vx = 0; g.hero.vy = 0; g.SnapCamera(); g.TestStep(10, none);
+                Check("returning king: the blue switch makes him soft again", g.world.sw == 1 && king.Open);
+                g.god = false; g.Unload();
+
+                var keepS = (int[])app.save.stars.Clone(); int keepU = app.save.unlocked;
+                for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < App.MainCount ? 7 : 0;
+                app.save.stars[3] = 3;
+                Check("map: the hidden world stays shut while a star is missing", !app.HiddenOpen && app.MainStarsMissing == 1);
+                app.save.stars[3] = 7; app.save.unlocked = App.MainCount; app.save.achievements = 0;
+                app.CheckProgressForTest();
+                Check("map: every star of worlds 1 to 3 opens it, and the achievement does not wait for the hidden stars", app.HiddenOpen && Achievements.Has(Achievements.Id.AllStars));
+                app.mapHold = true; app.ShowMap(); app.MapPageForTest();
+                Check("map: the hidden world has its own page", app.PageFirst == App.MainCount && app.MapCursor == App.MainCount);
+                app.MapPageForTest();
+                Check("map: and back", app.PageFirst == 0 && app.MapCursor == App.MainCount - 1);
+                app.mapHold = false; app.save.stars = keepS; app.save.unlocked = keepU; app.save.achievements = 0;
+            }
+
             // Version 2.3: the time trial and its ghost
             {
                 var gh = new Ghost(); for (int i = 0; i < 90; i++) gh.Add(3 + i * .1f, 2 + (i % 7) * .3f, i % 2 == 0 ? "walk1" : "jump", i < 45 ? 's' : 'p', i % 3 == 0);
@@ -1036,7 +1128,7 @@ namespace Kfitsa
                 int gi = Array.FindIndex(Levels.All, l => l.file == "boss2");
                 app.run = new RunState { lives = 9 }; app.game.skipIntro = true; app.game.StartLevel(gi); g = app.game; g.god = true;
                 var b = g.boss;
-                Check("the frost giant is the last level's boss", b != null && b.frost && gi == Levels.All.Length - 1);
+                Check("the frost giant is the last boss of worlds 1 to 3", b != null && b.frost && gi == App.MainCount - 1);
                 g.hero.x = b.x - 10; g.hero.y = 2; g.SnapCamera(); g.TestStep(2, none);
                 Check("the giant wakes when the hero comes near", b.awake);
                 bool warned = false;

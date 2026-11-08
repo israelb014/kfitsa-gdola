@@ -416,6 +416,121 @@ def boss2():
     l.put(x0+8, 3, 's')
     return l
 
+# ---- v2.4: the hidden world, "the land of colours" ----
+# 2..5 are switches (red, blue, green, yellow); 6..9 the blocks of those colours. Red is on when a level starts.
+RED, BLUE, GREEN, YELLOW = '6789'
+def sw(l, x, y, color): l.put(x, y, '2345'['rbgy'.index(color)])
+def bridge(l, x0, x1, ch, y=1): l.row(x0, x1, y, ch)
+def wall(l, x, ch, y0=2): l.fill(x, x, y0, l.H-1, ch)
+def lake(l, x0, x1): l.row(x0, x1, 0, 'w')
+
+def w4l1():
+    """Colour switches. A blue switch opens a red wall in a safe place; then bridges come and go; the twist is
+    a lake crossed on bridges of three colours, each switch standing on a small island between them."""
+    M = 200; l = L(M + 30, idea='colors')
+    l.note('needs switches')
+    l.ground(0, 40, 2); l.put(8, 2, 'S'); l.put(6, 2, '>')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, '?')
+    sw(l, 18, 2, 'b'); wall(l, 24, RED); l.put(32, 2, 'e'); l.put(30, 5, '!')
+    # Developed: a blue bridge over a pit, then a green one
+    bridge(l, 41, 52, BLUE); l.ground(53, 70, 2); l.put(58, 2, 'e'); sw(l, 64, 2, 'g'); l.line(55, 62, 3)
+    bridge(l, 71, 84, GREEN); l.put(77, 5, 's')
+    l.ground(85, 110, 2); l.put(90, 2, 'C'); l.put(88, 2, '|'); l.put(95, 5, '!'); l.put(94, 5, 'b'); l.put(96, 5, 'b'); l.put(100, 2, 'D'); l.put(98, 2, '|')
+    l.put(105, 6, 'h'); l.put(103, 2, 'n'); sw(l, 108, 2, 'y')
+    # The twist: a lake, three bridges, a switch on each island; every switch takes away the bridge behind
+    lake(l, 111, 140)
+    bridge(l, 111, 118, YELLOW); l.ground(119, 121, 2); sw(l, 120, 2, 'r'); bridge(l, 122, 129, RED); l.put(125, 5, 's')
+    l.ground(130, 132, 2); sw(l, 131, 2, 'b'); bridge(l, 133, 140, BLUE)
+    l.ground(141, M - 1, 2); sw(l, 147, 2, 'g'); wall(l, 152, BLUE); l.put(160, 2, 'e'); l.put(170, 2, 'n')
+    l.put(178, 5, '+'); l.put(190, 2, 'G'); l.put(186, 2, '|'); l.put(194, 2, '|')
+    l.note('easyflag 54 2'); l.note('easyflag 142 2')
+    x0, x1 = l.box(M)
+    # Bonus room: three lamps, two of them behind colour blocks
+    l.note('room beacons 0')
+    l.put(x0 + 1, 2, 'E'); sw(l, x0 + 4, 2, 'b'); l.put(x0 + 7, 3, 'L')
+    l.fill(x0 + 10, x0 + 10, 2, 12, RED)
+    l.row(x0 + 14, x0 + 17, 4, GREEN); l.put(x0 + 16, 7, 'L'); sw(l, x0 + 21, 2, 'g'); l.put(x0 + 24, 3, 'L')
+    l.put(x0 + 19, 3, 's')
+    return l
+
+def w4l2():
+    """Bees and ladybugs. A bee flies its figure of eight over safe ground first; then over a bridge; yellow
+    stairs climb a wall; the twist is ladybugs on small red platforms over a pit, with a bee among them."""
+    M = 200; l = L(M + 30, idea='bugs')
+    l.note('needs switches')
+    l.ground(0, 35, 2); l.put(8, 2, 'S'); l.put(6, 2, '>'); l.put(12, 5, '!'); l.put(13, 5, 'b')
+    l.put(20, 2, 'K'); l.put(27, 3, 'W'); sw(l, 33, 2, 'b'); l.put(16, 5, '!')
+    bridge(l, 36, 49, BLUE); l.put(42, 3, 'W')
+    l.ground(50, 74, 2); l.put(55, 2, 'K'); l.put(65, 2, 'K'); l.line(56, 64, 3); sw(l, 71, 2, 'y')
+    # Yellow stairs up a wall too high to jump, a star on top
+    l.fill(75, 75, 2, 3, YELLOW); l.fill(76, 76, 2, 5, YELLOW); l.fill(77, 77, 2, 7, YELLOW)
+    l.fill(78, 80, 0, 8, '#'); l.put(79, 11, 's')
+    l.ground(81, 120, 2); l.put(86, 2, 'C'); l.put(84, 2, '|'); l.put(95, 3, 'W'); l.put(102, 3, 'W')
+    l.put(106, 5, '!'); l.put(105, 5, 'b'); l.put(107, 5, 'b'); l.put(111, 2, 'D'); l.put(109, 2, '|'); l.put(115, 6, 'h'); sw(l, 118, 2, 'r')
+    # The twist: ladybugs patrol small red platforms over a pit
+    for x0 in (124, 133, 142): l.row(x0, x0 + 3, 4, RED); l.put(x0 + 1, 5, 'K')
+    l.put(130, 7, 'W'); l.put(139, 8, 's')
+    l.ground(149, M - 1, 2); l.put(160, 2, 'e'); l.put(172, 3, 'W'); l.put(180, 5, '+')
+    l.put(190, 2, 'G'); l.put(186, 2, '|'); l.put(194, 2, '|')
+    l.note('easyflag 51 2'); l.note('easyflag 150 2')
+    x0, x1 = l.box(M)
+    # Bonus room: ladybugs, two stomps each
+    l.note('room bugs 0')
+    l.put(x0 + 1, 2, 'E')
+    for x in (x0 + 7, x0 + 13, x0 + 19): l.put(x, 2, 'K')
+    l.row(x0 + 10, x0 + 16, 5); l.put(x0 + 13, 7, 's')
+    return l
+
+def w4l3():
+    """Fish. A fish leaps from a narrow gap where it is easy to watch; then it leaps through a bridge; the twist
+    is a long lake of bridges in four colours, fish jumping through each, a switch on every island."""
+    M = 200; l = L(M + 30, idea='fish')
+    l.note('needs switches')
+    l.ground(0, 30, 2); l.put(8, 2, 'S'); l.put(6, 2, '>'); l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(24, 5, '!')
+    lake(l, 31, 34); l.put(32, 0, 'N')
+    l.ground(35, 55, 2); l.put(45, 2, 'e'); sw(l, 52, 2, 'g')
+    lake(l, 56, 71); bridge(l, 56, 71, GREEN); l.put(60, 0, 'N'); l.put(64, 0, 'N'); l.put(68, 0, 'N'); l.put(64, 6, 's')
+    l.ground(72, 94, 2); l.put(78, 2, 'C'); l.put(76, 2, '|'); l.put(84, 5, '!'); l.put(83, 5, 'b'); l.put(85, 5, 'b'); l.put(88, 2, 'D'); l.put(86, 2, '|')
+    l.put(91, 6, 'h'); sw(l, 93, 2, 'b')
+    # The twist: four bridges, four colours, fish under every one
+    lake(l, 95, 167)
+    bridge(l, 95, 110, BLUE); l.put(100, 0, 'N'); l.put(105, 0, 'N')
+    l.ground(111, 113, 2); sw(l, 112, 2, 'y'); bridge(l, 114, 129, YELLOW); l.put(118, 0, 'N'); l.put(124, 0, 'N')
+    l.ground(130, 132, 2); sw(l, 131, 2, 'r'); bridge(l, 133, 148, RED); l.put(137, 0, 'N'); l.put(143, 0, 'N'); l.put(140, 6, 's')
+    l.ground(149, 151, 2); sw(l, 150, 2, 'g'); bridge(l, 152, 167, GREEN); l.put(156, 0, 'N'); l.put(162, 0, 'N')
+    l.ground(168, M - 1, 2); l.put(175, 2, 'n'); l.put(181, 3, 'W'); l.put(186, 5, '+')
+    l.put(194, 2, 'G'); l.put(190, 2, '|'); l.put(198, 2, '|')
+    l.note('easyflag 73 2'); l.note('easyflag 169 2')
+    x0, x1 = l.box(M)
+    # Bonus room: a race through walls that open one after another
+    l.note('room dash 14')
+    l.put(x0 + 1, 2, 'E'); sw(l, x0 + 4, 2, 'b'); wall(l, x0 + 8, RED); sw(l, x0 + 11, 2, 'y'); wall(l, x0 + 14, BLUE)
+    sw(l, x0 + 17, 2, 'g'); wall(l, x0 + 20, YELLOW); l.put(x0 + 24, 3, 's')
+    return l
+
+def boss3():
+    """The jelly king returns. A short way in past everything the world taught, then the arena: four switches on
+    its floor; the king can be stomped only after the switch of the colour he wears, and every hit changes it."""
+    M = 190; l = L(M + 30, idea='king')
+    l.ground(0, 30, 2); l.put(8, 2, 'S'); l.put(6, 2, '>'); l.put(12, 5, '!'); l.put(13, 5, 'b'); sw(l, 22, 2, 'b'); l.put(26, 5, '!')
+    lake(l, 31, 40); bridge(l, 31, 40, BLUE); l.put(35, 0, 'N'); l.put(36, 6, 's')
+    l.ground(41, 99, 2); l.put(50, 3, 'W'); l.put(58, 2, 'K'); l.put(64, 2, 'C'); l.put(62, 2, '|'); l.put(70, 5, '!'); l.put(69, 5, 'b'); l.put(71, 5, 'b')
+    l.put(78, 2, 'D'); l.put(76, 2, '|'); l.put(84, 6, 'h'); l.put(92, 5, '+')
+    # The arena
+    l.ground(100, M - 1, 2); l.fill(M - 1, M - 1, 2, l.H - 1, 'g')
+    sw(l, 108, 2, 'r'); sw(l, 126, 2, 'b'); sw(l, 154, 2, 'g'); sw(l, 172, 2, 'y')
+    l.row(116, 120, 4); l.row(160, 164, 4); l.put(118, 7, 's')
+    l.put(140, 2, 'B'); l.put(182, 2, 'G'); l.put(178, 2, '|'); l.put(186, 2, '|')
+    l.note('easyflag 42 2'); l.note('easyflag 101 2')
+    x0, x1 = l.box(M)
+    # Bonus room: coins over ledges that only a switch of their colour brings out
+    l.note('room paint 20')
+    l.put(x0 + 1, 2, 'E'); sw(l, x0 + 3, 2, 'g'); l.row(x0 + 6, x0 + 9, 4, GREEN); l.line(x0 + 6, x0 + 9, 6)
+    sw(l, x0 + 11, 2, 'y'); l.row(x0 + 14, x0 + 17, 4, YELLOW); l.line(x0 + 14, x0 + 17, 6)
+    sw(l, x0 + 19, 2, 'b'); l.row(x0 + 21, x0 + 24, 4, BLUE); l.line(x0 + 21, x0 + 24, 6)
+    l.put(x0 + 26, 3, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -433,5 +548,5 @@ def test():
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('boss2',boss2),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('boss2',boss2),('w4l1',w4l1),('w4l2',w4l2),('w4l3',w4l3),('boss3',boss3),('test',test)):
     f().save(n, out)

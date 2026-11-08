@@ -19,7 +19,10 @@ namespace Kfitsa
         public int Sw;               // state of the switch blocks; World keeps it in step
         public string Idea = "", RoomMode = "";
         /// Rooms where the coins are the challenge: "coins" on the floor, "ropes" along climbing ropes (v2.0).
-        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes";
+        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes" || RoomMode == "paint";
+        /// v2.4: the lamps room behind colour blocks, and the ladybug room, work like the earlier ones.
+        public bool RoomLamps => RoomMode == "lights" || RoomMode == "beacons";
+        public bool RoomStomp => RoomMode == "stomp" || RoomMode == "blocks" || RoomMode == "bugs";
         public float RoomSeconds, DarkRadius, CheckpointWater = -1;
         public int RoomH = 15;
         public WindZone[] Winds = new WindZone[0];
@@ -31,6 +34,11 @@ namespace Kfitsa
         public Tide Tide; public Flood Flood; public Chase Chase; public RoomWater RoomPool;
         public readonly List<Vector2> Stars = new List<Vector2>(), RoomLights = new List<Vector2>();
         public readonly List<(int c, int r)> Switches = new List<(int, int)>();
+        /// v2.4: a switch of one colour makes that colour's blocks solid and the other colours' blocks open.
+        public readonly List<(int c, int r, int color)> ColorSwitches = new List<(int, int, int)>();
+        public static readonly string[] ColorNames = { "red", "blue", "green", "yellow" };
+        /// Blocks that come and go with a switch: the two of world 2, and the four colours of v2.4.
+        public static bool Switched(char ch) => ch == 'a' || ch == 'A' || ch >= '6' && ch <= '9';
         public readonly List<Vector2> Coins = new List<Vector2>();
         public readonly List<(Vector2 at, char kind)> Enemies = new List<(Vector2, char)>();
         public readonly List<(int c, int r, BlockKind kind)> Blocks = new List<(int, int, BlockKind)>();
@@ -65,7 +73,8 @@ namespace Kfitsa
                         case 'R': g.RoomStart = c; g.MainW = c; ch = 'g'; break;
                         case 'B': g.BossSpot = cell; g.HasBoss = true; ch = ' '; break;
                         case 'o': g.Coins.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
-                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': case 'z': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': case 'z': case 'W': case 'K': case 'N': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case '2': case '3': case '4': case '5': g.ColorSwitches.Add((c, r, ch - '2')); ch = ' '; break;
                         case '?': g.Blocks.Add((c, r, BlockKind.Coin)); break;
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
                         case '*': g.Blocks.Add((c, r, BlockKind.Life)); break;
@@ -162,6 +171,7 @@ namespace Kfitsa
             else if (what == "platforms") Platforms.RemoveAll(p => !p.cloud);
             else if (what == "clouds") { Platforms.RemoveAll(p => p.cloud); Clouds.Clear(); }
             else if (what == "ladders") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (Climbable(c, r)) cells[c, r] = ' '; }
+            else if (what == "switches") ColorSwitches.Clear();
             else if (what == "crumble") { for (int c = 0; c < W; c++) for (int r = 0; r < H; r++) if (cells[c, r] == 'u') cells[c, r] = ' '; }
             else throw new System.Exception("Unknown mechanic: " + what);
         }
@@ -191,6 +201,7 @@ namespace Kfitsa
                 case '#': case 'g': case 'X': case '?': case '!': case '*': case '+': case 'b': case '{': case '}': case 'u': return true;
                 case 'a': return (Sw & 1) == 0;
                 case 'A': return (Sw & 1) != 0;
+                case '6': case '7': case '8': case '9': return Sw == cells[c, r] - '6';
                 default: return false;
             }
         }

@@ -1,0 +1,20 @@
+@idea bugs
+@needs switches
+@easyflag 51 2
+@easyflag 150 2
+@room bugs 0
+                                                                                                                                                                                                        gggggggggggggggggggggggggggggg
+                                                                                                                                                                                                        gggggggggggggggggggggggggggggg
+                                                                                                                                                                                                        g                            g
+                                                                               s                                                                                                                        g                            g
+                                                                                                                                                                                                        g                            g
+                                                                                                                                                                                                        g                            g
+                                                                              ###                                                          s                                                            g                            g
+                                                                             9###                                                 W                                                                     g             s              g
+                                                                             9###                                  h                                                                                    g                            g
+            !b  !                                                           99###                        b!b                 K        K        K                                    +                   g          #######           g
+                                                                            99###                                           6666     6666     6666                                                      g                            g
+                           W              W             ooooooooo          999###              W      W                                                                     W                           g                            g
+      > S           K            3                     K         K     5   999###   | C                      | D      2                                         e                         |   G   |     g E     K     K     K        g
+####################################77777777777777#########################   ###########################################                            ###################################################gggggggggggggggggggggggggggggg
+####################################              #########################   ###########################################                            ###################################################Rggggggggggggggggggggggggggggg

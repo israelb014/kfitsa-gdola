@@ -1,0 +1,20 @@
+@idea colors
+@needs switches
+@easyflag 54 2
+@easyflag 142 2
+@room beacons 0
+                        6                                                                                                                               7                                               gggggggggggggggggggggggggggggg
+                        6                                                                                                                               7                                               gggggggggggggggggggggggggggggg
+                        6                                                                                                                               7                                               g          6                 g
+                        6                                                                                                                               7                                               g          6                 g
+                        6                                                                                                                               7                                               g          6                 g
+                        6                                                                                                                               7                                               g          6                 g
+                        6                                                                                                                               7                                               g          6                 g
+                        6                                                                                                                               7                                               g          6     L           g
+                        6                                                                                h                                              7                                               g          6                 g
+            !b?         6     !                                              s                b!b                            s                          7                         +                     g          6                 g
+                        6                                                                                                                               7                                               g          6   8888          g
+                        6                              oooooooo                                                                                         7                                               g       L  6        s    L   g
+      > S         3     6       e                         e     4                       | C       | D  n    5           2          3               4    7       e         n               |   G   |     g E  3     6          4      g
+#########################################777777777777##################88888888888888##########################99999999###66666666###77777777###########################################################gggggggggggggggggggggggggggggg
+#########################################            ##################              ##########################wwwwwwww###wwwwwwww###wwwwwwww###########################################################Rggggggggggggggggggggggggggggg

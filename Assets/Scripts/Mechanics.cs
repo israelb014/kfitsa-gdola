@@ -39,8 +39,8 @@ namespace Kfitsa
                             if (ch == '{') b.transform.localScale = new Vector3(-1, 1, 1);
                             belts.Add(b);
                             break;
-                        case 'a': case 'A':
-                            var g = Art.Spawn("Gate", root, Art.Tile(ch == 'a' ? "block_red" : "block_blue"), 2);
+                        case 'a': case 'A': case '6': case '7': case '8': case '9':
+                            var g = Art.Spawn("Gate", root, Art.Tile(ch == 'a' ? "block_red" : ch == 'A' ? "block_blue" : "block_" + Grid2.ColorNames[ch - '6']), 2);
                             g.transform.position = new Vector3(c, r, 0);
                             gates.Add((g, ch));
                             break;
@@ -51,6 +51,12 @@ namespace Kfitsa
                 var v = Art.Spawn("Switch", root, Art.Tile("switch_red"), 2);
                 v.transform.position = new Vector3(c, r, 0);
                 switches.Add((v, c, r));
+            }
+            foreach (var (c, r, k) in grid.ColorSwitches)
+            {
+                var v = Art.Spawn("Switch", root, Art.Tile("switch_" + Grid2.ColorNames[k]), 2);
+                v.transform.position = new Vector3(c, r, 0);
+                colorSwitches.Add((v, k));
             }
             foreach (var at in grid.RoomLights)
             {
@@ -74,7 +80,11 @@ namespace Kfitsa
         {
             bool on = (world.sw & 1) != 0;
             foreach (var (view, kind) in gates)
-                view.color = new Color(1, 1, 1, (kind == 'a') != on ? 1 : .22f);
+            {
+                bool solid = kind >= '6' ? world.sw == kind - '6' : (kind == 'a') != on;
+                view.color = new Color(1, 1, 1, solid ? 1 : .22f);
+            }
+            foreach (var (view, k) in colorSwitches) view.sprite = Art.Tile("switch_" + Grid2.ColorNames[k] + (world.sw == k ? "_pressed" : ""));
             foreach (var (view, _, _) in switches) view.sprite = Art.Tile(on ? "switch_blue" : "switch_red");
         }
 
@@ -119,7 +129,7 @@ namespace Kfitsa
             if (star == null) { app.hud.Hint(3f, Rtl.V("את הכוכב של החדר כבר לקחת")); return; }
             roomDone = false; roomOpen = true; roomTimer = grid.RoomSeconds;
             string mode = grid.RoomMode;
-            star.hidden = grid.RoomCoins || mode == "lights" || mode == "stomp" || mode == "blocks";
+            star.hidden = grid.RoomCoins || grid.RoomLamps || grid.RoomStomp;
             star.view.enabled = !star.hidden;
             foreach (var c in coinItems) if (c.room && grid.RoomCoins) c.view.enabled = true;
             if (mode == "sneak")
@@ -129,7 +139,7 @@ namespace Kfitsa
                 foreach (var (at, kind) in grid.Enemies) if (at.x >= grid.MainW) AddEnemy(at, kind);
                 SleepNearMice();
             }
-            if ((mode == "stomp" || mode == "blocks") && !enemies.Exists(e => e.alive && e.x >= grid.MainW))
+            if (grid.RoomStomp && !enemies.Exists(e => e.alive && e.x >= grid.MainW))
                 foreach (var (at, kind) in grid.Enemies)
                     if (at.x >= grid.MainW) AddEnemy(at, kind);
             app.hud.Hint(4f, Rtl.V(Def.roomTip));
@@ -154,7 +164,7 @@ namespace Kfitsa
             if (!roomDone && star.hidden)
             {
                 bool solved = grid.RoomCoins ? !coinItems.Exists(c => c.room && c.view.enabled)
-                    : mode == "lights" ? lights.TrueForAll(l => l.lit)
+                    : grid.RoomLamps ? lights.TrueForAll(l => l.lit)
                     : !enemies.Exists(e => e.alive && e.x >= grid.MainW);
                 if (solved)
                 {

@@ -176,10 +176,10 @@ namespace Kfitsa
 
         bool Standable(int c, int r)
         {
-            bool sw = g.At(c, r) == 'a' || g.At(c, r) == 'A';
+            bool sw = Grid2.Switched(g.At(c, r));
             if (!(g.Solid(c, r) || sw)) return false;
             if (g.Deadly(c, r + 1) || g.Hazard(c, r + 1)) return false;
-            return !(g.Solid(c, r + 1) || g.At(c, r + 1) == 'a' || g.At(c, r + 1) == 'A');
+            return !(g.Solid(c, r + 1) || Grid2.Switched(g.At(c, r + 1)));
         }
 
         public Goal Add(string kind, string label, int c = 0, int r = 0, float x = 0, float y = 0)
@@ -495,6 +495,7 @@ namespace Kfitsa
             foreach (var q in g.Coins) if (In(q.x)) s.Add("coin", $"at {q.x:F0},{q.y:F0}", x: q.x, y: q.y);
             foreach (var q in g.RoomLights) if (In(q.x)) s.Add("lamp", $"at {q.x:F0},{q.y:F0}", x: q.x, y: q.y);
             foreach (var (c, r) in g.Switches) if (In(c)) s.Add("switch", $"at {c},{r}", x: c + .5f, y: r + .4f);
+            foreach (var (c, r, k) in g.ColorSwitches) if (In(c)) s.Add("switch", $"{Grid2.ColorNames[k]} at {c},{r}", x: c + .5f, y: r + .4f);
             foreach (var (c, r) in g.Springs) if (In(c)) s.Add("spring", $"at {c},{r}", x: c + .5f, y: r + .3f);
             foreach (var q in g.Shelters) if (In(q.x0)) s.Add("shelter", $"at {q.x0:F0}-{q.x1:F0}", x: (q.x0 + q.x1) / 2, y: q.y0 + .4f);
             for (int i = 0; i < g.Platforms.Count; i++) if (In(g.Platforms[i].baseX)) s.Add("platform", $"{i + 1} at {g.Platforms[i].baseX:F0}", i);

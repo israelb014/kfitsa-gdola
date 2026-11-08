@@ -548,8 +548,8 @@ namespace Kfitsa
             var worldDone = new Dictionary<int, bool>();
             for (int i = 0; i < Levels.All.Length; i++)
             {
-                for (int b = save.stars[i]; b != 0; b >>= 1) stars += b & 1;
-                all += 3;
+                if (i < MainCount) for (int b = save.stars[i]; b != 0; b >>= 1) stars += b & 1;
+                if (i < MainCount) all += 3;
                 int got = 0; for (int b = save.found[i]; b != 0; b >>= 1) got += b & 1;
                 int w = Levels.All[i].world;
                 worldDone[w] = (!worldDone.ContainsKey(w) || worldDone[w]) && got >= SecretTotal(i);
@@ -627,7 +627,7 @@ namespace Kfitsa
             save.Write();
             hud.Banner("");
             game.Unload();
-            if (i == Levels.All.Length - 1) { ShowEnding(); return; }
+            if (i == MainCount - 1 || i == Levels.All.Length - 1) { ShowEnding(i); return; }     // the last boss of the journey, or of the hidden world
             mapCursor = Mathf.Min(i + 1, Levels.All.Length - 1);
             mapFrom = i;      // the map opens on the level just finished, and the hero walks on to the next
             if (starsBefore >= 0 && Outfit.OpenCount(StarCount) > Outfit.OpenCount(starsBefore))
@@ -649,13 +649,16 @@ namespace Kfitsa
         }
         public void WorldClearedForTour() => WorldCleared(6);
 
-        void ShowEnding()
+        void ShowEnding() => ShowEnding(MainCount - 1);
+        void ShowEnding(int boss)
         {
+            bool secret = Levels.All[boss].hidden;
             hud.Show(false);
             Sound.Music("m_ending");
             int rank = save.AddScore(run.score, "המשחק הושלם");
             Menu("ניצחת!", new List<MenuItem> { Item("לשיאים", () => ShowScores(ShowTitle)) }, () => ShowScores(ShowTitle), -220, .25f, true, 300);
-            Line(Levels.All[Levels.All.Length - 1].boss ? Levels.All[Levels.All.Length - 1].name + " הובס והדרך הביתה פתוחה" : "סיימת את כל השלבים שיש כרגע! עוד שלבים בדרך", 52, 120);
+            Line(secret ? "מלך הג'לי הובס סופית, וכל הצבעים חזרו לעולם" : Levels.All[boss].name + " הובס והדרך הביתה פתוחה", 52, 120);
+            if (!secret && MainCount < Levels.All.Length) Line(HiddenOpen ? "ארץ הצבעים נפתחה! חפשו אותה בסוף המפה" : "יש עוד עולם נסתר. הוא נפתח רק עם כל הכוכבים", 38, -130, new Color(.95f, .8f, 1));
             Line($"ניקוד סופי: {run.score}    סודות שנמצאו: {run.secrets}", 46, 30);
             if (rank >= 0) Line($"מקום {rank + 1} בטבלת השיאים!", 46, -60, new Color(1, .86f, .3f));
             NewRun();

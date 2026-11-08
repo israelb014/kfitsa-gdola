@@ -1,0 +1,19 @@
+@idea king
+@easyflag 42 2
+@easyflag 101 2
+@room paint 20
+                                                                                                                                                                                             ggggggggggggggggggggggggggggggg
+                                                                                                                                                                                             ggggggggggggggggggggggggggggggg
+                                                                                                                                                                                             gg                            g
+                                                                                                                                                                                             gg                            g
+                                                                                                                                                                                             gg                            g
+                                                                                                                                                                                             gg                            g
+                                                                                                                                                                                             gg                            g
+                                                                                                                      s                                                                      gg                            g
+                                    s                                               h                                                                                                        gg      oooo    oooo   oooo   g
+            !b            !                                          b!b                    +                                                                                                gg                            g
+                                                                                                                    #####                                       #####                        gg      8888    9999   7777   g
+                                                  W                                                                                                                                          gg                          s g
+      > S             3                                   K   | C           | D                             2                 3             B             4                 5     |   G   |  gg E 4       5       3        g
+###############################7777777777#####################################################################################################################################################gggggggggggggggggggggggggggggg
+###############################wwwwNwwwww#####################################################################################################################################################Rggggggggggggggggggggggggggggg

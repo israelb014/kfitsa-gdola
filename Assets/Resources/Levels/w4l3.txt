@@ -1,0 +1,20 @@
+@idea fish
+@needs switches
+@easyflag 73 2
+@easyflag 169 2
+@room dash 14
+                                                                                                                                                                                                        ggggggggg6ggggg7ggggg9gggggggg
+                                                                                                                                                                                                        ggggggggg6ggggg7ggggg9gggggggg
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                s                          h                                                s                                                           g        6     7     9       g
+            !b          !                                                          b!b                                                                                                    +             g        6     7     9       g
+                                                                                                                                                                                                        g        6     7     9       g
+                                                                                                                                                                                     W                  g        6     7     9   s   g
+      > S                                    e      4                       | C       | D    3                  5                  2                  4                        n              |   G   | g E  3   6  5  7  4  9       g
+###############################    #####################8888888888888888#######################7777777777777777###9999999999999999###6666666666666666###8888888888888888################################gggggggggggggggggggggggggggggg
+###############################wNww#####################wwwwNwwwNwwwNwww#######################wwwwwNwwwwNwwwww###wwwwNwwwwwNwwwww###wwwwNwwwwwNwwwww###wwwwNwwwwwNwwwww################################Rggggggggggggggggggggggggggggg
