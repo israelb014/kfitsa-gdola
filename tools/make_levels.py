@@ -4,7 +4,7 @@ Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life 
 P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
 { } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp,
-I ladder (its top is a ledge), t rope, q block slime, c sinking snow cloud (each run of c is one cloud), m worm.
+I ladder (its top is a ledge), t rope, q block slime, c sinking snow cloud (each run of c is one cloud), m worm, z mouse (enemies near it sleep until it squeaks).
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
 in three parts: met safely, developed, then combined with a twist."""
 import sys
@@ -359,6 +359,35 @@ def w3l2():
     l.row(x1-2, x1, 4, 'g'); l.put(x1-1, 5, 's')
     return l
 
+def w3l3():
+    """Sneaking. A mouse squeaks when the hero runs near it or bumps into it, and every enemy near it wakes up.
+    Walking past is quiet, and a stomp silences it.
+    Met on open ground with one sleeper; then sleepers below a mouse on a ledge, with worms; the twist is a
+    corridor of sleepers between two mice, then sinking clouds over a pit with a mouse on the far side."""
+    l = L(240, 18, 'sneak')
+    l.ground(0, 62, 2); l.put(9, 2, 'S'); l.put(7, 2, '>'); l.put(11, 2, ',')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!')
+    # Met safely: one mouse, one sleeping slime, room to back off
+    l.put(36, 2, 'z'); l.put(44, 2, 'e'); l.line(40, 48, 5); l.put(52, 2, 'm'); l.note('easyflag 56 2')
+    # Developed: a mouse keeps watch from a ledge over sleepers and worms
+    l.row(70, 76, 6); l.put(73, 7, 'z'); l.ground(63, 112, 2)
+    l.put(66, 2, 'n'); l.put(79, 2, 'p'); l.put(84, 2, 'e'); l.put(88, 2, 'm'); l.row(90, 93, 6); l.put(91, 10, 's')
+    l.put(97, 5, '+'); l.put(101, 6, 'h'); l.put(104, 2, 'C'); l.put(102, 2, ',')
+    l.put(108, 5, '!'); l.put(107, 5, 'b'); l.put(109, 5, 'b')
+    # The twist: a low corridor of sleepers between two mice, where a running start is out of the question
+    l.ground(113, 160, 2); l.put(116, 2, 'D'); l.fill(124, 152, 7, 17, '#')
+    l.put(122, 2, 'z'); l.put(128, 2, 'e'); l.put(134, 2, 'n'); l.put(140, 2, 'e'); l.put(146, 2, 'p'); l.put(154, 2, 'z')
+    l.line(126, 150, 3)
+    # Then clouds over a pit, with worms on the far shore and a star above the last cloud
+    l.row(166, 168, 3, 'c'); l.row(172, 174, 5, 'c'); l.row(178, 180, 4, 'c'); l.put(179, 9, 's')
+    l.ground(184, 222, 2); l.put(188, 2, 'm'); l.put(194, 2, 'z'); l.put(199, 2, 'e'); l.put(203, 2, 'm')
+    l.note('easyflag 186 2'); l.put(214, 2, 'G'); l.put(211, 2, ','); l.put(218, 2, '%')
+    x0, x1 = l.box(223)
+    # Bonus room: the star sits past a mouse. Walk, never run, and it stays asleep
+    l.note('room sneak 0')
+    l.put(x0+1, 2, 'E'); l.row(x0+5, x0+9, 5, 'g'); l.put(x0+7, 6, 'z'); l.put(x1-1, 2, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -376,5 +405,5 @@ def test():
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('test',test)):
     f().save(n, out)

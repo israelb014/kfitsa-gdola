@@ -122,6 +122,13 @@ namespace Kfitsa
             star.hidden = mode == "coins" || mode == "lights" || mode == "stomp" || mode == "blocks";
             star.view.enabled = !star.hidden;
             foreach (var c in coinItems) if (c.room && mode == "coins") c.view.enabled = true;
+            if (mode == "sneak")
+            {
+                // A fresh, sleeping mouse every visit
+                for (int i = enemies.Count - 1; i >= 0; i--) if (enemies[i].x >= grid.MainW) { Destroy(enemies[i].view.gameObject); enemies.RemoveAt(i); }
+                foreach (var (at, kind) in grid.Enemies) if (at.x >= grid.MainW) AddEnemy(at, kind);
+                SleepNearMice();
+            }
             if ((mode == "stomp" || mode == "blocks") && !enemies.Exists(e => e.alive && e.x >= grid.MainW))
                 foreach (var (at, kind) in grid.Enemies)
                     if (at.x >= grid.MainW) AddEnemy(at, kind);
@@ -156,6 +163,13 @@ namespace Kfitsa
                     Sound.Play("win", .7f);
                     app.hud.Hint(3f, Rtl.V("הכוכב הופיע!"));
                 }
+            }
+            if (mode == "sneak" && !star.hidden && enemies.Exists(e => e.kind == 'z' && e.scared && e.x >= grid.MainW))
+            {
+                roomOpen = false; star.hidden = true; star.view.enabled = false;
+                Sound.Play("lose", .5f);
+                app.hud.Hint(4f, Rtl.V("העכבר צייץ והכוכב נעלם! צאו מהדלת ונסו שוב"));
+                return;
             }
             if (roomTimer > 0)
             {

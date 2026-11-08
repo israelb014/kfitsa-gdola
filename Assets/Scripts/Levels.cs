@@ -44,6 +44,8 @@ namespace Kfitsa
                 tip = "חץ למעלה מטפס בסולם ובחבל, וקפיצה עוזבת", roomTip = "מרוץ טיפוס! הגיעו לכוכב לפני שהזמן נגמר" },
             new LevelDef { file = "w3l2", name = "ענני השלג", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 2,
                 tip = "ענן שלג שוקע כשעומדים עליו. אל תתעכבו", roomTip = "דרכו על כל הג'לי-בלוקים והכוכב יופיע" },
+            new LevelDef { file = "w3l3", name = "שביל השקט", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 3,
+                tip = "עכבר ששומע ריצה מעיר את כולם. לידו הולכים לאט, או דורכים עליו", roomTip = "הכוכב מעבר לעכבר. הולכים, לא רצים" },
         };
     }
 }

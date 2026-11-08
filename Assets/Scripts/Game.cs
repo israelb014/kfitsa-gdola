@@ -124,6 +124,7 @@ namespace Kfitsa
             foreach (var (at, kind) in grid.Enemies)
                 if (!app.Easy || at.x >= grid.MainW || counted++ % 2 == 0) AddEnemy(at, kind);     // easy: every second one stays home
             if (app.Easy && grid.Chase != null) grid.Chase.speed *= .85f;
+            SleepNearMice();
             foreach (var c in grid.Coins)
             {
                 var v = Art.Spawn("Coin", root, Art.Center("coin_gold"), 1);
@@ -217,7 +218,7 @@ namespace Kfitsa
         void AddEnemy(Vector2 at, char kind)
         {
             var v = Art.Spawn("Enemy", root, Art.Feet("slime_normal_walk_a"), 5);
-            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : kind == 'm' ? .85f : .8f, h = kind == 'q' ? .9f : kind == 'm' ? .45f : .7f, view = v, kind = kind };
+            var e = new Enemy { grid = grid, x = at.x, y = at.y, w = kind == 'q' ? .9f : kind == 'm' ? .85f : .8f, h = kind == 'q' ? .9f : kind == 'm' ? .45f : kind == 'z' ? .6f : .7f, view = v, kind = kind };
             e.Init();
             enemies.Add(e);
         }
@@ -528,7 +529,9 @@ namespace Kfitsa
                     continue;       // in the ice: still, and harmless to touch
                 }
                 e.thawT = Mathf.Max(0, e.thawT - dt);
-                e.Step(dt * Pace, hero.x);
+                if (e.asleep) { e.t += dt; if ((int)(e.t * 1.2f) != (int)((e.t - dt) * 1.2f)) Snore(e); }
+                else e.Step(dt * Pace, hero.x);
+                if (e.kind == 'z' && e.alive && !e.scared && MouseHears(e)) Squeak(e);
                 if (e.y < -3 || !e.alive && !e.flying && e.flat <= 0) { Destroy(e.view.gameObject); enemies.RemoveAt(i); continue; }
                 if (!e.alive) continue;
 
@@ -539,6 +542,14 @@ namespace Kfitsa
                 if (!e.Out || !hero.Overlaps(e)) continue;       // a worm in the ground is out of reach
                 bool stomp = hero.vy < 0 && hero.y > e.y + e.h * .35f;
                 if (e.thawT > 0 && !stomp) continue;
+                if (e.kind == 'z')
+                {
+                    // A mouse never hurts: a stomp silences it, a bump makes it squeak
+                    if (stomp) { e.alive = false; e.flat = .45f; Stomped(); }
+                    else if (!e.scared) Squeak(e);
+                    continue;
+                }
+                if (e.asleep) e.asleep = false;     // touching a sleeper wakes it, whatever happens next
                 if (e.kind == 'p') Hurt();
                 else if (e.kind == 'n' && e.state == 1)
                 {
@@ -988,6 +999,37 @@ namespace Kfitsa
         }
 
         public const float FrozenSeconds = 5;
+
+        /// Every enemy close to a mouse starts asleep, and stays still until the mouse squeaks.
+        public void SleepNearMice()
+        {
+            foreach (var m in enemies)
+                if (m.kind == 'z' && !m.scared)
+                    foreach (var e in enemies)
+                        if (e.kind != 'z' && e.kind != 'm' && e.kind != 'y' && Mathf.Abs(e.x - m.x) < Enemy.MouseWakes && Mathf.Abs(e.y - m.y) < 6 && (e.x >= grid.MainW) == (m.x >= grid.MainW)) e.asleep = true;
+        }
+
+        /// The mouse hears running, not walking, and only on its own side of the level.
+        bool MouseHears(Enemy m)
+        {
+            if (!m.awake || phase != Phase.Play) return false;
+            bool running = Mathf.Abs(hero.vx) > Tune.WalkSpeed + .4f;
+            return running && Mathf.Abs(hero.x - m.x) < Enemy.MouseHears && Mathf.Abs(hero.y - m.y) < 4 && (hero.x >= grid.MainW) == (m.x >= grid.MainW);
+        }
+
+        void Squeak(Enemy m)
+        {
+            m.scared = true; m.dir = hero.x < m.x ? 1 : -1;
+            Sound.Play("select", 1, 1.9f);
+            AddFx(Art.Center("bubble"), new Vector2(m.x, m.y + 1.1f), new Vector2(0, 2.5f), .5f, 0, 9, .25f);
+            int woke = 0;
+            foreach (var e in enemies)
+                if (e.asleep && Mathf.Abs(e.x - m.x) < Enemy.MouseWakes && Mathf.Abs(e.y - m.y) < 6) { e.asleep = false; e.awake = true; woke++; }
+            if (!squeakTold) { squeakTold = true; app.hud.Hint(3f, Rtl.V(woke > 0 ? "העכבר צייץ והעיר את כולם!" : "העכבר צייץ וברח")); }
+        }
+        bool squeakTold;
+
+        void Snore(Enemy e) => AddFx(Art.Center("bubble"), new Vector2(e.x + .3f, e.y + e.h + .2f), new Vector2(.4f, 1.2f), .9f, 0, 4, .12f);
 
         /// A stomped block slime turns into a block for good: it stops, and its top is a ledge.
         void BecomeBlock(Enemy e)

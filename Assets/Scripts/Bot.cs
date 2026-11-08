@@ -115,11 +115,11 @@ namespace Kfitsa
         static int StarId(Grid2 g, Goal q) => g.Stars.FindIndex(p => Mathf.Abs(p.x - q.x) < .1f && Mathf.Abs(p.y - q.y) < .1f);
 
         /// Finds a way from where the hero stands now to the first goal the test wants, and plays it.
-        bool Drive(LevelDef def, Func<Goal, bool> want, bool room, double seconds = 40)
+        bool Drive(LevelDef def, Func<Goal, bool> want, bool room, double seconds = 40, bool walk = false)
         {
             for (int i = 0; i < 240 && G.Running && !G.hero.grounded; i++) G.TestStep(1, default);
             var s = Reach.From(def, G.hero, G.world, room);
-            s.seconds = seconds;
+            s.seconds = seconds; s.walkOnly = walk;
             foreach (var q in s.goals) if (!want(q)) q.hit = true;
             s.stopAfterHits = 1;
             s.Run();
@@ -190,7 +190,8 @@ namespace Kfitsa
                     G.TestStep(1, new Pad { x = dir, run = true, runPressed = i % 40 == 0 });
                 }
             }
-            if (mode == "puzzle" || mode == "pool") Drive(def, q => q.kind == "star", true, 60);
+            if (mode == "sneak") { for (int i = 0; i < 3 && (G.GotStars >> star & 1) == 0 && G.inRoom; i++) Drive(def, q => q.kind == "star", true, 30, true); }     // walking only, so the mouse sleeps on
+            else if (mode == "puzzle" || mode == "pool") Drive(def, q => q.kind == "star", true, 60);
             else Drive(def, q => q.kind == "star", true, 20);
             for (int i = 0; i < 240; i++) if ((G.GotStars >> star & 1) == 0) G.TestStep(1, default);
             float took = G.levelTime - clock;
@@ -260,7 +261,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -299,6 +300,14 @@ namespace Kfitsa
                 case 32: At(7, 39.4f, 2, 1); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(80, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
                 case 33: At(7, 146.5f, 15, 2); G.paused = true; G.TestStep(1, new Pad { up = true }); G.TestStep(20, new Pad { up = true }); G.SnapCamera(); G.DrawNow(); break;
                 case 34: if (G.Running) G.Unload(); app.hud.Show(false); app.WorldClearedForTour(); break;
+                case 37: At(9, 117, 2, 1); G.paused = true; G.TestStep(60, default); G.SnapCamera(); G.DrawNow(); break;
+                case 38:
+                {
+                    At(9, 20, 2, 1); G.paused = true; var mouse = G.enemies.Find(x => x.kind == 'z');
+                    for (int i = 0; i < 300 && mouse != null && !mouse.scared; i++) G.TestStep(1, new Pad { x = 1, run = true });
+                    G.TestStep(14, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
                 case 35: app.hud.Show(true); At(8, 135, 10, 1); G.paused = true; G.TestStep(90, default); G.SnapCamera(); G.DrawNow(); break;
                 case 36:
                 {
@@ -842,6 +851,25 @@ namespace Kfitsa
                 for (int i = 0; i < 1000 && !e.Out; i++) g.TestStep(1, none);
                 Above(g.hero, e); g.TestStep(20, none);
                 Check("a worm that is out can be stomped", !e.alive);
+            }
+
+            // Version 1.8: the mouse and its sleepers
+            {
+                g = Fresh(app); var m = g.TestEnemy('z', 34, 2); var sl = g.TestEnemy('e', 40, 2); g.SleepNearMice(); float sx = sl.x;
+                g.TestStep(120, none);
+                Check("an enemy near a mouse sleeps and stays still", sl.asleep && sl.x == sx && !m.scared);
+                g.hero.x = 26; g.hero.y = 2; g.hero.vx = 0; g.SnapCamera(); g.TestStep(120, new Pad { x = 1 });
+                Check("walking up to a mouse does not wake it", !m.scared && sl.asleep && g.hero.x > 28);
+                g.hero.x = 22; g.hero.vx = 0; g.SnapCamera(); g.TestStep(150, new Pad { x = 1, run = true });
+                Check("running near a mouse makes it squeak and run away", m.scared && m.dir == 1);
+                Check("the squeak wakes the enemies near it", !sl.asleep);
+                g.TestStep(60, none);
+                Check("woken, the enemy moves again", sl.x != sx);
+                g = Fresh(app); int d2 = g.deaths; m = g.TestEnemy('z', 20, 2); sl = g.TestEnemy('e', 26, 2); g.SleepNearMice(); g.TestStep(2, none);
+                Above(g.hero, m); g.TestStep(20, none);
+                Check("a stomp silences the mouse: the sleepers sleep on", !m.alive && !m.scared && sl.asleep);
+                g = Fresh(app); d2 = g.deaths; m = g.TestEnemy('z', 12, 2); g.hero.x = 10; g.hero.y = 2; g.TestStep(150, new Pad { x = 1 });
+                Check("bumping into a mouse does no harm, but it squeaks", m.scared && g.deaths == d2);
             }
 
             // Version 1.5: the live world map

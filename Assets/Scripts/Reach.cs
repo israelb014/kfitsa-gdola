@@ -466,7 +466,12 @@ namespace Kfitsa
             // The node remembers where the plan ended, not how long it took, so rerun it to find that out
             int ticks = upTo;
             if (end != null) ticks = (int)Mathf.Round((end.s.t - nodes[end.parent].s.t) / Dt);
-            for (int t = 0; t < ticks; t++) pads.Add(pl.At(t));
+            for (int t = 0; t < ticks; t++)
+            {
+                var p = pl.At(t);
+                if (walkOnly && !plainOnly) p.run = false;     // the same buttons the search pressed
+                pads.Add(p);
+            }
         }
     }
 

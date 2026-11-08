@@ -63,7 +63,7 @@ namespace Kfitsa
                         case 'R': g.RoomStart = c; g.MainW = c; ch = 'g'; break;
                         case 'B': g.BossSpot = cell; g.HasBoss = true; ch = ' '; break;
                         case 'o': g.Coins.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
-                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': case 'z': g.Enemies.Add((cell, ch)); ch = ' '; break;
                         case '?': g.Blocks.Add((c, r, BlockKind.Coin)); break;
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
                         case '*': g.Blocks.Add((c, r, BlockKind.Life)); break;
