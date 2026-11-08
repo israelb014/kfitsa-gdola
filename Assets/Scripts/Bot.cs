@@ -176,7 +176,7 @@ namespace Kfitsa
             Check($"{def.file}: the door opens the bonus room", at && G.inRoom);
             if (!G.inRoom) return;
             var g = G.grid; float clock = G.levelTime; string mode = g.RoomMode; int star = g.Stars.FindIndex(p => p.x >= g.MainW);
-            if (mode == "coins")
+            if (g.RoomCoins)
                 for (int i = 0; i < 40 && G.RoomCoinsLeft > 0; i++) Drive(def, q => q.kind == "coin" && G.RoomCoinAt(q.x, q.y), true, 10);
             if (mode == "lights")
                 for (int i = 0; i < 6 && !G.RoomSolved; i++) Drive(def, q => q.kind == "lamp" && !G.LampLit(q.x, q.y), true, 10);

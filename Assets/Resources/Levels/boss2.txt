@@ -1,7 +1,7 @@
 @idea giant
 @easyflag 67 2
 @easyflag 116 2
-@room coins 15
+@room ropes 15
                                                                                                                                                                                                     gg
                                                                                                                                                                                                     gg
                                                                                                                                                                                                     gg

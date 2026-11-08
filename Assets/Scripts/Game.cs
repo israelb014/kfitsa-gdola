@@ -724,7 +724,7 @@ namespace Kfitsa
                 if (Mathf.Abs(c.at.x - hero.x) < hero.w / 2 + .35f && c.at.y > hero.y - .35f && c.at.y < hero.Top + .35f)
                 {
                     AddCoin();
-                    if (c.room && grid.RoomMode == "coins") c.view.enabled = false;   // comes back if the clock runs out
+                    if (c.room && grid.RoomCoins) c.view.enabled = false;   // comes back if the clock runs out
                     else { Destroy(c.view.gameObject); coinItems.RemoveAt(i); }
                 }
             }

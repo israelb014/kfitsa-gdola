@@ -119,9 +119,9 @@ namespace Kfitsa
             if (star == null) { app.hud.Hint(3f, Rtl.V("את הכוכב של החדר כבר לקחת")); return; }
             roomDone = false; roomOpen = true; roomTimer = grid.RoomSeconds;
             string mode = grid.RoomMode;
-            star.hidden = mode == "coins" || mode == "lights" || mode == "stomp" || mode == "blocks";
+            star.hidden = grid.RoomCoins || mode == "lights" || mode == "stomp" || mode == "blocks";
             star.view.enabled = !star.hidden;
-            foreach (var c in coinItems) if (c.room && mode == "coins") c.view.enabled = true;
+            foreach (var c in coinItems) if (c.room && grid.RoomCoins) c.view.enabled = true;
             if (mode == "sneak")
             {
                 // A fresh, sleeping mouse every visit
@@ -153,7 +153,7 @@ namespace Kfitsa
 
             if (!roomDone && star.hidden)
             {
-                bool solved = mode == "coins" ? !coinItems.Exists(c => c.room && c.view.enabled)
+                bool solved = grid.RoomCoins ? !coinItems.Exists(c => c.room && c.view.enabled)
                     : mode == "lights" ? lights.TrueForAll(l => l.lit)
                     : !enemies.Exists(e => e.alive && e.x >= grid.MainW);
                 if (solved)

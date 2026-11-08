@@ -408,7 +408,7 @@ def boss2():
     l.put(165, 2, 'B'); l.put(190, 2, 'G'); l.put(186, 2, '|'); l.put(193, 2, '|')
     x0, x1 = l.box(197)
     # Bonus room: coins hang along ropes; take them all before the clock runs out
-    l.note('room coins 15')
+    l.note('room ropes 15')
     l.put(x0+1, 2, 'E')
     for x in (x0+4, x0+8, x0+12):
         for y in range(4, 13): l.put(x, y, 't')

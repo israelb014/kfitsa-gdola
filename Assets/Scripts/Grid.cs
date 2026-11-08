@@ -18,6 +18,8 @@ namespace Kfitsa
         public float GateX, GateY;
         public int Sw;               // state of the switch blocks; World keeps it in step
         public string Idea = "", RoomMode = "";
+        /// Rooms where the coins are the challenge: "coins" on the floor, "ropes" along climbing ropes (v2.0).
+        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes";
         public float RoomSeconds, DarkRadius, CheckpointWater = -1;
         public int RoomH = 15;
         public WindZone[] Winds = new WindZone[0];
