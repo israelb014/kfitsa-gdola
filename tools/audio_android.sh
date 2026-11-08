@@ -3,16 +3,27 @@
 cd "$(dirname "$0")/.."; V=$PWD/verification/v2.0; mkdir -p "$V"; R=$V/audio_android.txt
 export PATH=~/work/_tools/android-emu/platform-tools:$PATH
 ADB=$(command -v adb); P=com.ibfix.kfitsagdola; A=$P/.GameMain
-if [ "$(adb get-state 2>/dev/null)" != device ]; then
-  export ANDROID_SDK_ROOT=~/work/_tools/android-emu ANDROID_AVD_HOME=~/work/_tools/android-emu/avd
+export ANDROID_SDK_ROOT=~/work/_tools/android-emu ANDROID_AVD_HOME=~/work/_tools/android-emu/avd
+# The emulator's host GPU sometimes crashes when the game is launched again; then it is booted afresh
+boot() {
+  ps -eo pid,comm | awk '$2 ~ /^qemu-system/ {print $1}' | xargs -r kill; sleep 3
   setsid nohup ~/work/_tools/heavy.sh $ANDROID_SDK_ROOT/emulator/emulator -avd s24 -no-window -no-boot-anim -no-snapshot -gpu host > ~/work/_tools/android-emu/emu.log 2>&1 &
   STARTED=1
-  timeout 240 adb wait-for-device || exit 1
-  until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done; sleep 15
-fi
+  timeout 240 "$ADB" wait-for-device || exit 1
+  until [ "$(timeout 10 "$ADB" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done; sleep 15
+}
+[ "$("$ADB" get-state 2>/dev/null)" != device ] && boot
 # No adb call may wait forever if the emulator dies mid-test
 adb() { timeout 30 "$ADB" "$@"; }
 "$ADB" get-state > /dev/null 2>&1 || { echo "FAIL emulator not running"; exit 1; }
+# Before each part: the game fully stopped, and a fresh emulator (with the game installed) if the last one died
+fresh() {
+  if ! "$ADB" get-state > /dev/null 2>&1; then
+    echo "(the emulator died; booting it again)" | tee -a "$R"; boot
+    timeout 180 "$ADB" install Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
+  fi
+  adb shell am force-stop $P; sleep 2
+}
 fail() { echo "FAIL $1" | tee -a "$R"; bad=1; }
 : > "$R"; bad=0
 adb uninstall $P > /dev/null 2>&1; timeout 180 "$ADB" install Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
@@ -26,6 +37,7 @@ grep -vE "^PASS (clip|effect|music)" "$V/audio_android_test.txt" | cut -c1-90 | 
 grep -q "^ALL PASS" "$V/audio_android_test.txt" || fail "audio test in the APK"
 sleep 3
 
+fresh
 # 1b. The sandstorm test inside the APK, with pictures of the real screen while it runs
 adb logcat -c
 adb shell am start -n $A -e unity "-stormtest" > /dev/null
@@ -36,6 +48,7 @@ grep -vE "^PASS shelter" "$V/storm_android_test.txt" | cut -c1-110 | tee -a "$R"
 grep -q "^ALL PASS" "$V/storm_android_test.txt" || fail "storm test in the APK"
 sleep 3
 
+fresh
 # 2. A normal launch: the phone must see the game playing on the media stream, and it must stop and come back
 players() { adb shell dumpsys audio | grep -E "AudioPlaybackConfiguration.*u/pid:$U/" | grep -v "state:idle" | grep -v "state:released"; }
 U=$(adb shell cmd package list packages -U $P | sed 's/.*uid://' | tr -d '\r')
