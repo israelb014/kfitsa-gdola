@@ -44,12 +44,12 @@ adb shell dumpsys audio | grep -E "u/pid:$U/" | grep "state:started" | grep -qE 
 
 vol() { adb shell cmd media_session volume --stream 3 --get | grep -oE "volume is [0-9]+" | grep -oE "[0-9]+"; }
 v0=$(vol)
-adb shell cmd media_session volume --stream 3 --set 5 > /dev/null; sleep 2
+adb shell cmd audio set-volume 3 5 > /dev/null; sleep 2     # media_session --set stopped taking effect on this emulator
 v1=$(vol); adb shell input keyevent KEYCODE_VOLUME_UP; sleep 2; v2=$(vol)
 echo "media volume $v1, after the volume up key $v2" | tee -a "$R"
 [ "$v2" -gt "$v1" ] || fail "volume key does not change the media volume"
 adb shell input keyevent KEYCODE_BACK; sleep .3
-[ -n "$v0" ] && adb shell cmd media_session volume --stream 3 --set "$v0" > /dev/null
+[ -n "$v0" ] && adb shell cmd audio set-volume 3 "$v0" > /dev/null
 
 adb logcat -c
 adb shell input keyevent KEYCODE_HOME; sleep 4
