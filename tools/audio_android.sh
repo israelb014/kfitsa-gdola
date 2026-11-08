@@ -2,7 +2,7 @@
 # Usage: tools/audio_android.sh ; plays the built APK on the emulator and fails if sound does not work there.
 cd "$(dirname "$0")/.."; V=$PWD/verification/v1.8; mkdir -p "$V"; R=$V/audio_android.txt
 export PATH=~/work/_tools/android-emu/platform-tools:$PATH
-P=com.ibfix.kfitsagdola; A=$P/.GameMain
+ADB=$(command -v adb); P=com.ibfix.kfitsagdola; A=$P/.GameMain
 if [ "$(adb get-state 2>/dev/null)" != device ]; then
   export ANDROID_SDK_ROOT=~/work/_tools/android-emu ANDROID_AVD_HOME=~/work/_tools/android-emu/avd
   setsid nohup ~/work/_tools/heavy.sh $ANDROID_SDK_ROOT/emulator/emulator -avd s24 -no-window -no-boot-anim -no-snapshot -gpu host > ~/work/_tools/android-emu/emu.log 2>&1 &
@@ -10,9 +10,12 @@ if [ "$(adb get-state 2>/dev/null)" != device ]; then
   timeout 240 adb wait-for-device || exit 1
   until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done; sleep 15
 fi
+# No adb call may wait forever if the emulator dies mid-test
+adb() { timeout 30 "$ADB" "$@"; }
+"$ADB" get-state > /dev/null 2>&1 || { echo "FAIL emulator not running"; exit 1; }
 fail() { echo "FAIL $1" | tee -a "$R"; bad=1; }
 : > "$R"; bad=0
-adb uninstall $P > /dev/null 2>&1; adb install Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
+adb uninstall $P > /dev/null 2>&1; timeout 180 "$ADB" install Builds/android/KfitsaGdola-android.apk > /dev/null || fail "install"
 
 # 1. The same audio test as on the desktop, inside the APK
 adb logcat -c
