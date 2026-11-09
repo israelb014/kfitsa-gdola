@@ -8,20 +8,30 @@ namespace Kfitsa
     /// The pants are baked into the hero pictures; a hat is a second picture placed on the hair in every pose.
     public static class Outfit
     {
-        public static readonly string[] Hats = { "", "beanie", "party", "top", "chef", "crown" };
-        public static readonly string[] HatNames = { "בלי כובע", "כובע צמר", "כובע מסיבה", "מגבעת", "כובע שף", "כתר" };
-        static readonly float[] Sink = { 0, .58f, .36f, .42f, .44f, .32f };   // how far down the hair the hat sits
-        public static readonly string[] Pants = { "", "red", "black", "white", "orange", "pink" };
-        public static readonly string[] PantsNames = { "מכנסיים כחולים", "מכנסיים אדומים", "מכנסיים שחורים", "מכנסיים לבנים", "מכנסיים כתומים", "מכנסיים ורודים" };
-        public const int StarsPerItem = 3;
-        public static int ItemCount => Hats.Length - 1 + Pants.Length - 1;
+        // The first five of each open with stars; the rest (v2.6) are bought with coins in the shop on the map
+        public static readonly string[] Hats = { "", "beanie", "party", "top", "chef", "crown", "wizard", "pirate", "cowboy" };
+        public static readonly string[] HatNames = { "בלי כובע", "כובע צמר", "כובע מסיבה", "מגבעת", "כובע שף", "כתר", "כובע קוסם", "כובע פיראט", "כובע בוקרים" };
+        static readonly float[] Sink = { 0, .58f, .36f, .42f, .44f, .32f, .36f, .5f, .5f };   // how far down the hair the hat sits
+        public static readonly string[] Pants = { "", "red", "black", "white", "orange", "pink", "gold", "purple", "gray" };
+        public static readonly string[] PantsNames = { "מכנסיים כחולים", "מכנסיים אדומים", "מכנסיים שחורים", "מכנסיים לבנים", "מכנסיים כתומים", "מכנסיים ורודים", "מכנסי זהב", "מכנסיים סגולים", "מכנסיים אפורים" };
+        public const int StarsPerItem = 3, StarHats = 5, StarPants = 5;
+        public static int ItemCount => StarHats + StarPants;      // the items that open with stars
+
+        // ---- the shop's items (v2.6): one bit each in the save ----
+        public static int Owned;
+        public static int ShopCount => Hats.Length - 1 - StarHats + Pants.Length - 1 - StarPants;
+        public static bool IsShop(bool hat, int index) => index > (hat ? StarHats : StarPants);
+        public static int ShopBit(bool hat, int index) => hat ? index - StarHats - 1 : Hats.Length - 1 - StarHats + index - StarPants - 1;
+        /// The n-th shop item (from 0): hats first, then pants.
+        public static (bool hat, int index) ShopItem(int n) => n < Hats.Length - 1 - StarHats ? (true, StarHats + 1 + n) : (false, StarPants + 1 + n - (Hats.Length - 1 - StarHats));
+        public static int Price(bool hat) => hat ? 40 : 30;
 
         /// What is worn now; App copies it from the save.
         public static int Hat, Pant;
 
         /// Stars needed for an item: the first hat at 3, the first pants at 6, the second hat at 9, and so on.
         public static int StarsFor(bool hat, int index) => index == 0 ? 0 : StarsPerItem * (2 * (index - 1) + (hat ? 1 : 2));
-        public static bool Open(bool hat, int index, int stars) => stars >= StarsFor(hat, index);
+        public static bool Open(bool hat, int index, int stars) => IsShop(hat, index) ? (Owned >> ShopBit(hat, index) & 1) != 0 : stars >= StarsFor(hat, index);
         public static int OpenCount(int stars) => Mathf.Min(ItemCount, stars / StarsPerItem);
         /// The next item still closed, or -1 when everything is open.
         public static int NextAt(int stars) => OpenCount(stars) >= ItemCount ? -1 : (OpenCount(stars) + 1) * StarsPerItem;

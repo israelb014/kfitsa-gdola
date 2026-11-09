@@ -65,6 +65,7 @@ namespace Kfitsa
             foreach (string test in new[] { "-playtest", "-selftest", "-inputtest", "-touchtest", "-shots", "-audiotest", "-stormtest" }) Save.Sandbox |= Array.IndexOf(args, test) >= 0;
             save = Save.Load();
             Outfit.Hat = Mathf.Clamp(save.hat, 0, Outfit.Hats.Length - 1); Outfit.Pant = Mathf.Clamp(save.pant, 0, Outfit.Pants.Length - 1);
+            StartWallet();
             Sound.Init(gameObject);
             Sound.MusicVolume = save.music; Sound.SfxVolume = save.sfx;
             if (!save.fullscreen && !Application.isMobilePlatform) UnityEngine.Screen.SetResolution(1280, 720, false);
@@ -196,7 +197,7 @@ namespace Kfitsa
                     int chip = Mathf.RoundToInt(((at.x - c.x) / px - BarLeft) / ChipStep);
                     if (chip >= 0 && chip < item.chips.Length) { item.pick(chip); PaintMenu(); return true; }
                 }
-                if (item.ok == null && item.adjust != null) { item.adjust(at.x < c.x ? -1 : 1); PaintMenu(); return true; }
+                if (item.adjust != null && (item.ok == null || Mathf.Abs(at.x - c.x) > 330 * px)) { item.adjust(at.x < c.x ? -1 : 1); PaintMenu(); return true; }
                 PaintMenu();
                 if (item.ok != null) { Sound.Play("select"); item.ok(); }
                 return true;
@@ -484,7 +485,7 @@ namespace Kfitsa
         public void ShowCreditsForTour() => ShowCredits();
         public void ResumeForTour() => Resume();
         public void ShowEndingForTour() { run.score = 45200; run.secrets = 5; ShowEnding(); }
-        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; starsBefore = StarCount; game.trial = false; game.StartLevel(level); }
+        public void Enter(int level) { ClearScreen(); hud.Show(true); screen = Screen.Playing; starsBefore = StarCount; game.trial = false; UseBoosts(); game.StartLevel(level); }
 
         // ---- time trial (v2.3) ----
 
@@ -615,6 +616,17 @@ namespace Kfitsa
                 if (Outfit.Open(isHat, k, stars)) continue;
                 pic.color = new Color(.2f, .22f, .3f, .8f);
                 var l = hud.Picture("lock_yellow", new Vector2(.5f, .5f), at, new Vector2(44, 44)); screenObjects.Add(l.gameObject);
+            }
+            // v2.6: the shop's outfits, with a coin on the ones not bought yet
+            for (int n = 0; n < Outfit.ShopCount; n++)
+            {
+                var (isHat, k) = Outfit.ShopItem(n);
+                var at = new Vector2(-385 + n * 110 + (isHat ? 0 : 60), -430);
+                var pic = hud.Picture(isHat ? "hat_" + Outfit.Hats[k] : "pants_" + Outfit.Pants[k], new Vector2(.5f, .5f), at, new Vector2(84, 84));
+                screenObjects.Add(pic.gameObject);
+                if (Outfit.Open(isHat, k, stars)) continue;
+                pic.color = new Color(.2f, .22f, .3f, .8f);
+                var c = hud.Picture("hud_coin", new Vector2(.5f, .5f), at, new Vector2(44, 44)); screenObjects.Add(c.gameObject);
             }
         }
 

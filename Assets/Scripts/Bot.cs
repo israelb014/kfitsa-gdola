@@ -236,6 +236,7 @@ namespace Kfitsa
         void Full(LevelDef def, int index, bool easy = false)
         {
             Fresh(index, 0, true);
+            int wallet0 = app.save.wallet;
             if (easy)
             {
                 int total = G.grid.Enemies.FindAll(e => e.at.x < G.grid.MainW).Count, room = G.grid.Enemies.Count - total;
@@ -255,7 +256,7 @@ namespace Kfitsa
                 if (!found) Note($"     route {plans}: stopped at {G.hero.x:F1},{G.hero.y:F1} clock {G.world.t:F1}, falls {G.deaths}");
                 if (G.grid != null && G.grid.AtGate(G.hero) && G.boss != null && G.boss.alive) { FightBoss(); }
             }
-            Check($"{def.file}{(easy ? " easy" : "")}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes");
+            Check($"{def.file}{(easy ? " easy" : "")}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes, {app.save.wallet - wallet0} coins");
         }
 
         void FightBoss()
@@ -301,7 +302,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -386,6 +387,18 @@ namespace Kfitsa
                         for (int i = 0; i < 900 && !(G.deaths > d && !G.hero.dead); i++) G.TestStep(1, default);
                     }
                     G.TestStep(30, default); G.SnapCamera(); G.DrawNow();
+                    break;
+                }
+                case 56:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); app.save.wallet = 137; app.save.shopOwned = Outfit.Owned = 0b001001; app.save.boostShield = true; app.ShowShop(app.ShowTitle);
+                    break;
+                }
+                case 57:
+                {
+                    app.save.boostShield = false; Outfit.Hat = 6; Outfit.Pant = 6; for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < 5 ? 7 : 0;
+                    app.ShowWardrobe(app.ShowTitle);
                     break;
                 }
                 case 47:
@@ -1244,6 +1257,43 @@ namespace Kfitsa
                 g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(1, none);
                 Check("a jump skips the rest of the entrance", !g.BossIntroOn);
                 g.god = false; g.skipBossIntro = true; g.Unload();
+            }
+
+            // Version 2.6: the coin shop
+            {
+                var keep = app.save;
+                app.save = new Save { coinsTotal = 137 }; app.StartWalletForTest();
+                Check("shop: the coins found before the shop became the first money", app.save.wallet == 137 && app.save.walletStarted);
+                app.save.coinsTotal = 200; app.StartWalletForTest();
+                Check("shop: that happens only once", app.save.wallet == 137);
+                app.save = keep;
+                g = Fresh(app); int w0 = app.save.wallet; g.AddCoinForTest();
+                Check("shop: a coin in a level goes into the wallet", app.save.wallet == w0 + 1);
+                g.trial = true; g.AddCoinForTest(); g.trial = false;
+                Check("shop: a coin in a time trial does not", app.save.wallet == w0 + 1);
+                g.Unload();
+                app.save.wallet = 10; app.run = new RunState { lives = 3 }; app.BuyLife();
+                Check("shop: too few coins buy nothing", app.run.lives == 3 && app.save.wallet == 10);
+                app.save.wallet = App.PriceLife + App.PriceSevivon + App.PriceBubble; app.BuyLife();
+                Check("shop: an extra life", app.run.lives == 4 && app.save.wallet == App.PriceSevivon + App.PriceBubble);
+                app.BuyBoost(2, false, App.PriceSevivon); app.BuyBoost(0, true, App.PriceBubble); app.BuyBoost(0, true, App.PriceBubble);
+                Check("shop: a sevivon and a bubble wait for the next level, and one of each is enough", app.save.wallet == 0 && app.save.boostPower == 2 && app.save.boostShield);
+                app.Enter(0); g = app.game;
+                Check("shop: the next level starts with them, and they are used up", app.run.power == 2 && app.run.shield && g.hero.shooter && app.save.boostPower == 0 && !app.save.boostShield);
+                g.Unload();
+                Check("shop: its outfits do not open with stars", !Outfit.Open(true, Outfit.StarHats + 1, 999) && !Outfit.Open(false, Outfit.StarPants + 1, 999) && Outfit.ItemCount == 10 && Outfit.ShopCount == 6);
+                app.save.wallet = 1000; app.BuyOutfit(0);
+                Check("shop: a hat bought is owned and worn", Outfit.Open(true, Outfit.StarHats + 1, 0) && Outfit.Hat == Outfit.StarHats + 1 && app.save.hat == Outfit.Hat && app.save.wallet == 1000 - Outfit.Price(true));
+                app.BuyOutfit(0);
+                Check("shop: wearing it again costs nothing", app.save.wallet == 1000 - Outfit.Price(true));
+                app.BuyOutfit(3);
+                Check("shop: pants bought are worn, in every picture", Outfit.Pant == Outfit.StarPants + 1 && Art.Hero('f', "climb2") != null && Art.Hero('f', "climb2").name.EndsWith("_gold")
+                    && Resources.Load<Texture2D>("Art/hat_cowboy_s") != null && Resources.Load<Texture2D>("Art/pants_gray") != null);
+                app.WearForTest(true, 1);
+                Check("shop: the wardrobe goes on from a bought hat to the next open one", Outfit.Hat != Outfit.StarHats + 1);
+                int avg = (App.PriceLife + App.PriceBig + App.PriceSevivon + App.PriceBubble + Outfit.Price(true) * 3 + Outfit.Price(false) * 3) / 10;
+                Check($"shop: two things cost about {2 * avg} coins on average", 2 * avg >= 50 && 2 * avg <= 75);
+                Outfit.Hat = Outfit.Pant = 0; app.save.hat = app.save.pant = 0; app.save.shopOwned = Outfit.Owned = 0; app.save.wallet = 0;
             }
 
             w.WriteLine(fails == 0 ? "ALL PASS" : fails + " FAILED");

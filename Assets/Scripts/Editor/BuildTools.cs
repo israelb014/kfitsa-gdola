@@ -138,8 +138,8 @@ namespace Kfitsa.EditorTools
         {
             var id = NamedBuildTarget.Android;
             PlayerSettings.SetApplicationIdentifier(id, "com.ibfix.kfitsagdola");
-            PlayerSettings.bundleVersion = "2.5.0";
-            PlayerSettings.Android.bundleVersionCode = 17;
+            PlayerSettings.bundleVersion = "2.6.0";
+            PlayerSettings.Android.bundleVersionCode = 18;
             PlayerSettings.SetScriptingBackend(id, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetManagedStrippingLevel(id, ManagedStrippingLevel.Minimal);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -185,10 +185,10 @@ namespace Kfitsa.EditorTools
             string stamp = "Library/reach_passed.txt", now = Fingerprint();
             if (File.Exists(stamp) && File.ReadAllText(stamp) == now) { Debug.Log("VALIDATE OK (nothing changed since it last passed)"); return; }
             Levels.Folder = "Assets/Resources/Levels";
-            bool ok = Reach.ValidateAll("verification/v2.5/reach_report.txt");
+            bool ok = Reach.ValidateAll("verification/v2.6/reach_report.txt");
             Levels.Folder = null;
-            Debug.Log("VALIDATE " + (ok ? "OK" : "FAILED, see verification/v2.5/reach_report.txt"));
-            if (!ok) throw new BuildFailedException("Levels failed the reachability check, see verification/v2.5/reach_report.txt");
+            Debug.Log("VALIDATE " + (ok ? "OK" : "FAILED, see verification/v2.6/reach_report.txt"));
+            if (!ok) throw new BuildFailedException("Levels failed the reachability check, see verification/v2.6/reach_report.txt");
             File.WriteAllText(stamp, now);
         }
 
@@ -207,7 +207,7 @@ namespace Kfitsa.EditorTools
         {
             try { if (!skipCheck) { Validate(); AudioBefore(); } }
             catch (BuildFailedException e) { Debug.LogError(e.Message); EditorApplication.Exit(1); return; }
-            PlayerSettings.bundleVersion = "2.5.0";
+            PlayerSettings.bundleVersion = "2.6.0";
             var r = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { Scene }, locationPathName = path, target = target, options = BuildOptions.None });
             Debug.Log("BUILD " + r.summary.result + " size=" + r.summary.totalSize);
             if (r.summary.result != BuildResult.Succeeded) { EditorApplication.Exit(1); return; }
@@ -215,7 +215,7 @@ namespace Kfitsa.EditorTools
             catch (BuildFailedException e) { Debug.LogError("AUDIO FAILED: " + e.Message); EditorApplication.Exit(1); }
         }
 
-        const string AudioDir = "Assets/Resources/Audio", AudioStamp = "Library/audio_passed.txt", AudioReport = "verification/v2.5";
+        const string AudioDir = "Assets/Resources/Audio", AudioStamp = "Library/audio_passed.txt", AudioReport = "verification/v2.6";
 
         static string[] AudioFiles() => Directory.GetFiles(AudioDir).Where(f => !f.EndsWith(".meta")).Select(f => f.Replace('\\', '/')).OrderBy(f => f, StringComparer.Ordinal).ToArray();
 

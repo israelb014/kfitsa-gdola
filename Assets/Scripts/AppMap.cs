@@ -62,7 +62,7 @@ namespace Kfitsa
         int mapFrom = -1;
         bool mapEnter;
         public bool mapHold;      // screenshots: the map stops on the frame the tour stepped to
-        Image mapHero, mapHat, trialBox, pageBox; Text trialText; Text mapInfo, mapMissing, mapStats;
+        Image mapHero, mapHat, trialBox, pageBox, shopBox; Text trialText; Text mapInfo, mapMissing, mapStats;
         readonly List<(Image dot, float at)> mapDots = new List<(Image, float)>();
         readonly List<(Image icon, Image glow, int level)> mapNodes = new List<(Image, Image, int)>();
         readonly List<float> mapPop = new List<float>();
@@ -179,6 +179,12 @@ namespace Kfitsa
             trialBox.sprite = null; trialBox.preserveAspect = false; trialBox.raycastTarget = false;
             screenObjects.Add(trialBox.gameObject);
             trialText = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), trialBox.transform, new Vector2(.5f, .5f));
+            // v2.6: the coin shop, at the top left
+            shopBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(-760, 420), new Vector2(330, 110));
+            shopBox.sprite = null; shopBox.preserveAspect = false; shopBox.raycastTarget = false; shopBox.color = new Color(.36f, .24f, .06f, .85f);
+            screenObjects.Add(shopBox.gameObject);
+            var st = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 0), new Vector2(320, 100), shopBox.transform, new Vector2(.5f, .5f));
+            st.text = Rtl.V("חנות" + (TouchUi.Available ? "" : "  (B)") + "\nמטבעות: " + save.wallet); st.color = new Color(1, .9f, .5f);
             // The way between the pages: shown once the last boss of the first page is beaten
             pageBox = null;
             if (HiddenPage || MainCount < Levels.All.Length && save.unlocked >= MainCount)
@@ -329,6 +335,7 @@ namespace Kfitsa
         {
             if (pageBox != null && RectTransformUtility.RectangleContainsScreenPoint(pageBox.rectTransform, at, null)) { MapPage(); return; }
             if (trialBox != null && RectTransformUtility.RectangleContainsScreenPoint(trialBox.rectTransform, at, null)) { MapTrial(); return; }
+            if (shopBox != null && RectTransformUtility.RectangleContainsScreenPoint(shopBox.rectTransform, at, null)) { Sound.Play("select"); ShowShop(ShowMap); return; }
             var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
             float reach = Mathf.Min(115, (MapRight - MapLeft) / Mathf.Max(1, pageEnd - pageFirst) * .55f);
             for (int i = pageFirst; i <= MapLast; i++)
@@ -346,6 +353,7 @@ namespace Kfitsa
             if (screen != Screen.Map) return;
             if (m.ok) MapGo();
             else if (GameInput.TrialPressed) MapTrial();
+            else if (GameInput.ShopPressed) { Sound.Play("select"); ShowShop(ShowMap); }
             else if (m.back) ShowTitle();
         }
     }

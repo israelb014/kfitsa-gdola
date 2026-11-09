@@ -848,6 +848,7 @@ namespace Kfitsa
         {
             app.run.coins++; app.run.score += 100; levelCoins++;
             if (++app.save.coinsTotal >= 100) Achievements.Unlock(Achievements.Id.Coins);
+            if (!trial) app.save.wallet++;      // v2.6: every coin outside the time trial can be spent in the shop
             coinStreak = simT - coinStreakT < .5f ? Mathf.Min(coinStreak + 1, 12) : 0;
             coinStreakT = simT;
             Sound.Play("coin", .7f, Mathf.Pow(2, coinStreak / 12f));      // one semitone per coin, up to an octave

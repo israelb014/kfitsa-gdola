@@ -71,6 +71,9 @@ namespace Kfitsa
 
         /// Menu navigation: one step per press, with auto-repeat while held.
         /// T on the keyboard, Y on a gamepad: the time trial from the map (v2.3).
+        /// The shop on the map (v2.6): B on the keyboard, X on a gamepad.
+        public static bool ShopPressed =>
+            Keyboard.current != null && Keyboard.current.bKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.buttonWest.wasPressedThisFrame;
         public static bool TrialPressed =>
             Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame;
 

@@ -32,6 +32,9 @@ namespace Kfitsa
         public int[] trialTime = new int[Levels.All.Length]; // v2.3: best time trial per level, tenths, 0 = none
         public string[] ghost = new string[Levels.All.Length];   // v2.3: that run, packed by Ghost
         public bool helper = true;                           // v2.5: the help box after three deaths at one spot
+        public int wallet; public bool walletStarted;        // v2.6: coins to spend; on the first start it takes every coin ever found
+        public int shopOwned;                                // v2.6: the shop's outfits bought, one bit each (Outfit.ShopBit)
+        public int boostPower; public bool boostShield;      // v2.6: bought for the start of the next level
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;
