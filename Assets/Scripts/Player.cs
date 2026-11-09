@@ -13,6 +13,9 @@ namespace Kfitsa
         public System.Action<int, int> onBump;   // a block was hit from below
         public System.Action onJump, onLand;
         public float landSpeed;     // how fast the last landing came down, for the squash
+        // v2.7, a ridden animal: the camel jumps higher, the bird glides. Left at 1 and false for the search.
+        public float jumpScale = 1; public bool glide;
+        public const float GlideFall = 3f;
 
         float coyote, buffer, riseGravity = Tune.RiseGravity, fallStartVy;
         bool wasGrounded = true;
@@ -85,7 +88,7 @@ namespace Kfitsa
         {
             if (buffer <= 0 || !(grounded || coyote > 0)) return;
             float t = plainJump ? 0 : Mathf.InverseLerp(Tune.WalkSpeed, Tune.RunSpeed, Mathf.Abs(vx));
-            vy = Mathf.Lerp(Tune.JumpSpeed, Tune.RunJumpSpeed, t) * (big ? Tune.BigJumpScale : 1);
+            vy = Mathf.Lerp(Tune.JumpSpeed, Tune.RunJumpSpeed, t) * (big ? Tune.BigJumpScale : 1) * jumpScale;
             riseGravity = Mathf.Lerp(Tune.RiseGravity, Tune.RunRiseGravity, t);
             jumping = true; grounded = false; wasGrounded = false; buffer = 0; coyote = 0;
             onJump?.Invoke();
@@ -98,6 +101,7 @@ namespace Kfitsa
             else g = Tune.FallGravity;
             if (jumping && p.jumpHeld && Mathf.Abs(vy) < Tune.ApexSpeed) g = riseGravity * Tune.ApexGravityScale;
             if (vy <= 0 && p.down) { g *= Tune.FastFallScale; maxFall = Tune.FastFallMax; }
+            else if (glide && vy <= 0 && p.jumpHeld) maxFall = GlideFall;
             vy = Mathf.Max(vy - g * dt, -maxFall);
             if (vy < 0) fallStartVy = vy;
 

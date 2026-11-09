@@ -152,13 +152,14 @@ namespace Kfitsa
             foreach (var (c, r, kind) in grid.Blocks)
             {
                 bool hidden = kind == BlockKind.HiddenCoin || kind == BlockKind.HiddenLife;
-                var v = Art.Spawn("Block", root, Art.Tile(kind == BlockKind.Brick ? "bricks_brown" : kind == BlockKind.Grow ? "block_power" : "block_coin"), 2);
+                var v = Art.Spawn("Block", root, Art.Tile(kind == BlockKind.Brick ? BrickArt : kind == BlockKind.Grow ? "block_power" : kind == BlockKind.Animal ? "block_animal" : "block_coin"), 2);
                 v.transform.position = new Vector3(c, r, 0);
                 v.enabled = !hidden;
                 var box = new Block { c = c, r = r, kind = kind, view = v };
                 blocks.Add(box);
                 if (kind == BlockKind.Grow) powerHints.Add((Art.Spawn("Hint", root, Art.Center(GrowHint(app.run.power)), 3), box));
                 if (kind == BlockKind.Shield) powerHints.Add((Art.Spawn("Hint", root, Art.Center("bubble"), 3), box));
+                if (kind == BlockKind.Animal) powerHints.Add((Art.Spawn("Hint", root, Art.Center($"ride_{Animals[AnimalOfLevel]}_stand"), 3), box));
             }
             foreach (var (c, r) in grid.Springs)
             {
@@ -206,7 +207,7 @@ namespace Kfitsa
             }
 
             look = 0; phase = skipIntro ? Phase.Play : Phase.Intro; phaseT = 0; freeze = 0; levelTime = 0; stompChain = 0; coinStreak = 0; bossWarned = false; hitsAtStart = hits; squeaks = 0;
-            heroGone = 0; growFlash = 0; inRoom = false; climbedHere = false; shake = 0; pendingDoor = false;
+            heroGone = 0; growFlash = 0; inRoom = false; ride = -1; rideView = null; climbedHere = false; shake = 0; pendingDoor = false;
             SetCamBounds();
             camX = Mathf.Clamp(hero.x, camMin, camMax);
             camY = Mathf.Clamp(hero.y + 3, HalfH, camTop);
@@ -236,7 +237,7 @@ namespace Kfitsa
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; ghostView = null; helpView = null; helpOn = false; app.hud.BossTitle(null, null, 0); dark = null; water = null; wind = null; storm = null; chaser = null;
+            root = null; grid = null; boss = null; ghostView = null; helpView = null; ride = -1; rideView = null; helpOn = false; app.hud.BossTitle(null, null, 0); dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); snowBalls.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); colorSwitches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
@@ -406,6 +407,7 @@ namespace Kfitsa
             StepTops(dt);
             input0 = input;
             StepCells();
+            StepRide();
             StepCrumbles(dt);
             StepRoom(dt);
             if (hero.y < -2.5f) Die();
@@ -577,6 +579,7 @@ namespace Kfitsa
                 bool stomp = hero.vy < 0 && hero.y > e.y + e.h * .35f;
                 if (e.thawT > 0 && !stomp) continue;
                 if (e.kind == 'K' && e.safe > 0) continue;       // just taken off: no second stomp or hit in the same bounce
+                if (!stomp && Charging && e.kind != 'z') { KillFlying(e, hero.facing); shake = Mathf.Max(shake, .15f); continue; }   // v2.7: the ram's charge
                 if (e.kind == 'z')
                 {
                     // A mouse never hurts: a stomp silences it, a bump makes it squeak
@@ -797,6 +800,7 @@ namespace Kfitsa
         {
             app.run.score += 1000;
             if (type == "life") { app.run.lives++; Sound.Play("gem"); return; }
+            if (type == "ride") { if (ride < 0) Mount(AnimalOfLevel); else Sound.Play("gem"); return; }
             Sound.Play("power"); Haptics.Buzz(60, .7f);
             if (type == "shield")
             {
@@ -817,7 +821,7 @@ namespace Kfitsa
         void ApplyPower(int p)
         {
             app.run.power = p;
-            hero.SetBig(p > 0);
+            hero.SetBig(p > 0 || ride >= 0);
             hero.shooter = p >= 2;
             app.hud.Power(p);
             foreach (var (view, box) in powerHints) if (box.kind == BlockKind.Grow) view.sprite = Art.Center(GrowHint(p));
@@ -840,7 +844,7 @@ namespace Kfitsa
                 for (int c = c0; c <= c1; c++)
                 {
                     if (grid.Deadly(c, r)) { if (!god) { ForceDie(); return; } }
-                    else if (grid.Hazard(c, r)) Hurt();
+                    else if (grid.Hazard(c, r) && !(ride == 1 && grid.Spike(c, r))) Hurt();     // the camel walks on spikes
                 }
         }
 
@@ -864,15 +868,7 @@ namespace Kfitsa
                 if (b.c != c || b.r != r) continue;
                 if (b.kind == BlockKind.Brick)
                 {
-                    if (hero.big && !tidy)
-                    {
-                        grid.Clear(c, r);
-                        Destroy(b.view.gameObject); blocks.Remove(b);
-                        app.run.score += 50;
-                        for (int i = 0; i < 4; i++)
-                            AddFx(Art.Center("bricks_brown"), new Vector2(c + .5f, r + .5f), new Vector2((i % 2 * 2 - 1) * Random.Range(2f, 4f), Random.Range(6f, 11f)), .7f, 34, 3, .35f);
-                        Sound.Play("brick");
-                    }
+                    if (hero.big && !tidy) BreakBrick(b);
                     else { b.bump = .16f; Sound.Play("bump"); }
                     return;
                 }
@@ -884,6 +880,7 @@ namespace Kfitsa
                 if (b.kind == BlockKind.HiddenCoin || b.kind == BlockKind.HiddenLife) { grid.Reveal(c, r); app.run.secrets++; Found(1 + grid.Blocks.FindAll(k => k.kind == BlockKind.HiddenCoin || k.kind == BlockKind.HiddenLife).FindIndex(k => k.c == c && k.r == r)); }
                 if (b.kind == BlockKind.Grow) Spawn(GrowGift(app.run.power), c, r);
                 else if (b.kind == BlockKind.Shield) Spawn("shield", c, r);
+                else if (b.kind == BlockKind.Animal) Spawn("ride", c, r);
                 else if (b.kind == BlockKind.Life || b.kind == BlockKind.HiddenLife) Spawn("life", c, r);
                 else
                 {
@@ -893,6 +890,19 @@ namespace Kfitsa
                 return;
             }
             Sound.Play("bump", .5f);
+        }
+
+        /// In the snow the bricks are blocks of ice (v2.7), which the penguin breaks
+        string BrickArt => Def.terrain == "snow" ? "ice" : "bricks_brown";
+
+        void BreakBrick(Block b)
+        {
+            grid.Clear(b.c, b.r);
+            Destroy(b.view.gameObject); blocks.Remove(b);
+            app.run.score += 50;
+            for (int i = 0; i < 4; i++)
+                AddFx(Art.Center(BrickArt), new Vector2(b.c + .5f, b.r + .5f), new Vector2((i % 2 * 2 - 1) * Random.Range(2f, 4f), Random.Range(6f, 11f)), .7f, 34, 3, .35f);
+            Sound.Play(Def.terrain == "snow" ? "shatter" : "brick");
         }
 
         /// A secret for the map: bit 0 is the bonus room, then one bit per hidden block in the level's order.
@@ -906,9 +916,10 @@ namespace Kfitsa
 
         void Spawn(string type, int c, int r)
         {
-            string sprite = type == "grow" ? "gem_blue" : type == "shoot" ? "gem_red" : type == "frost" ? "sevivon_frost" : type == "shield" ? "bubble" : "heart";
+            string sprite = type == "grow" ? "gem_blue" : type == "shoot" ? "gem_red" : type == "frost" ? "sevivon_frost" : type == "shield" ? "bubble" : type == "ride" ? $"ride_{Animals[AnimalOfLevel]}_stand" : "heart";
             var v = Art.Spawn("Pickup", root, Art.Center(sprite), 1);
             if (type == "shield") v.transform.localScale = Vector3.one * .55f;
+            if (type == "ride") v.transform.localScale = Vector3.one * .7f;
             pickups.Add(new Pickup { grid = grid, x = c + .5f, y = r, w = .8f, h = .8f, view = v, type = type });
             Sound.Play("magic");
         }
@@ -919,6 +930,14 @@ namespace Kfitsa
             hits++;
             if (god) { hero.invuln = .3f; return; }
             Haptics.Buzz(120, .9f);
+            if (ride >= 0)
+            {
+                // v2.7: a hit while riding costs only the animal
+                Dismount(true);
+                hero.invuln = Tune.Invulnerable; freeze = .2f; shake = Mathf.Max(shake, .2f);
+                Sound.Play("hurt");
+                return;
+            }
             if (app.run.shield)
             {
                 app.run.shield = false;
@@ -948,6 +967,7 @@ namespace Kfitsa
         void ForceDie()
         {
             if (phase != Phase.Play) return;
+            Dismount(false);
             phase = Phase.Dying; phaseT = 0; deaths++; lastFall = new Vector2(hero.x, hero.y);
             if (!trial) deathXs.Add(hero.x);
             TouchUi.Current?.Teach(null);
@@ -1022,6 +1042,7 @@ namespace Kfitsa
             for (int i = 0; i < sky.Count; i++) sky[i].transform.position = new Vector3(baseX + i * w, camY - HalfH, 0);
 
             DrawHero(dt);
+            DrawRide(dt);
             foreach (var e in enemies) e.Draw();
             boss?.Draw();
             if (phase == Phase.BossIntro) DrawBossIntro();
@@ -1200,6 +1221,14 @@ namespace Kfitsa
             growFlash = Mathf.Max(0, growFlash - dt);
             char form = app.run.power == 3 ? 'f' : app.run.power == 2 ? 'p' : app.run.power == 1 ? 'b' : 's';
             if (growFlash > 0 && (int)(growFlash * 16) % 2 == 0) form = form == 's' ? 'b' : 's';
+            float seatUp = 0;
+            if (ride >= 0)
+            {
+                // On an animal: the small picture, legs apart as if astride, sitting on its back
+                form = 's';
+                if (pose != "hurt" && pose != "action1" && pose != "cheer1") pose = "jump";
+                seatUp = SeatHeight() * (Sliding ? .45f : 1);
+            }
             heroView.sprite = Art.Hero(form, pose);
 
             heroView.flipX = hero.facing < 0;
@@ -1208,7 +1237,7 @@ namespace Kfitsa
             float sy = 1 + squash + stretch, sx = 1 - (squash + stretch) * .7f;
             float gone = phase == Phase.Won ? 1 - heroGone : 1;
             heroView.transform.localScale = new Vector3(sx * gone, sy * gone, 1);
-            heroView.transform.position = new Vector3(hero.x, hero.y, 0);
+            heroView.transform.position = new Vector3(hero.x, hero.y + seatUp * gone, 0);
             heroView.transform.localEulerAngles = new Vector3(0, 0, storm != null ? storm.HeroTilt : 0);
             heroView.sortingOrder = storm != null ? storm.HeroOrder : 10;
             heroView.enabled = hero.invuln <= 0 || (int)(simT * 14) % 2 == 0;

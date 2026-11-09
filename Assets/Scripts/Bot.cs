@@ -79,6 +79,7 @@ namespace Kfitsa
             Flag(def, index);
             Full(def, index);
             app.save.difficulty = 1; Full(def, index, true); app.save.difficulty = 0;
+            Ride(def, index);
             // v2.3: the time trial of the level, on the small hero's way to the gate
             if (!def.boss && trialRoute != null)
             {
@@ -259,6 +260,24 @@ namespace Kfitsa
             Check($"{def.file}{(easy ? " easy" : "")}: played start to finish with enemies", G.Won, $"{G.levelTime:F1}s, {G.deaths} falls, {G.hits} hits, {plans} routes, {app.save.wallet - wallet0} coins");
         }
 
+        /// v2.7: the level's animal is let out of its box, ridden, and taken to the finish.
+        void Ride(LevelDef def, int index)
+        {
+            var g0 = Grid2.Parse(Levels.Text(def.file));
+            if (!g0.Blocks.Exists(b => b.kind == BlockKind.Animal)) return;
+            var box = g0.Blocks.Find(b => b.kind == BlockKind.Animal);
+            Fresh(index, 0, false); G.tidy = false; G.god = true;
+            Drive(def, q => q.kind == "box" && q.c == box.c && q.r == box.r, false, 40);
+            G.TestStep(120, default);
+            Drive(def, q => q.kind == "power-up" && q.c == box.c && q.r == box.r, false, 40);
+            for (int i = 0; i < 90 && G.Riding < 0; i++) G.TestStep(1, default);
+            int animal = G.Riding, plans = 0;
+            while (G.Running && !G.Won && plans < 12) { plans++; Drive(def, q => q.kind == "gate", false, 60); }
+            Check($"{def.file}: its animal comes out of the box, is ridden, and reaches the finish", animal >= 0 && G.Won,
+                $"{(animal >= 0 ? Game.Animals[animal] : "no animal")}, still riding {G.Riding >= 0}, {G.levelTime:F1}s, {plans} routes");
+            G.god = false;
+        }
+
         void FightBoss()
         {
             app.run.power = 2; G.ApplyPowerForTest(2);
@@ -302,7 +321,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop", "ride_ram", "ride_camel", "ride_penguin", "ride_bird" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -399,6 +418,18 @@ namespace Kfitsa
                 {
                     app.save.boostShield = false; Outfit.Hat = 6; Outfit.Pant = 6; for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < 5 ? 7 : 0;
                     app.ShowWardrobe(app.ShowTitle);
+                    break;
+                }
+                case 58: case 59: case 60: case 61:
+                {
+                    app.hud.Show(true); app.hud.Hint(0, "");
+                    int k = step - 58; string[] file = { "w1l2", "w2l3", "w3l2", "w4l2" }; float[] x = { 20, 49, 50, 30 }, y = { 2, 2, 3, 7 };
+                    At(Array.FindIndex(Levels.All, l => l.file == file[k]), x[k], y[k]); G.paused = true; G.MountForTest(k); G.TestStep(40, default);
+                    if (k == 1) G.TestStep(30, default);
+                    if (k == 2) G.TestStep(70, new Pad { x = 1, run = true });
+                    if (k == 3) { G.hero.y = 9; G.hero.vy = 0; G.hero.grounded = false; G.TestStep(30, new Pad { x = 1, jumpHeld = true }); }
+                    if (k == 0) G.TestStep(30, new Pad { x = 1 });
+                    G.SnapCamera(); G.DrawNow(); app.hud.Hint(0, "");
                     break;
                 }
                 case 47:
@@ -1257,6 +1288,62 @@ namespace Kfitsa
                 g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(1, none);
                 Check("a jump skips the rest of the entrance", !g.BossIntroOn);
                 g.god = false; g.skipBossIntro = true; g.Unload();
+            }
+
+            // Version 2.7: animals to ride
+            {
+                g = Fresh(app); Under(g, 16.5f, 3.5f); g.TestStep(120, none);
+                Check("ride: the animal box lets out an animal that waits on the box", g.pickups.Count == 1 && g.pickups[0].type == "ride");
+                for (int i = 0; i < 300 && g.pickups.Count > 0; i++) { var k = g.pickups[0]; g.hero.x = k.x; g.hero.y = k.y; g.hero.vy = 0; g.TestStep(1, none); }
+                g.hero.x = 8; g.hero.y = 2; g.TestStep(60, none);
+                Check("ride: touching it mounts the ram, as tall as the big hero", g.Riding == 0 && g.hero.big && app.run.power == 0 && g.RideSpriteName.StartsWith("ride_ram"));
+                int d0 = g.deaths, l0 = app.run.lives; var en = g.TestEnemy('p', g.hero.x + 3, 2); g.hero.invuln = 0; Above(g.hero, en); g.TestStep(30, none);
+                Check("ride: a hit costs only the animal, not a life or the power", g.Riding == -1 && g.deaths == d0 && app.run.lives == l0 && !g.hero.big && g.hero.invuln > 0);
+
+                g = Fresh(app); g.MountForTest(0); g.hero.x = 6; g.hero.y = 2; en = g.TestEnemy('e', 12, 2); int h0 = g.hits;
+                g.TestStep(150, new Pad { x = 1, run = true });
+                Check("ram: running into an enemy knocks it away, unhurt", !en.alive && g.hits == h0 && g.Riding == 0);
+
+                float Height(int kind)
+                {
+                    var gg = Fresh(app); if (kind >= 0) gg.MountForTest(kind); else gg.ApplyPowerForTest(1);
+                    gg.hero.x = 8; gg.hero.y = 2; gg.TestStep(40, none); float y0 = gg.hero.y, top = y0;
+                    gg.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true });
+                    for (int i = 0; i < 150; i++) { gg.TestStep(1, new Pad { jumpHeld = true }); top = Mathf.Max(top, gg.hero.y); }
+                    return top - y0;
+                }
+                float bigH = Height(-1), camelH = Height(1);
+                Check($"camel: jumps higher than the big hero ({camelH:F1} against {bigH:F1} tiles)", camelH > bigH * 1.25f);
+                int w23 = Array.FindIndex(Levels.All, l => l.file == "w2l3"), w32 = Array.FindIndex(Levels.All, l => l.file == "w3l2");
+                app.run = new RunState { lives = 9 }; app.game.StartLevel(w23); g = app.game; g.RemoveEnemies();
+                g.MountForTest(1); g.hero.x = 50.5f; g.hero.y = 2; g.hero.invuln = 0; h0 = g.hits; g.TestStep(60, none);
+                Check("camel: stands on spikes unhurt", g.hits == h0 && g.Riding == 1 && g.grid.Spike(50, 2));
+                g.Unload(); app.run = new RunState { lives = 9 }; app.game.StartLevel(w23); g = app.game; g.RemoveEnemies();
+                g.hero.x = 50.5f; g.hero.y = 2; g.hero.invuln = 0; h0 = g.hits; g.TestStep(60, none);
+                Check("spikes still hurt without the camel", g.hits > h0);
+
+                g.Unload(); app.run = new RunState { lives = 9 }; app.game.StartLevel(w32); g = app.game; g.RemoveEnemies(); g.god = true;
+                g.MountForTest(2); g.hero.x = 48; g.hero.y = 3; int bricks = g.blocks.Count(b => b.c == 55); h0 = g.hits; bool slid = false;
+                g.TestStep(40, none); for (int i = 0; i < 260; i++) { g.TestStep(1, new Pad { x = 1, run = true }); slid |= g.SlidingNow; }
+                Check($"penguin: slides when running, and the slide breaks the wall of ice ({bricks} blocks)", bricks == 2 && g.blocks.Count(b => b.c == 55) == 0 && slid && g.hero.x > 56);
+                g.god = false; g.Unload();
+
+                float Fall(bool glide)
+                {
+                    var gg = Fresh(app); gg.MountForTest(3); gg.TestStep(40, none); gg.hero.x = 50; gg.hero.y = 13; gg.hero.vy = 0; gg.hero.grounded = false;
+                    gg.TestStep(60, new Pad { jumpHeld = glide }); return gg.hero.vy;
+                }
+                Check($"bird: holding jump glides down slowly ({Fall(true):F1} against {Fall(false):F1} tiles a second)", Fall(true) >= -Player.GlideFall - .01f && Fall(false) < -10);
+
+                g = Fresh(app); g.MountForTest(1); g.TestStep(40, none); g.hero.x = 62.5f; g.hero.y = 2; g.TestStep(30, new Pad { up = true });
+                Check("ride: the animal stays behind at a ladder", g.Riding == -1 && g.hero.climbing);
+                g = Fresh(app); g.MountForTest(0); g.TestStep(40, none); g.FallForTest(); g.TestStep(10, none);
+                Check("ride: a fall loses the animal too", g.Riding == -1);
+
+                var withBox = Levels.All.Where(l => Grid2.Parse(Levels.Text(l.file)).Blocks.Exists(b => b.kind == BlockKind.Animal)).Select(l => l.file).ToArray();
+                Check("ride: one animal box in a level of each world: " + string.Join(" ", withBox), withBox.SequenceEqual(new[] { "w1l2", "w2l3", "w3l2", "w4l2" })
+                    && Levels.All.All(l => Grid2.Parse(Levels.Text(l.file)).Blocks.Count(b => b.kind == BlockKind.Animal) <= 1));
+                app.game.Unload();
             }
 
             // Version 2.6: the coin shop

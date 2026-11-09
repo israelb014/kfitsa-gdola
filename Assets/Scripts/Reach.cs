@@ -489,7 +489,7 @@ namespace Kfitsa
                 bool hidden = kind == BlockKind.HiddenCoin || kind == BlockKind.HiddenLife;
                 if (kind == BlockKind.Brick) continue;
                 s.Add(hidden ? "secret" : "box", $"{kind} at {c},{r}", c, r);
-                if (kind == BlockKind.Grow || kind == BlockKind.Shield) s.Add("power-up", $"above the box at {c},{r}", c, r, c + .5f, r + 1.4f);
+                if (kind == BlockKind.Grow || kind == BlockKind.Shield || kind == BlockKind.Animal) s.Add("power-up", $"above the box at {c},{r}", c, r, c + .5f, r + 1.4f);
             }
             int star = 0; foreach (var q in g.Stars) { star++; if (In(q.x)) s.Add("star", $"{star} at {q.x:F0},{q.y:F0}", x: q.x, y: q.y); }
             foreach (var q in g.Coins) if (In(q.x)) s.Add("coin", $"at {q.x:F0},{q.y:F0}", x: q.x, y: q.y);

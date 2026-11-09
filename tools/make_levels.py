@@ -4,7 +4,7 @@ Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life 
 P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
 { } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp,
-I ladder (its top is a ledge), t rope, q block slime, c sinking snow cloud (each run of c is one cloud), m worm, z mouse (enemies near it sleep until it squeaks).
+I ladder (its top is a ledge), t rope, Y animal box (v2.7: the animal of the level's world, to ride), q block slime, c sinking snow cloud (each run of c is one cloud), m worm, z mouse (enemies near it sleep until it squeaks).
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
 in three parts: met safely, developed, then combined with a twist."""
 import sys
@@ -111,6 +111,7 @@ def w1l2():
     l.plat(x0+8.5, 5, 2, 0, 4, 0, 3); l.plat(x0+14.5, 7, 2, 0, 4, .5, 3)
     l.ground(x1-3, x1, 7, 'g'); l.put(x1-1, 8, 's')
     l.put(113, 5, '+')   # bubble shield box (v1.4)
+    l.put(19, 5, 'Y')    # the ram (v2.7), ahead of three enemies to charge
     return l
 
 def w1l3():
@@ -257,6 +258,7 @@ def w2l3():
     l.row(x0+4, x0+7, 5, 'g'); l.put(x0+5, 7, 'L'); l.row(x0+9, x0+11, 8, 'g'); l.put(x0+10, 10, 'L'); l.put(x1-1, 3, 'L'); l.fill(x1-3, x1-3, 2, 3, '^')
     l.put(x0+13, 3, 's')
     l.put(131, 10, '+')   # bubble shield box (v1.4)
+    l.put(16, 5, 'Y')     # the camel (v2.7), before the spikes
     return l
 
 def boss():
@@ -345,6 +347,8 @@ def w3l2():
     l.ground(89, 118, 3); l.put(92, 6, '+'); l.put(95, 3, 'm'); l.put(100, 7, 'h'); l.put(101, 3, 'm')
     l.put(106, 3, 'C'); l.put(104, 3, ',')
     l.put(110, 6, '!'); l.put(109, 6, 'b'); l.put(111, 6, 'b'); l.put(114, 3, 'D')
+    # v2.7: the penguin in its box, and a low wall of ice ahead that its slide breaks (anyone else hops over)
+    l.put(19, 6, 'Y'); l.fill(55, 55, 3, 4, 'b'); l.line(56, 57, 3)
     # The twist: up and down from cloud to cloud, with an island where a worm keeps time
     cloud(123, 125, 4); cloud(129, 130, 6); cloud(134, 136, 8); cloud(140, 142, 6)
     l.ground(146, 150, 5); l.put(148, 5, 'm')
@@ -460,6 +464,7 @@ def w4l2():
     l.note('needs switches')
     l.ground(0, 35, 2); l.put(8, 2, 'S'); l.put(6, 2, '>'); l.put(12, 5, '!'); l.put(13, 5, 'b')
     l.put(20, 2, 'K'); l.put(27, 3, 'W'); sw(l, 33, 2, 'b'); l.put(16, 5, '!')
+    l.put(24, 5, 'Y')     # the bird (v2.7), to glide over the bridges
     bridge(l, 36, 49, BLUE); l.put(42, 3, 'W')
     l.ground(50, 74, 2); l.put(55, 2, 'K'); l.put(65, 2, 'K'); l.line(56, 64, 3); sw(l, 71, 2, 'y')
     # Yellow stairs up a wall too high to jump, a star on top
@@ -536,7 +541,7 @@ def test():
     l = L(120, idea='test')
     l.note('room test 0')
     l.ground(0, 90, 2); l.put(3, 2, 'S'); l.put(70, 2, 'C'); l.put(76, 2, 'D'); l.put(84, 2, 'G')
-    l.put(20, 6, 'b'); l.put(24, 6, '?'); l.put(28, 6, '!'); l.put(32, 6, 'h'); l.put(36, 2, 'T'); l.put(12, 6, '+')
+    l.put(20, 6, 'b'); l.put(24, 6, '?'); l.put(28, 6, '!'); l.put(32, 6, 'h'); l.put(36, 2, 'T'); l.put(12, 6, '+'); l.put(16, 6, 'Y')
     l.row(40, 42, 2, 'u'); l.row(46, 50, 1, '}'); l.put(54, 2, 's'); l.put(56, 2, 's'); l.put(58, 2, 's')
     l.fill(66, 66, 2, 8, '#'); l.fill(91, 94, 0, 14, '#')
     for y in range(2, 7): l.put(62, y, 'I')     # a ladder onto a ledge (v1.6)

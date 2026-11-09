@@ -4,7 +4,7 @@ using UnityEngine.Tilemaps;
 
 namespace Kfitsa
 {
-    public enum BlockKind { Coin, Grow, Life, Brick, HiddenCoin, HiddenLife, Shield }
+    public enum BlockKind { Coin, Grow, Life, Brick, HiddenCoin, HiddenLife, Shield, Animal }
 
     /// The level as data: a cell grid for collision plus everything the level text places.
     /// Row 0 is the bottom. The text file is written top row first.
@@ -79,6 +79,7 @@ namespace Kfitsa
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
                         case '*': g.Blocks.Add((c, r, BlockKind.Life)); break;
                         case '+': g.Blocks.Add((c, r, BlockKind.Shield)); break;
+                        case 'Y': g.Blocks.Add((c, r, BlockKind.Animal)); break;      // v2.7: an animal to ride
                         case 'b': g.Blocks.Add((c, r, BlockKind.Brick)); break;
                         case 'h': g.Blocks.Add((c, r, BlockKind.HiddenCoin)); break;
                         case 'H': g.Blocks.Add((c, r, BlockKind.HiddenLife)); break;
@@ -198,7 +199,7 @@ namespace Kfitsa
             if (r < 0 || r >= H) return false;
             switch (cells[c, r])
             {
-                case '#': case 'g': case 'X': case '?': case '!': case '*': case '+': case 'b': case '{': case '}': case 'u': return true;
+                case '#': case 'g': case 'X': case '?': case '!': case '*': case '+': case 'Y': case 'b': case '{': case '}': case 'u': return true;
                 case 'a': return (Sw & 1) == 0;
                 case 'A': return (Sw & 1) != 0;
                 case '6': case '7': case '8': case '9': return Sw == cells[c, r] - '6';
@@ -225,6 +226,7 @@ namespace Kfitsa
             return ch == '^' || ch == 'l';
         }
 
+        public bool Spike(int c, int r) => At(c, r) == '^';
         public bool Deadly(int c, int r) => At(c, r) == 'l' || At(c, r) == 'w';
 
         bool Earth(int c, int r, char kind)
