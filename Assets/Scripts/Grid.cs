@@ -19,14 +19,16 @@ namespace Kfitsa
         public int Sw;               // state of the switch blocks; World keeps it in step
         public string Idea = "", RoomMode = "";
         /// Rooms where the coins are the challenge: "coins" on the floor, "ropes" along climbing ropes (v2.0).
-        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes" || RoomMode == "paint" || RoomMode == "pearls";
+        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes" || RoomMode == "paint" || RoomMode == "pearls" || RoomMode == "masks" || RoomMode == "honey";
         /// v2.4: the lamps room behind colour blocks, and the ladybug room, work like the earlier ones.
-        public bool RoomLamps => RoomMode == "lights" || RoomMode == "beacons" || RoomMode == "sparks";
+        public bool RoomLamps => RoomMode == "lights" || RoomMode == "beacons" || RoomMode == "sparks" || RoomMode == "candles";
         /// v2.8, the bonus levels: the screen moves on by itself; the hero swims; the hero rides a mine cart. Only in the main part.
         public float ScrollSpeed; public bool Swim, Cart;
         public bool SwimAt(float x) => Swim && x < MainW;
         public bool CartAt(float x) => Cart && x < MainW;
         public readonly List<(int c, int r)> Saws = new List<(int, int)>();
+        /// v2.9: pictures placed by the level file ("deco x y name"), for the holidays.
+        public readonly List<(Vector2 at, string art)> Decos = new List<(Vector2, string)>();
         public bool RoomStomp => RoomMode == "stomp" || RoomMode == "blocks" || RoomMode == "bugs";
         public float RoomSeconds, DarkRadius, CheckpointWater = -1;
         public int RoomH = 15;
@@ -153,6 +155,7 @@ namespace Kfitsa
                 case "scroll": ScrollSpeed = F(1); break;
                 case "swim": Swim = true; break;
                 case "cart": Cart = true; break;
+                case "deco": Decos.Add((new Vector2(F(1) + .5f, F(2)), a[3])); break;
                 default: throw new System.Exception("Unknown level note: " + a[0]);
             }
         }

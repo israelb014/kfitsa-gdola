@@ -11,7 +11,11 @@ namespace Kfitsa
         public bool boss, hidden;      // hidden: the world on the map's second page (v2.4)
         public string after;           // v2.8, a bonus level: the level that opens it; its stop sits beside that one on the map
         public bool Bonus => after != null;
-        public string Code => Bonus ? "בונוס" : boss ? "בוס" : world + "-" + stage;
+        public int holiday = -1;      // v2.9: a holiday level, opened by the Hebrew calendar (see Holidays)
+        public bool Holiday => holiday >= 0;
+        /// Levels off the journey: bonus and holiday levels open nothing and have no time trial.
+        public bool Extra => Bonus || Holiday;
+        public string Code => Holiday ? Holidays.All[holiday].name : Bonus ? "בונוס" : boss ? "בוס" : world + "-" + stage;
     }
 
     public static class Levels
@@ -67,9 +71,22 @@ namespace Kfitsa
                 tip = "שוחים! כל קפיצה היא תנועת שחייה, וחץ למטה צולל", roomTip = "אספו את כל המטבעות לפני שהזמן נגמר" },
             new LevelDef { file = "b3", name = "מסילת המכרה", terrain = "stone", sky = "mine", music = "m_bonus", world = 13, stage = 1, after = "w3l2",
                 tip = "העגלה נוסעת לבד. קופצים מעל בורות ומסורים", roomTip = "הדליקו את שלוש המנורות" },
+            // v2.9: holiday levels, each opened on its holiday by the Hebrew calendar, then open for good
+            new LevelDef { file = "hanukkah", name = "נס החנוכה", terrain = "stone", sky = "night", music = "m_world3", world = 21, stage = 1, holiday = 0,
+                tip = "חשוך! הנרות מאירים את הדרך, ופכי השמן הם המטבעות", roomTip = "הדליקו את כל הנרות" },
+            new LevelDef { file = "purim", name = "עדלאידע", terrain = "grass", sky = "hills", music = "m_world1", world = 22, stage = 1, holiday = 1,
+                tip = "חג שמח! באים בתחפושת, והקפיצים מעיפים גבוה", roomTip = "אספו את כל המסכות לפני שהזמן נגמר" },
+            new LevelDef { file = "pesach", name = "קריעת ים סוף", terrain = "sand", sky = "desert", music = "m_world2", world = 23, stage = 1, holiday = 2,
+                tip = "הים נסוג ושב. עוברים כשהמים למטה", roomTip = "מחפשים את האפיקומן! מרוץ אל הכוכב" },
+            new LevelDef { file = "sukkot", name = "ענני הכבוד", terrain = "dirt", sky = "trees", music = "m_world4", world = 24, stage = 1, holiday = 3,
+                tip = "ענן שוקע כשעומדים עליו. מסוכה לסוכה", roomTip = "מרוץ עם הלולב אל הכוכב" },
+            new LevelDef { file = "roshhashana", name = "תפוח בדבש", terrain = "grass", sky = "trees", music = "m_title", world = 25, stage = 1, holiday = 4,
+                tip = "שנה טובה ומתוקה! הדבורות שומרות על הכוורות", roomTip = "אספו את כל התפוחים לפני שהזמן נגמר" },
         };
+        public static int HolidayFirst => System.Array.FindIndex(All, d => d.Holiday);
+        public static int HolidayLevel(int holiday) => System.Array.FindIndex(All, d => d.holiday == holiday);
         /// The levels of the journey and the hidden world; the bonus levels come after them.
-        public static int StoryCount => System.Array.FindIndex(All, d => d.Bonus) is int k && k >= 0 ? k : All.Length;
+        public static int StoryCount => System.Array.FindIndex(All, d => d.Extra) is int k && k >= 0 ? k : All.Length;
         public static int BonusOf(int level) => System.Array.FindIndex(All, d => d.after == All[level].file);
         public static int ParentOf(int level) => All[level].Bonus ? System.Array.FindIndex(All, d => d.file == All[level].after) : -1;
     }

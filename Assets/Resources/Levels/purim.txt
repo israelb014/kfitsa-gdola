@@ -1,0 +1,22 @@
+@idea purim
+@deco 26 2 h_balloons
+@deco 86 6 h_gragger
+@deco 168 2 h_balloons
+@easyflag 46 2
+@easyflag 145 2
+@room masks 12
+                                                                                                                                                                                      gggggggggggggggggggggggg
+                                                                                                                                         s                                            gggggggggggggggggggggggg
+                                                                                                h                     oooo              ###                                           g                      g
+                                                                  ooooooooo                                                                                                           g                      g
+                    ooooo                                                                                                                                                             g                      g
+                    #####                                                                        b!b                                                                                  g              oooo    g
+                                     ooooo                                                                                  n                                                         g              gggg    g
+                                                     s                                                                  #########                                                     g                      g
+                                                    ###                         e         C            D                #########                                                     g         oooo         g
+            !bb!                                                            ###############################             #########                   +              ooooooo            g         gggg       s g
+                                                                            ###############################             #########                                                     g                      g
+                                                                            ###############################             #########                                                     g    oooo          oooog
+      S               T       e                   n             T           ###############################    e    T   #########   T      e            j       e             G       g E                    g
+#####################################   T #################   ###########   #########################################   ##############################################################gggggggggggggggggggggggg
+#####################################  ####################   ###########   #########################################   ##############################################################Rggggggggggggggggggggggg

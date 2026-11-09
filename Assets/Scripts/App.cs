@@ -490,7 +490,7 @@ namespace Kfitsa
         // ---- time trial (v2.3) ----
 
         RunState runBeforeTrial;
-        public bool TrialOpen(int level) => level >= 0 && level < Levels.All.Length && !Levels.All[level].boss && !Levels.All[level].Bonus && save.best[level] > 0;
+        public bool TrialOpen(int level) => level >= 0 && level < Levels.All.Length && !Levels.All[level].boss && !Levels.All[level].Extra && save.best[level] > 0;
 
         /// A run of a finished level against the clock, with the game's own run kept aside until it ends.
         public void EnterTrial(int level)
@@ -638,9 +638,9 @@ namespace Kfitsa
             if (i < 0) return;
             bool firstFinish = save.best[i] <= 0;
             save.best[i] = Mathf.Max(save.best[i], Mathf.Max(1, run.score));
-            if (Levels.All[i].Bonus)
+            if (Levels.All[i].Extra)
             {
-                // A bonus level opens nothing: back to its stop on the map
+                // A bonus or holiday level opens nothing: back to its stop on the map
                 save.Write(); hud.Banner(""); game.Unload();
                 mapCursor = i; mapFrom = -1; starsBefore = -1; CheckProgressAchievements();
                 ShowMap(); return;

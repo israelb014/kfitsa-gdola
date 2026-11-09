@@ -17,7 +17,8 @@ namespace Kfitsa
         // every star of the first page is found.
         public static int MainCount => System.Array.FindIndex(Levels.All, d => d.hidden) is int k && k >= 0 ? k : Levels.All.Length;
         int pageFirst, pageEnd;          // the levels on the page shown, both ends included
-        bool HiddenPage => pageFirst >= MainCount;
+        bool HiddenPage => pageFirst >= MainCount && !HolidayPage;
+        bool HolidayPage => Levels.HolidayFirst >= 0 && pageFirst == Levels.HolidayFirst;
         Vector2 Node(int level) => Layout(level - pageFirst, pageEnd - pageFirst + 1);
         public bool HiddenOpen
         {
@@ -31,7 +32,8 @@ namespace Kfitsa
         public int MainStarsMissing { get { int n = 0; for (int i = 0; i < MainCount; i++) n += 3 - Bits(save.stars[i]); return n; } }
         void SetPage()
         {
-            if (mapCursor >= MainCount && !Levels.All[mapCursor].Bonus && !HiddenOpen) mapCursor = MainCount - 1;
+            if (mapCursor >= MainCount && !Levels.All[mapCursor].Extra && !HiddenOpen) mapCursor = MainCount - 1;
+            if (Levels.All[mapCursor].Holiday) { pageFirst = Levels.HolidayFirst; pageEnd = Levels.All.Length - 1; return; }
             bool hidden = mapCursor >= MainCount && !Levels.All[mapCursor].Bonus;
             pageFirst = hidden ? MainCount : 0; pageEnd = hidden ? Levels.StoryCount - 1 : MainCount - 1;
         }
@@ -78,9 +80,10 @@ namespace Kfitsa
         void BuildBonusStops()
         {
             bonusNodes.Clear();
-            if (HiddenPage) return;
+            if (HiddenPage || HolidayPage) return;
             for (int b = Levels.StoryCount; b < Levels.All.Length; b++)
             {
+                if (!Levels.All[b].Bonus) continue;
                 int p = Levels.ParentOf(b);
                 if (p < pageFirst || p > pageEnd) continue;
                 var at = BonusNode(b);
@@ -104,7 +107,7 @@ namespace Kfitsa
             }
         }
 
-        int MapLast => Mathf.Min(HiddenPage ? Mathf.Max(save.unlocked, pageFirst) : save.unlocked, pageEnd);
+        int MapLast => HolidayPage ? pageEnd : Mathf.Min(HiddenPage ? Mathf.Max(save.unlocked, pageFirst) : save.unlocked, pageEnd);
         public bool MapWalking => Mathf.Abs(mapAt - nodeAt[PathStop(mapCursor)]) > .5f;
         public float MapHeroX => mapHero.rectTransform.anchoredPosition.x;
 
@@ -156,7 +159,8 @@ namespace Kfitsa
             mapWait = walkOn ? .6f : 0;
             mapFrom = -1; mapEnter = false;
 
-            Line(HiddenPage ? "ארץ הצבעים" : "מפת המסע", 72, 430);
+            RefreshHolidays();
+            Line(HolidayPage ? "שלבי החגים" : HiddenPage ? "ארץ הצבעים" : "מפת המסע", 72, 430);
             // Each world gets its own patch of sky behind its stops
             for (int w = 1; w <= 9; w++)
             {
@@ -217,6 +221,7 @@ namespace Kfitsa
             trialBox.sprite = null; trialBox.preserveAspect = false; trialBox.raycastTarget = false;
             screenObjects.Add(trialBox.gameObject);
             trialText = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), trialBox.transform, new Vector2(.5f, .5f));
+            BuildHolidayBox();
             // v2.6: the coin shop, at the top left
             shopBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(-760, 420), new Vector2(330, 110));
             shopBox.sprite = null; shopBox.preserveAspect = false; shopBox.raycastTarget = false; shopBox.color = new Color(.36f, .24f, .06f, .85f);
@@ -225,7 +230,7 @@ namespace Kfitsa
             st.text = Rtl.V("חנות" + (TouchUi.Available ? "" : "  (B)") + "\nמטבעות: " + save.wallet); st.color = new Color(1, .9f, .5f);
             // The way between the pages: shown once the last boss of the first page is beaten
             pageBox = null;
-            if (HiddenPage || MainCount < Levels.All.Length && save.unlocked >= MainCount)
+            if (!HolidayPage && (HiddenPage || MainCount < Levels.StoryCount && save.unlocked >= MainCount))
             {
                 pageBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(760, -330), new Vector2(330, 110));
                 pageBox.sprite = null; pageBox.preserveAspect = false; pageBox.raycastTarget = false;
@@ -259,6 +264,7 @@ namespace Kfitsa
             string stars = miss.Count == 0 ? "כל הכוכבים נמצאו" : "חסרים כוכבים: " + string.Join(", ", miss);
             string secrets = total == 0 ? "" : got == total ? "    כל הסודות נמצאו" : $"    סודות: {got}/{total}";
             mapMissing.text = Rtl.V(stars + secrets);
+            if (d.Holiday && !HolidayOpen(mapCursor)) mapMissing.text = Rtl.V("השלב נפתח " + Holidays.All[d.holiday].when + ", ואז נשאר פתוח");
             mapMissing.color = miss.Count == 0 && got == total ? new Color(1, .9f, .4f) : new Color(.9f, .95f, 1);
             int all = 0;
             for (int i = pageFirst; i <= pageEnd; i++) all += Bits(save.stars[i]);
@@ -293,7 +299,7 @@ namespace Kfitsa
                 bool open2 = level <= MapLast && nodeAt[level] <= mapReveal + 1;
                 bool done = level < save.unlocked;
                 var ld = Levels.All[level];
-                string want = !open2 ? "lock_yellow" : ld.boss ? (ld.terrain == "snow" ? "giant_walk_a" : ld.hidden ? "king_blue_walk_a" : "boss_walk_a") : done ? "block_empty" : "block_coin";
+                string want = ld.Holiday ? (HolidayOpen(level) ? Holidays.All[ld.holiday].icon : "lock_yellow") : !open2 ? "lock_yellow" : ld.boss ? (ld.terrain == "snow" ? "giant_walk_a" : ld.hidden ? "king_blue_walk_a" : "boss_walk_a") : done ? "block_empty" : "block_coin";
                 var sprite = Art.Center(want);
                 if (icon.sprite != sprite)
                 {
@@ -306,6 +312,7 @@ namespace Kfitsa
                 glow.enabled = level == mapCursor;
                 glow.color = new Color(1, .95f, .6f, .35f + .15f * Mathf.Sin(Time.unscaledTime * 4));
             }
+            if (holidayBadge != null) holidayBadge.rectTransform.localScale = Vector3.one * (1 + .12f * Mathf.Sin(Time.unscaledTime * 5));
             foreach (var (icon, glow, level) in bonusNodes)
             {
                 glow.enabled = level == mapCursor;
@@ -374,9 +381,51 @@ namespace Kfitsa
 
         void MapGo()
         {
+            if (Levels.All[mapCursor].Holiday && !HolidayOpen(mapCursor)) { Sound.Play("bump", .5f); return; }
             if (!MapWalking && mapWait <= 0) Enter(mapCursor);
             else { mapEnter = true; mapWait = 0; }
         }
+
+        // ---- v2.9: the holiday page, and its badge when a holiday is today ----
+        Image holidayBox, holidayBadge;
+        int beforeHolidays = -1;
+        public bool HolidayOpen(int level) => Levels.All[level].Holiday && (save.holidays >> Levels.All[level].holiday & 1) != 0;
+        public bool HolidayBadgeShown => holidayBadge != null && holidayBadge.gameObject.activeSelf;
+        public bool OnHolidayPage => HolidayPage;
+
+        /// Today's holiday opens its level, for good.
+        public void RefreshHolidays()
+        {
+            int c = Holidays.Current;
+            if (c >= 0 && (save.holidays >> c & 1) == 0) { save.holidays |= 1 << c; save.Write(); }
+        }
+
+        void BuildHolidayBox()
+        {
+            holidayBox = holidayBadge = null;
+            if (Levels.HolidayFirst < 0) return;
+            int today = Holidays.Current;
+            holidayBox = hud.Picture("star", new Vector2(.5f, .5f), new Vector2(760, 420), new Vector2(330, 110));
+            holidayBox.sprite = null; holidayBox.preserveAspect = false; holidayBox.raycastTarget = false; holidayBox.color = new Color(.12f, .26f, .4f, .85f);
+            screenObjects.Add(holidayBox.gameObject);
+            var t = hud.Label(30, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320, 100), holidayBox.transform, new Vector2(.5f, .5f));
+            t.text = Rtl.V(HolidayPage ? "חזרה למפת המסע" : "שלבי החגים" + (TouchUi.Available ? "" : "  (H)") + (today >= 0 ? "\n" + Holidays.All[today].name + " עכשיו!" : ""));
+            t.color = new Color(.85f, .95f, 1);
+            if (today < 0 || HolidayPage) return;
+            // The badge: the holiday's picture on the corner of the box, pulsing
+            holidayBadge = hud.Picture(Holidays.All[today].icon, new Vector2(.5f, .5f), new Vector2(600, 450), new Vector2(84, 84));
+            screenObjects.Add(holidayBadge.gameObject);
+        }
+
+        void MapHolidays()
+        {
+            if (Levels.HolidayFirst < 0) return;
+            Sound.Play("magic", .7f);
+            if (HolidayPage) { mapCursor = beforeHolidays >= 0 ? beforeHolidays : Mathf.Min(save.unlocked, MainCount - 1); beforeHolidays = -1; }
+            else { beforeHolidays = mapCursor; int c = Holidays.Current; mapCursor = c >= 0 ? Levels.HolidayLevel(c) : Levels.HolidayFirst; }
+            mapFrom = -1; ShowMap();
+        }
+        public void MapHolidaysForTest() => MapHolidays();
 
         /// Over to the other page of the map.
         void MapPage()
@@ -393,6 +442,7 @@ namespace Kfitsa
         {
             if (pageBox != null && RectTransformUtility.RectangleContainsScreenPoint(pageBox.rectTransform, at, null)) { MapPage(); return; }
             if (trialBox != null && RectTransformUtility.RectangleContainsScreenPoint(trialBox.rectTransform, at, null)) { MapTrial(); return; }
+            if (holidayBox != null && RectTransformUtility.RectangleContainsScreenPoint(holidayBox.rectTransform, at, null)) { MapHolidays(); return; }
             if (shopBox != null && RectTransformUtility.RectangleContainsScreenPoint(shopBox.rectTransform, at, null)) { Sound.Play("select"); ShowShop(ShowMap); return; }
             var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
             float reach = Mathf.Min(115, (MapRight - MapLeft) / Mathf.Max(1, pageEnd - pageFirst) * .55f);
@@ -418,6 +468,7 @@ namespace Kfitsa
             if (screen != Screen.Map) return;
             if (m.ok) MapGo();
             else if (GameInput.TrialPressed) MapTrial();
+            else if (GameInput.HolidayPressed) MapHolidays();
             else if (GameInput.ShopPressed) { Sound.Play("select"); ShowShop(ShowMap); }
             else if (m.back) ShowTitle();
         }

@@ -35,6 +35,7 @@ namespace Kfitsa
         public int wallet; public bool walletStarted;        // v2.6: coins to spend; on the first start it takes every coin ever found
         public int shopOwned;                                // v2.6: the shop's outfits bought, one bit each (Outfit.ShopBit)
         public int boostPower; public bool boostShield;      // v2.6: bought for the start of the next level
+        public int holidays;                                 // v2.9: holiday levels opened, one bit each (Holidays.All)
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;

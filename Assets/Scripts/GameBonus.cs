@@ -71,6 +71,30 @@ namespace Kfitsa
             }
         }
 
+        // ---- v2.9: the holiday levels ----
+
+        int costumeKeep = -1;
+        /// The coins of a holiday level are its own small picture: oil jugs, masks, matzot, etrogs, apples.
+        string HolidayCoin => levelIndex >= 0 && Def.Holiday ? Holidays.All[Def.holiday].coin : null;
+        bool Candles => levelIndex >= 0 && Def.Holiday && Def.holiday == 0;
+        public bool InCostume => costumeKeep >= 0;
+
+        void BuildHoliday()
+        {
+            foreach (var (at, art) in grid.Decos)
+                Art.Spawn("Deco", root, Art.Feet(art), -4).transform.position = new Vector3(at.x, at.y, 0);
+            if (HolidayCoin != null) foreach (var c in coinItems) c.view.sprite = Art.Center(HolidayCoin);
+            if (Candles) foreach (var t in torches) { t.sprite = Art.Feet("h_candle"); t.transform.position += new Vector3(.5f, 0, 0); }
+            // Purim: the hero comes in one of the shop's costumes for the level, whatever is worn
+            if (levelIndex >= 0 && Def.Holiday && Def.holiday == 1 && !trial)
+            {
+                if (costumeKeep < 0) costumeKeep = Outfit.Hat;
+                Outfit.Hat = Outfit.StarHats + 1 + (int)(Random.value * 3) % 3;
+            }
+        }
+
+        void EndHoliday() { if (costumeKeep >= 0) { Outfit.Hat = costumeKeep; costumeKeep = -1; } }
+
         /// The hero stands in the cart: a little higher, so the cart hides the legs.
         float CartLift => InCart ? .3f : 0;
     }

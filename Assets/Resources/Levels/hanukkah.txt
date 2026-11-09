@@ -1,0 +1,22 @@
+@idea hanukkah
+@dark 6
+@deco 165 2 h_hanukkiah
+@deco 30 2 h_hanukkiah
+@easyflag 50 2
+@easyflag 145 2
+@room candles 0
+                                                                                                                                                                                    gggggggggggggggggggggggg
+                                                                                                                                                                                    gggggggggggggggggggggggg
+                                                                                                                                                                                    g                      g
+                                                                                                                                    s                                               g                      g
+                                                                                                                                   ###                                              g                      g
+                                                                                                                                                                                    g          L           g
+                                                                                                   h                                                                                g                      g
+                                               s                       ooo                               ooo                    |     e |                                           g         ggg   L      g
+                                   ooo        ###                                                                           #################                                       g     L                g
+            !bb!  ooooooo                                                                        b!b                       ##################         +           ooooooo           g              ggg     g
+                                                                   |                                                      ###################                                       g    ggg               g
+                                     |                          #######                                       |   n   |  ####################                                       g                   sL g
+    | S   |     |     |   e |    |          |   n   |      |    #######     |       |   e   C   |   D |     #############    ################   |       |   p   |         | G   |   g E                    g
+###################################   #######################   #######   ###############################   #############    #######################################################gggggggggggggggggggggggg
+###################################   #######################   #######   ###############################   #############    #######################################################Rggggggggggggggggggggggg

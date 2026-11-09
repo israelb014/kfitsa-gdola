@@ -1,0 +1,25 @@
+@idea sukkot
+@deco 18 3 h_sukkah
+@deco 150 3 h_sukkah
+@deco 108 3 h_lulav
+@easyflag 48 3
+@easyflag 142 3
+@room lulav 9
+                                                                                                                                                                                   g
+                                                                                                                                                                                   g
+                                                                                                                                                                                   g
+                                                                                                                                                                                   ggggggggggggggggggggggggg
+                                                                                                                                                                                   ggggggggggggggggggggggggg
+                                                                                                                                 s                                                 g                       g
+                                                                                                                                                                                   g                       g
+                                                                              o                                                                                                    g                       g
+                                                                             o o                  h                                                                                g                     s g
+                                                         s                  o   o                                               ccc                                                g              ggg  ggggg
+                                                        ###                                                                                                                        g                   ggggg
+            !bb!                                                                               b!b                         cc         ccc         +                ooooooo         g         ggg       ggggg
+                                  ooo  ooo                              ccc                                                                                                        g                   ggggg
+                                                                                                                     ccc                                                           g    ggg            ggggg
+      S                 e                           n             ccc         ccc         C         e   D                                               e       n           G      g                   ggggg
+###############################   ccc  ccc  ###################                      ############################                           #######################################g E                 ggggg
+###############################            ####################                      ############################                           #######################################ggggggggggggggggggggggggg
+###############################################################                      ############################                           #######################################Rgggggggggggggggggggggggg

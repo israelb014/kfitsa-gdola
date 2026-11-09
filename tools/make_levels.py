@@ -650,7 +650,7 @@ def purim():
     l.ground(42, 58, 2); l.put(40, 1, 'T'); l.ground(39, 41, 1); l.line(37, 41, 8); l.put(50, 2, 'n'); l.row(52, 54, 6); l.put(53, 7, 's')
     l.ground(62, 72, 2); l.put(64, 2, 'T'); l.ground(76, 106, 6); l.put(80, 6, 'e'); l.line(66, 74, 11)
     l.put(90, 6, 'C'); l.put(98, 9, '!'); l.put(97, 9, 'b'); l.put(99, 9, 'b'); l.put(103, 6, 'D'); l.put(96, 12, 'h')
-    l.ground(107, 116, 2); l.put(110, 2, 'T'); l.put(114, 2, 'e'); l.ground(120, 128, 8); l.put(124, 8, 'n'); l.line(118, 121, 12)
+    l.ground(107, 116, 2); l.put(116, 2, 'T'); l.put(111, 2, 'e'); l.ground(120, 128, 8); l.put(124, 8, 'n'); l.line(118, 121, 12)
     l.ground(129, 140, 2); l.put(132, 2, 'T'); l.row(136, 138, 12); l.put(137, 13, 's'); l.put(139, 2, 'e')
     l.ground(141, 181, 2); l.put(148, 5, '+'); l.put(152, 2, 'j'); l.put(160, 2, 'e'); l.line(163, 169, 5); l.put(174, 2, 'G')
     l.note('deco 26 2 h_balloons'); l.note('deco 86 6 h_gragger'); l.note('deco 168 2 h_balloons')

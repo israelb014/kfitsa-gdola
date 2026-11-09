@@ -74,6 +74,9 @@ namespace Kfitsa
         /// The shop on the map (v2.6): B on the keyboard, X on a gamepad.
         public static bool ShopPressed =>
             Keyboard.current != null && Keyboard.current.bKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.buttonWest.wasPressedThisFrame;
+        /// The holiday page on the map (v2.9): H on the keyboard, the left shoulder on a gamepad.
+        public static bool HolidayPressed =>
+            Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.leftShoulder.wasPressedThisFrame;
         public static bool TrialPressed =>
             Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame || Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame;
 

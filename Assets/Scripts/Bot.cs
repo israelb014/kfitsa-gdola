@@ -322,7 +322,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop", "ride_ram", "ride_camel", "ride_penguin", "ride_bird", "bonus_scroll", "bonus_sea", "bonus_cart", "map_bonus" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop", "ride_ram", "ride_camel", "ride_penguin", "ride_bird", "bonus_scroll", "bonus_sea", "bonus_cart", "map_bonus", "h_hanukkah", "h_purim", "h_pesach", "h_sukkot", "h_roshhashana", "map_holidays" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -451,6 +451,19 @@ namespace Kfitsa
                     for (int i = 0; i < 10; i++) { app.save.best[i] = 900; app.save.stars[i] = 7; }
                     int bb = Array.FindIndex(Levels.All, l => l.file == "b2"); app.save.best[Array.FindIndex(Levels.All, l => l.file == "b1")] = 500; app.save.stars[bb - 1] = 3;
                     app.MapTestFinished(3); app.MapTestTick(3); app.MapBonusForTest(1); app.MapTestTick(.2f);
+                    break;
+                }
+                case 66: case 67: case 68: case 69: case 70:
+                {
+                    app.hud.Show(true); int k = step - 66; float[] x = { 46, 22, 30, 36, 26 }, y = { 2, 2, 2, 3, 2 };
+                    At(Levels.HolidayLevel(k), x[k], y[k]); G.paused = true; G.TestStep(k == 2 ? 300 : 30, default); G.SnapCamera(); G.DrawNow(); app.hud.Hint(0, "");
+                    break;
+                }
+                case 71:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); app.save.holidays = 0b10011; Holidays.Today = new DateTime(2026, 12, 8); app.ShowMap(); app.MapHolidaysForTest(); app.MapTestTick(.3f);
+                    Holidays.Today = null;
                     break;
                 }
                 case 47:
@@ -1309,6 +1322,43 @@ namespace Kfitsa
                 g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(1, none);
                 Check("a jump skips the rest of the entrance", !g.BossIntroOn);
                 g.god = false; g.skipBossIntro = true; g.Unload();
+            }
+
+            // Version 2.9: the holiday levels
+            {
+                var days = new (int y, int m, int d, int h)[] { (2026, 12, 5, 0), (2026, 12, 12, 0), (2026, 12, 13, -1), (2027, 3, 23, 1), (2027, 3, 24, 1), (2027, 3, 25, -1),
+                    (2027, 4, 22, 2), (2027, 4, 28, 2), (2027, 4, 29, -1), (2027, 10, 2, 4), (2027, 10, 3, 4), (2027, 10, 4, -1), (2027, 10, 16, 3), (2027, 10, 23, 3), (2027, 10, 24, -1), (2026, 11, 9, -1) };
+                var wrong = days.Where(t => Holidays.OnDay(new DateTime(t.y, t.m, t.d)) != t.h).Select(t => $"{t.y}-{t.m}-{t.d}").ToArray();
+                Check($"calendar: 16 days checked against Hebcal, from Hanukkah 5787 to Sukkot 5788 {string.Join(" ", wrong)}", wrong.Length == 0);
+                var hd = Holidays.Hebrew(new DateTime(2026, 12, 5));
+                Check("calendar: 5 December 2026 is 25 Kislev 5787", hd.year == 5787 && hd.month == 3 && hd.day == 25);
+                int hk = Levels.HolidayLevel(0), pu = Levels.HolidayLevel(1);
+                Check("holidays: five levels, one for each holiday, each with its pictures", Levels.All.Count(l => l.Holiday) == 5 && hk == Levels.HolidayFirst
+                    && Levels.All.Where(l => l.Holiday).All(l => Grid2.Parse(Levels.Text(l.file)).Decos.Count > 0 && Resources.Load<Texture2D>("Art/" + Holidays.All[l.holiday].coin) != null));
+                var hKeep = app.save; app.save = new Save(); app.save.unlocked = 3;
+                Holidays.Today = new DateTime(2026, 11, 9); app.RefreshHolidays();
+                Check("holidays: on an ordinary day nothing opens", app.save.holidays == 0 && !app.HolidayOpen(hk));
+                Holidays.Today = new DateTime(2026, 12, 6); app.RefreshHolidays();
+                Holidays.Today = new DateTime(2026, 12, 20); app.RefreshHolidays();
+                Check("holidays: Hanukkah opens its level, and it stays open after the holiday", app.HolidayOpen(hk) && !app.HolidayOpen(pu));
+                Holidays.Today = new DateTime(2026, 12, 8); app.mapHold = true; app.ShowMap();
+                Check("holidays: during the holiday the map shows its badge", app.HolidayBadgeShown);
+                app.MapHolidaysForTest();
+                Check("holidays: the box opens the holiday page on today's holiday", app.OnHolidayPage && app.MapCursor == hk);
+                app.MapTestTick(.1f, -1); app.MapTestTick(.1f, 0, true); app.MapTestTick(.5f);
+                Check("holidays: a holiday still shut cannot be played", app.ScreenName == "Map" && app.MapCursor == pu);
+                app.MapTestTick(.1f, 1); app.MapTestTick(.1f, 0, true); app.MapTestTick(1);
+                Check("holidays: an open one can", app.ScreenName == "Playing" && app.game.levelIndex == hk);
+                app.game.WinForTest(); app.LevelDone();
+                Check("holidays: finishing it goes back to the holiday page", app.ScreenName == "Map" && app.OnHolidayPage && app.MapCursor == hk && app.save.unlocked == 3);
+                app.MapHolidaysForTest();
+                Check("holidays: and the box goes back to the journey", !app.OnHolidayPage);
+                Holidays.Today = new DateTime(2027, 3, 23); app.RefreshHolidays(); int hat0 = Outfit.Hat;
+                app.Enter(pu);
+                Check("purim: the hero comes in costume", app.game.InCostume && Outfit.Hat > Outfit.StarHats);
+                app.game.Unload();
+                Check("purim: and takes it off after the level", Outfit.Hat == hat0 && !app.game.InCostume);
+                Holidays.Today = null; app.mapHold = false; app.save = hKeep;
             }
 
             // Version 2.8: the bonus levels

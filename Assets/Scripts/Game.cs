@@ -197,6 +197,7 @@ namespace Kfitsa
             if (grid.HasRoomDoor) PlaceDoor(grid.RoomDoor);
             BuildGate();
             BuildBonus();
+            BuildHoliday();
             if (grid.HasBoss)
             {
                 bool giant = Def.terrain == "snow", colours = grid.ColorSwitches.Count > 0;
@@ -237,6 +238,7 @@ namespace Kfitsa
 
         public void Unload()
         {
+            EndHoliday();       // a Purim costume is only for the level; it is put on again at every start
             if (root != null) Destroy(root.gameObject);
             root = null; grid = null; boss = null; ghostView = null; helpView = null; ride = -1; rideView = null; helpOn = false; app.hud.BossTitle(null, null, 0); dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
@@ -1063,14 +1065,14 @@ namespace Kfitsa
             }
             DrawMechanics(dt);
 
-            var coinSprite = Art.Center((int)(simT * 5) % 2 == 0 ? "coin_gold" : "coin_gold_side");
+            var coinSprite = HolidayCoin != null ? Art.Center(HolidayCoin) : Art.Center((int)(simT * 5) % 2 == 0 ? "coin_gold" : "coin_gold_side");
             foreach (var c in coinItems) c.view.sprite = coinSprite;
             foreach (var b in blocks)
                 b.view.transform.position = new Vector3(b.c, b.r + Mathf.Sin(b.bump / .16f * Mathf.PI) * .28f, 0);
             foreach (var s in springs) s.view.sprite = Art.Tile(s.out_ > 0 ? "spring_out" : "spring");
             foreach (var c in stars) c.view.transform.position = c.at + new Vector2(0, Mathf.Sin(simT * 3 + c.id) * .08f);
             var torch = Art.Tile((int)(simT * 7) % 2 == 0 ? "torch_on_a" : "torch_on_b");
-            foreach (var t in torches) t.sprite = torch;
+            if (!Candles) foreach (var t in torches) t.sprite = torch;
 
             for (int i = fx.Count - 1; i >= 0; i--)
             {
