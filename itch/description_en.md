@@ -3,7 +3,8 @@
 A family-friendly 2D platformer in Hebrew. Tsuki Tsiki sets off on a jumping journey across four worlds, and every level is built around its own idea.
 
 ## Features
-- 15 levels in four worlds: springs, moving lifts, crumbling cliffs, a sandstorm, a flash flood, a dark fortress, ladder towers, sinking snow clouds, a quiet path past sleeping enemies, and a hidden world of colour switches.
+- 23 levels: 15 in four worlds (springs, moving lifts, crumbling cliffs, a sandstorm, a flash flood, a dark fortress, ladder towers, sinking snow clouds, a quiet path past sleeping enemies, and a hidden world of colour switches), three bonus levels (an auto-scrolling run, swimming under the sea, a mine-cart ride) and five holiday levels.
+- Holiday levels for Hanukkah, Purim, Pesach, Sukkot and Rosh Hashana, each opened on its days by the Hebrew calendar and playable for good afterwards.
 - Three bosses: the Jelly King, the Frost Giant, and the Jelly King returning in every colour, each with its own entrance and battle music.
 - Three stars in every level, one of them in a secret bonus room with its own challenge.
 - A rideable animal in each world: a charging ram, a camel that walks over spikes, a belly-sliding penguin, and a gliding bird.
@@ -18,7 +19,7 @@ A family-friendly 2D platformer in Hebrew. Tsuki Tsiki sets off on a jumping jou
 - Run and throw a spinning top: Shift
 - Enter a door: Down. Climb: Up
 - Pause: Esc
-- On the map: T for the time trial, B for the shop
+- On the map: T for the time trial, B for the shop, H for the holiday levels, Up for a bonus level
 - Gamepads work too: stick or d-pad to move, A to jump, X or RT to run, Start to pause
 
 ## Phone controls

@@ -67,7 +67,7 @@ Cover image
     cover.png (630x500)
 
 Screenshots
-    screenshots/1-l1.png עד screenshots/5-map_full.png (1920x1080, מהמשחק עצמו)
+    screenshots/1-l1.png עד screenshots/5-h_hanukkah.png (1920x1080, מהמשחק עצמו)
 
 אחרי השמירה הראשונה, בדף העריכה (Edit game > More metadata) כדאי למלא גם:
     Made with: Unity
