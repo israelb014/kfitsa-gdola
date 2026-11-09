@@ -16,7 +16,7 @@ namespace Kfitsa
 
         /// Every sound the game ships. The build compares these with the folder and with the code, and the audio test plays each one.
         public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "freeze", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "pop", "power", "select", "shatter", "shrink", "spring", "stomp", "throw", "win", "wind_rise", "wind_storm" };
-        public static readonly string[] Tracks = { "m_boss", "m_ending", "m_map", "m_title", "m_world1", "m_world2", "m_world3", "m_world4" };
+        public static readonly string[] Tracks = { "m_boss", "m_boss2", "m_boss3", "m_ending", "m_map", "m_title", "m_world1", "m_world2", "m_world3", "m_world4" };
 
         /// Tells the audio test what the game asked to play.
         public static Action<string> Started;
@@ -81,6 +81,7 @@ namespace Kfitsa
         public static void Background(bool away) { if (AudioListener.pause != away) Debug.Log("AUDIO " + (away ? "paused" : "resumed")); AudioListener.pause = away; }
 
         public static void Duck(bool on) { if (on && wind != null) wind.Pause(); if (music != null) music.volume = MusicVolume * (on ? .2f : .6f); }
+        public static string Current => current;
         public static bool MusicPlaying => music != null && music.isPlaying;
         public static void ApplyVolume() { if (music != null) music.volume = MusicVolume * .6f; }
     }

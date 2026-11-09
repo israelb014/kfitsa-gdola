@@ -6,7 +6,7 @@ namespace Kfitsa
     /// Plays one level: fixed-step simulation, camera, and the win and lose flow.
     public partial class Game : MonoBehaviour
     {
-        enum Phase { Intro, Play, Door, Dying, Won }
+        enum Phase { Intro, Play, Door, Dying, Won, BossIntro }
 
         public App app;
         public Grid2 grid;
@@ -17,7 +17,7 @@ namespace Kfitsa
         public readonly List<Block> blocks = new List<Block>();
         public int levelIndex, deaths, hits, levelCoins;
         public float levelTime;
-        public bool paused, god, inRoom, skipIntro;
+        public bool paused, god, inRoom, skipIntro, skipBossIntro;   // skipBossIntro: tests that need the fight at once
         public bool windless;       // tests only: the level without its storm
         public Vector2 lastFall;    // tests only
         public bool Won => phase == Phase.Won;
@@ -107,6 +107,7 @@ namespace Kfitsa
         public void StartLevel(int index, bool keepCheckpoint = false)
         {
             if (!keepCheckpoint || trial) { flagAt = -1; gotStars = 0; }
+            if (!keepCheckpoint || index != deathLevel) { deathXs.Clear(); deathLevel = index; }     // the helper counts the deaths of one visit
             levelIndex = index;
             Unload();
             root = new GameObject("Level").transform;
@@ -228,13 +229,14 @@ namespace Kfitsa
                 int t = app.save.trialTime[levelIndex];
                 app.hud.Hint(4f, Rtl.V("מרוץ נגד השעון!  " + (t > 0 ? "השיא: " + Hud.TimeText(t / 10f) + ", ורוח הרפאים רצה איתך" : "עוד אין שיא")));
             }
+            if (keepCheckpoint && !trial && app.save.helper && NeedsHelp()) PlaceHelpBox();
             paused = false;
         }
 
         public void Unload()
         {
             if (root != null) Destroy(root.gameObject);
-            root = null; grid = null; boss = null; ghostView = null; dark = null; water = null; wind = null; storm = null; chaser = null;
+            root = null; grid = null; boss = null; ghostView = null; helpView = null; helpOn = false; app.hud.BossTitle(null, null, 0); dark = null; water = null; wind = null; storm = null; chaser = null;
             Sound.WindStop(); app.hud.StormShow(Weather.Calm, 0, 0, 0, false);
             enemies.Clear(); pickups.Clear(); blocks.Clear(); coinItems.Clear(); springs.Clear(); tops.Clear(); snowBalls.Clear(); fx.Clear(); sky.Clear(); torches.Clear();
             stars.Clear(); crumbles.Clear(); gates.Clear(); switches.Clear(); colorSwitches.Clear(); belts.Clear(); powerHints.Clear(); lights.Clear();
@@ -364,6 +366,7 @@ namespace Kfitsa
                 if (phaseT > 1.2f && input.jumpPressed || phaseT > 7f) { if (trial) app.TrialDone(); else app.LevelDone(); }
                 return;
             }
+            if (phase == Phase.BossIntro) { StepBossIntro(dt, input); return; }
             if (phase == Phase.Door)
             {
                 phaseT += dt;
@@ -399,6 +402,7 @@ namespace Kfitsa
             StepBoss(dt);
             StepSnowBalls(dt);
             StepItems(dt);
+            StepHelp(dt);
             StepTops(dt);
             input0 = input;
             StepCells();
@@ -610,7 +614,8 @@ namespace Kfitsa
             if (boss == null) return;
             if (!boss.awake)
             {
-                if (hero.x > boss.x - 16) { boss.awake = true; app.hud.BossBar(1, Rtl.V(Def.name)); }
+                if (hero.x > boss.x - 16 && skipBossIntro) { boss.awake = true; app.hud.BossBar(1, Rtl.V(Def.name)); Sound.Music(Def.bossMusic ?? "m_boss"); }
+                else if (hero.x > boss.x - 16) StartBossIntro();
                 return;
             }
             boss.Step(dt * (app.Easy ? .85f : 1), hero.x);
@@ -943,6 +948,7 @@ namespace Kfitsa
         {
             if (phase != Phase.Play) return;
             phase = Phase.Dying; phaseT = 0; deaths++; lastFall = new Vector2(hero.x, hero.y);
+            if (!trial) deathXs.Add(hero.x);
             TouchUi.Current?.Teach(null);
             hero.dead = true; hero.vy = hero.y < 0 ? 17 : 13; hero.vx = 0;
             freeze = .25f;
@@ -1017,6 +1023,8 @@ namespace Kfitsa
             DrawHero(dt);
             foreach (var e in enemies) e.Draw();
             boss?.Draw();
+            if (phase == Phase.BossIntro) DrawBossIntro();
+            DrawHelp();
             foreach (var b in snowBalls) { b.view.transform.position = new Vector3(b.x, b.y + b.h / 2, 0); b.view.transform.rotation = Quaternion.Euler(0, 0, b.spin * -b.vx * 40); }
             foreach (var k in pickups) k.Draw(simT);
             foreach (var p in grid.Platforms) p.view.position = new Vector3(p.x, p.y, 0);

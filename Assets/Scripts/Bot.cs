@@ -301,7 +301,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -321,7 +321,7 @@ namespace Kfitsa
             {
                 if (G.Running) G.Unload();
                 freezeWhen = null;
-                G.skipIntro = true; app.run = new RunState { power = power };
+                G.skipIntro = true; G.skipBossIntro = true; app.run = new RunState { power = power };
                 app.Enter(level);
                 G.paused = false; G.god = true;
                 G.hero.x = x; G.hero.y = y; G.TestStep(1, default);
@@ -369,6 +369,23 @@ namespace Kfitsa
                     if (G.Running) G.Unload();
                     app.hud.Show(false); for (int i = 0; i < app.save.stars.Length; i++) app.save.stars[i] = i < App.MainCount ? 7 : i == App.MainCount ? 5 : 0;
                     app.save.unlocked = App.MainCount + 1; app.mapHold = false; app.ShowMap(); app.MapPageForTest();
+                    break;
+                }
+                case 54:
+                {
+                    app.hud.Show(true); At(10, 140, 2, 1); G.paused = true; G.skipBossIntro = false;
+                    G.hero.x = G.boss.x - 15.9f; G.hero.y = G.boss.y + .5f; G.TestStep(1, default); G.TestStep(160, default); G.DrawNow();
+                    break;
+                }
+                case 55:
+                {
+                    At(0, 20, 2); G.paused = true; app.save.helper = true; app.run.lives = 9;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        int d = G.deaths; G.hero.x = 26; G.hero.y = 2; G.TestStep(1, default); G.FallForTest();
+                        for (int i = 0; i < 900 && !(G.deaths > d && !G.hero.dead); i++) G.TestStep(1, default);
+                    }
+                    G.TestStep(30, default); G.SnapCamera(); G.DrawNow();
                     break;
                 }
                 case 47:
@@ -776,7 +793,7 @@ namespace Kfitsa
         public static void Run(App app, string dir)
         {
             Directory.CreateDirectory(dir); w = new StringWriter();
-            var g = app.game; g.skipIntro = true; var none = new Pad();
+            var g = app.game; g.skipIntro = true; g.skipBossIntro = true; var none = new Pad();
 
             g = Fresh(app); var e = g.TestEnemy('e', 8, 2); Above(g.hero, e); int s0 = app.run.score; bool bounced = false;
             for (int i = 0; i < 30; i++) { g.TestStep(1, none); bounced |= g.hero.vy > 5; }
@@ -1182,6 +1199,51 @@ namespace Kfitsa
                 var kept = Save.Fit(new[] { 7, 3 });
                 Check("an older save keeps its stars when levels are added", kept.Length == Levels.All.Length && kept[0] == 7 && kept[1] == 3 && kept[2] == 0);
                 app.game.Unload();
+            }
+
+            // Version 2.5: the smart helper and the boss entrances
+            {
+                void DieAt(float x)
+                {
+                    var gg = app.game; int d = gg.deaths;
+                    gg.hero.x = x; gg.hero.y = 2; gg.hero.vx = 0; gg.TestStep(1, none); gg.FallForTest();
+                    for (int i = 0; i < 900 && !(gg.deaths > d && !gg.hero.dead); i++) gg.TestStep(1, none);
+                }
+                g = Fresh(app); app.save.helper = true;
+                DieAt(14); DieAt(15);
+                Check("helper: two deaths at one spot bring no help box", !app.game.HelpBoxShown && app.game.DeathsHere == 2);
+                DieAt(14.5f); g = app.game;
+                Check("helper: the third death at the same spot puts a help box by the restart point", g.HelpBoxShown && Mathf.Abs(g.HelpBoxAt.x - g.hero.x) < 3 && app.run.power == 0);
+                g.hero.x = g.HelpBoxAt.x; g.hero.y = g.HelpBoxAt.y - .5f; g.TestStep(2, none);
+                Check("helper: touching the box grows the hero and gives a bubble shield", !g.HelpBoxShown && app.run.power == 1 && app.run.shield && g.HelpGiven == 1);
+                g = Fresh(app); DieAt(12); DieAt(20); DieAt(28);
+                Check("helper: deaths at three different spots bring no help box", !app.game.HelpBoxShown && app.game.DeathsHere == 3);
+                g = Fresh(app); app.save.helper = false; DieAt(14); DieAt(14); DieAt(14);
+                Check("helper: turned off in the settings, no box", !app.game.HelpBoxShown && app.game.DeathsHere == 3);
+                app.save.helper = true; app.game.Unload();
+
+                var bosses = Levels.All.Where(l => l.boss).ToArray();
+                Check("every boss has its own battle music, apart from the level's music", bosses.Length == 3 && bosses.Select(l => l.bossMusic).Distinct().Count() == 3
+                    && bosses.All(l => Array.IndexOf(Sound.Tracks, l.bossMusic) >= 0 && l.music != l.bossMusic && !string.IsNullOrEmpty(l.bossTitle)));
+                foreach (var def in bosses)
+                {
+                    int bi = Array.IndexOf(Levels.All, def);
+                    app.run = new RunState { lives = 9 }; app.game.skipBossIntro = false; app.game.StartLevel(bi); g = app.game; g.god = true;
+                    var b = g.boss; float bx0 = b.x, by0 = b.y;
+                    Check($"{def.file}: the level starts with its world's music", Sound.Current == def.music);
+                    g.hero.x = b.x - 15.9f; g.hero.y = b.y + .5f; g.hero.vx = 0; g.TestStep(1, none);
+                    Check($"{def.file}: coming near starts the boss's entrance, with its own music", g.BossIntroOn && b.awake && Sound.Current == def.bossMusic);
+                    float hx = g.hero.x; g.TestStep(150, new Pad { x = 1, run = true });
+                    Check($"{def.file}: during the entrance the name fills the screen, and nobody moves", g.BossIntroOn && app.hud.BossTitleText == Rtl.V(def.name)
+                        && Mathf.Abs(g.hero.x - hx) < .3f && b.x == bx0 && b.y == by0 && b.hp == Boss.MaxHp);
+                    g.TestStep(Mathf.CeilToInt((Game.BossIntroTime - 1.2f) * Tune.SimHz), none);
+                    Check($"{def.file}: then the fight begins and the name goes away", !g.BossIntroOn && app.hud.BossTitleText == "");
+                }
+                app.run = new RunState { lives = 9 }; app.game.StartLevel(Array.IndexOf(Levels.All, bosses[1])); g = app.game; g.god = true;
+                g.hero.x = g.boss.x - 15.9f; g.hero.y = g.boss.y + .5f; g.TestStep(1, none); g.TestStep(110, none);
+                g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(1, none);
+                Check("a jump skips the rest of the entrance", !g.BossIntroOn);
+                g.god = false; g.skipBossIntro = true; g.Unload();
             }
 
             w.WriteLine(fails == 0 ? "ALL PASS" : fails + " FAILED");

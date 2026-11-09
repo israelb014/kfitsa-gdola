@@ -382,22 +382,23 @@ namespace Kfitsa
                 new MenuItem { label = () => "אפקטים  " + Mathf.RoundToInt(save.sfx * 10), adjust = d => { save.sfx = Mathf.Clamp01(save.sfx + d * .1f); Sound.SfxVolume = save.sfx; Sound.Play("coin"); } },
                 new MenuItem { label = () => "קושי  " + (Easy ? "קל" : "רגיל"), ok = FlipDifficulty, adjust = d => FlipDifficulty() },
                 new MenuItem { label = () => "מסך מלא  " + (save.fullscreen ? "כן" : "לא"), ok = ToggleFull, adjust = d => ToggleFull() },
+                new MenuItem { label = () => "קופסת עזרה  " + (save.helper ? "כן" : "לא"), ok = () => save.helper = !save.helper, adjust = d => save.helper = !save.helper },
                 Item("חזרה", () => { save.Write(); back(); }),
             };
             if (Application.isMobilePlatform) list.RemoveAt(3);
             if (TouchUi.Available) list.Insert(list.Count - 1, Item("שליטה", () => { save.Write(); ShowControls(() => ShowSettings(back)); }));
-            Menu("הגדרות", list, () => { save.Write(); back(); }, TouchUi.Available ? 210 : 120, .35f, !overGame);
+            Menu("הגדרות", list, () => { save.Write(); back(); }, TouchUi.Available ? (list.Count > 6 ? 290 : 250) : 140, .35f, !overGame);
             var help = new Color(.85f, .9f, 1);
             if (TouchUi.Available)
             {
-                Line("הקשה בצד ימין של השורה מגבירה, בצד שמאל מחלישה", 34, -250, help);
-                Line("משמאל זזים    מימין קופצים, רצים וזורקים", 34, -310, help);
-                Line("דלת סודית: כפתור החץ שמופיע ליד הדלת", 34, -370, help);
+                Line("הקשה בצד ימין של השורה מגבירה, בצד שמאל מחלישה", 34, -375, help);
+                Line("משמאל זזים    מימין קופצים, רצים וזורקים", 34, -430, help);
+                Line("דלת סודית: כפתור החץ שמופיע ליד הדלת", 34, -485, help);
                 return;
             }
-            Line("חצים ימינה ושמאלה משנים ערך", 34, -320, help);
-            Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -380, help);
-            Line("דלת סודית: חץ למטה    כוכבים: שלושה בכל שלב, אחד בחדר הסודי", 34, -430, help);
+            Line("חצים ימינה ושמאלה משנים ערך", 34, -340, help);
+            Line("זזים: חצים או WASD    קופצים: Space    רצים וזורקים: Shift", 34, -395, help);
+            Line("דלת סודית: חץ למטה    כוכבים: שלושה בכל שלב, אחד בחדר הסודי", 34, -450, help);
         }
 
         void FlipDifficulty() { save.difficulty = 1 - save.difficulty; save.Write(); }
@@ -455,6 +456,7 @@ namespace Kfitsa
                 "New Platformer Pack, Platformer Characters",
                 "Impact, Digital Audio, Interface, Music Jingles",
                 "מוזיקה: Juhani Junkala - CC0",
+                "מוזיקת בוסים: nene - CC0",
                 "גופן: Rubik - SIL OFL",
                 "נבנה ב-Unity",
             };
@@ -747,6 +749,11 @@ namespace Kfitsa
             bossName = Label(34, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 44), new Vector2(800, 50), bossBar.transform, new Vector2(.5f, .5f));
 
             bannerText = Label(76, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 80), new Vector2(1700, 400), canvas, new Vector2(.5f, .5f));
+            // v2.5: a boss's name in its entrance, large across the screen, with a line under it
+            bossTitle = Label(150, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 230), new Vector2(1900, 220), canvas, new Vector2(.5f, .5f));
+            bossTitle.GetComponent<Outline>().effectDistance = new Vector2(6, -6);
+            bossSub = Label(60, TextAnchor.MiddleCenter, new Vector2(.5f, .5f), new Vector2(0, 90), new Vector2(1800, 90), canvas, new Vector2(.5f, .5f));
+            BossTitle(null, null, 0);
             // The achievement toast: a dark strip at the top with the icon, over the game and the menus alike
             toast = new GameObject("Toast", typeof(Image));
             toast.transform.SetParent(canvas, false);
@@ -825,6 +832,18 @@ namespace Kfitsa
             }
         }
 
+        Text bossTitle, bossSub;
+        public string BossTitleText => bossTitle.gameObject.activeSelf ? bossTitle.text : "";
+        public void BossTitle(string name, string sub, float alpha)
+        {
+            bool on = !string.IsNullOrEmpty(name) && alpha > 0;
+            bossTitle.gameObject.SetActive(on); bossSub.gameObject.SetActive(on);
+            if (!on) return;
+            bossTitle.text = name; bossSub.text = sub;
+            bossTitle.color = new Color(1, .82f, .25f, alpha); bossSub.color = new Color(1, 1, 1, alpha);
+            foreach (var t in new[] { bossTitle, bossSub }) { var o = t.GetComponent<Outline>(); var c = o.effectColor; c.a = alpha; o.effectColor = c; }
+        }
+
         public void Shield(bool on) { if (shieldIcon.enabled != on) shieldIcon.enabled = on; }
         public bool ShieldShown => shieldIcon.enabled;
 
@@ -832,7 +851,7 @@ namespace Kfitsa
 
         public void SafeInFront(bool on) { if (on) safe.SetAsLastSibling(); else safe.SetAsFirstSibling(); }
 
-        public void Show(bool on) { stats.SetActive(on); if (!on) { Banner(""); Fade(0); Hint(0, ""); } }
+        public void Show(bool on) { stats.SetActive(on); if (!on) { Banner(""); Fade(0); Hint(0, ""); BossTitle(null, null, 0); } }
         public void Hint(float seconds, string text) { hintT = seconds; hintText.text = seconds > 0 ? text : ""; }
         public void Tick()
         {

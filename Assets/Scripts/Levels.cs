@@ -6,6 +6,7 @@ namespace Kfitsa
     public class LevelDef
     {
         public string file, name, terrain, sky, music, tip, roomTip;
+        public string bossMusic, bossTitle;     // v2.5: the boss's own battle music, and the line under its name in its entrance
         public int world, stage;
         public bool boss, hidden;      // hidden: the world on the map's second page (v2.4)
         public string Code => boss ? "בוס" : world + "-" + stage;
@@ -38,7 +39,7 @@ namespace Kfitsa
                 tip = "המים עולים ויורדים. עלו למקום גבוה בזמן", roomTip = "המתג מרוקן את הבריכה ומחליף את הקוביות" },
             new LevelDef { file = "w2l3", name = "מצודת הלילה", terrain = "stone", sky = "night", music = "m_world2", world = 2, stage = 3,
                 tip = "חשוך כאן. לפידים ומסועים מראים את הדרך", roomTip = "הדליקו את שלושת הלפידים" },
-            new LevelDef { file = "boss", name = "מלך הג'לי", terrain = "stone", sky = "ember", music = "m_boss", world = 2, stage = 4, boss = true,
+            new LevelDef { file = "boss", name = "מלך הג'לי", terrain = "stone", sky = "ember", music = "m_world2", bossMusic = "m_boss", bossTitle = "שליט הג'לי", world = 2, stage = 4, boss = true,
                 tip = "המלך רודף אחריכם! רוצו!", roomTip = "הביסו את כל הג'לי לפני שהזמן נגמר" },
             new LevelDef { file = "w3l1", name = "מגדל הסולמות", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 1,
                 tip = "חץ למעלה מטפס בסולם ובחבל, וקפיצה עוזבת", roomTip = "מרוץ טיפוס! הגיעו לכוכב לפני שהזמן נגמר" },
@@ -46,7 +47,7 @@ namespace Kfitsa
                 tip = "ענן שלג שוקע כשעומדים עליו. אל תתעכבו", roomTip = "דרכו על כל הג'לי-בלוקים והכוכב יופיע" },
             new LevelDef { file = "w3l3", name = "שביל השקט", terrain = "snow", sky = "snow", music = "m_world3", world = 3, stage = 3,
                 tip = "עכבר ששומע ריצה מעיר את כולם. לידו הולכים לאט, או דורכים עליו", roomTip = "הכוכב מעבר לעכבר. הולכים, לא רצים" },
-            new LevelDef { file = "boss2", name = "ענק הכפור", terrain = "snow", sky = "snow", music = "m_boss", world = 3, stage = 4, boss = true,
+            new LevelDef { file = "boss2", name = "ענק הכפור", terrain = "snow", sky = "snow", music = "m_world3", bossMusic = "m_boss2", bossTitle = "שומר הפסגות", world = 3, stage = 4, boss = true,
                 tip = "הענק זורק קוביות שלג ואז נתקע לרגע. זה הזמן לקפוץ עליו", roomTip = "אספו את כל המטבעות שעל החבלים לפני שהזמן נגמר" },
             // v2.4: the hidden world, open once every star of worlds 1 to 3 is found
             new LevelDef { file = "w4l1", name = "גשר הצבעים", terrain = "purple", sky = "clouds", music = "m_world4", world = 4, stage = 1, hidden = true,
@@ -55,7 +56,7 @@ namespace Kfitsa
                 tip = "הדבורה עפה בשמינייה. החיפושית עפה אחרי הדריכה הראשונה", roomTip = "דרכו על כל החיפושיות. כל אחת צריכה שתי דריכות" },
             new LevelDef { file = "w4l3", name = "אגם הדגים", terrain = "purple", sky = "clouds", music = "m_world4", world = 4, stage = 3, hidden = true,
                 tip = "הדגים קופצים מהמים בקצב קבוע. חכו שהם ירדו", roomTip = "מרוץ! ארבעה מתגים בדרך לכוכב" },
-            new LevelDef { file = "boss3", name = "מלך הג'לי חוזר", terrain = "purple", sky = "clouds", music = "m_boss", world = 4, stage = 4, boss = true, hidden = true,
+            new LevelDef { file = "boss3", name = "מלך הג'לי חוזר", terrain = "purple", sky = "clouds", music = "m_world4", bossMusic = "m_boss3", bossTitle = "עכשיו בכל הצבעים", world = 4, stage = 4, boss = true, hidden = true,
                 tip = "המלך חוזר בצבעים! דרכו עליו רק אחרי המתג בצבע שלו", roomTip = "אספו את המטבעות בכל הצבעים" },
         };
     }

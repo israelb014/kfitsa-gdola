@@ -31,6 +31,7 @@ namespace Kfitsa
         public int[] bestTime = new int[Levels.All.Length];  // v2.2: best finish per level in tenths of a second, 0 = none
         public int[] trialTime = new int[Levels.All.Length]; // v2.3: best time trial per level, tenths, 0 = none
         public string[] ghost = new string[Levels.All.Length];   // v2.3: that run, packed by Ghost
+        public bool helper = true;                           // v2.5: the help box after three deaths at one spot
 
         /// Tests must never touch the player's real progress.
         public static bool Sandbox;
