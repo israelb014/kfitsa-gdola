@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>קפיצה גדולה</title>
-<meta name="description" content="פלטפורמר דו-ממדי בעברית. שלושה עולמות, עולם נסתר, חמישה עשר שלבים ושלושה בוסים.">
+<meta name="description" content="פלטפורמר דו-ממדי בעברית: ארבעה עולמות, שלבי בונוס, שלבי חג ושלושה בוסים. להורדה ל־Android, Linux ו־Windows, וגם ב־itch.io.">
 <style>
 @font-face{font-family:Rubik;src:url(Rubik.ttf) format("truetype");font-weight:300 900;font-display:swap}
 :root{--sky:#bfe3f7;--ink:#17324a;--muted:#47637a;--grass:#1f9d5b;--grass-dark:#14764a;--brick:#c8562d;--brick-dark:#9c3f1e;--code:#14283a}
@@ -26,6 +26,10 @@ h1{font-size:clamp(44px,10vw,76px);line-height:1.1;margin:0;font-weight:800}
 .btn span{display:block}
 .btn small{display:block;font-weight:400;font-size:15px}
 .note{margin:12px 0 0;font-size:15px;color:var(--muted);text-align:center}
+.itch{display:flex;flex-direction:column;align-items:center;gap:16px;margin:-16px 0 40px}
+.btn.itchio{background:#fa5c5c;box-shadow:0 5px 0 #c43f3f;width:100%;max-width:552px}
+.btn.itchio:active{box-shadow:0 2px 0 #c43f3f}
+.itch iframe{display:block;width:100%;max-width:552px;height:167px;border:0;border-radius:10px;background:#fff}
 .shots{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:40px}
 .shots img{display:block;width:100%;height:auto;border-radius:10px;background:#9cc9e6}
 ol{margin:0 0 40px;padding-inline-start:24px}
@@ -55,6 +59,11 @@ footer a{color:inherit}
 <a class="btn win" href="https://github.com/israelb014/kfitsa-gdola/releases/download/v2.9.0/KfitsaGdola-windows.zip"><span>הורדה</span><span dir="ltr">Windows</span><small>71 מגה-בייט</small></a>
 <p class="note">הגרסה הזו נבנתה, אבל עדיין לא נבדקה בהרצה.</p>
 </div>
+</section>
+
+<section class="itch" aria-label="המשחק ב-itch.io">
+<a class="btn itchio" href="https://israelb014.itch.io/kfitsa-gdola"><span>זמין גם ב־<span dir="ltr" style="display:inline">itch.io</span></span><small>אותו משחק, אותן שלוש גרסאות</small></a>
+<iframe src="https://itch.io/embed/5327491?linkback=true" width="552" height="167" title="קפיצה גדולה ב-itch.io" loading="lazy"><a href="https://israelb014.itch.io/kfitsa-gdola">קפיצה גדולה - Kfitsa Gdola by israelb014</a></iframe>
 </section>
 
 <section class="shots" aria-label="תמונות מהמשחק">
