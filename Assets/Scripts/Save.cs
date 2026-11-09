@@ -52,7 +52,7 @@ namespace Kfitsa
                     // New levels are added at the end, so an older save keeps everything it had
                     s.best = Fit(s.best); s.stars = Fit(s.stars); s.found = Fit(s.found); s.bestTime = Fit(s.bestTime); s.trialTime = Fit(s.trialTime); s.ghost = Fit(s.ghost);
                     // A level finished before the next one existed: the next one is open now
-                    while (s.unlocked < Levels.All.Length - 1 && s.best[s.unlocked] > 0) s.unlocked++;
+                    while (s.unlocked < Levels.StoryCount - 1 && s.best[s.unlocked] > 0) s.unlocked++;
                     return s;
                 }
             }

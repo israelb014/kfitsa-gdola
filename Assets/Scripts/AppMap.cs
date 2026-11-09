@@ -31,9 +31,9 @@ namespace Kfitsa
         public int MainStarsMissing { get { int n = 0; for (int i = 0; i < MainCount; i++) n += 3 - Bits(save.stars[i]); return n; } }
         void SetPage()
         {
-            if (mapCursor >= MainCount && !HiddenOpen) mapCursor = MainCount - 1;
-            bool hidden = mapCursor >= MainCount;
-            pageFirst = hidden ? MainCount : 0; pageEnd = hidden ? Levels.All.Length - 1 : MainCount - 1;
+            if (mapCursor >= MainCount && !Levels.All[mapCursor].Bonus && !HiddenOpen) mapCursor = MainCount - 1;
+            bool hidden = mapCursor >= MainCount && !Levels.All[mapCursor].Bonus;
+            pageFirst = hidden ? MainCount : 0; pageEnd = hidden ? Levels.StoryCount - 1 : MainCount - 1;
         }
 
         static int[] secretTotals;
@@ -67,8 +67,45 @@ namespace Kfitsa
         readonly List<(Image icon, Image glow, int level)> mapNodes = new List<(Image, Image, int)>();
         readonly List<float> mapPop = new List<float>();
 
+        // ---- v2.8: bonus stops, above the path between their level and the next ----
+        readonly List<(Image icon, Image glow, int level)> bonusNodes = new List<(Image, Image, int)>();
+        public bool BonusOpen(int level) => Levels.All[level].Bonus && save.best[Levels.ParentOf(level)] > 0;
+        /// Where the hero stands for a level: a bonus stop's hero waits on the path at its parent.
+        int PathStop(int level) => Levels.All[level].Bonus ? Levels.ParentOf(level) : level;
+        Vector2 BonusNode(int level) { int p = Levels.ParentOf(level); return new Vector2((Node(p).x + Node(Mathf.Min(p + 1, pageEnd)).x) / 2, 262); }
+        public static Vector2 BonusNodePos(int level) { int p = Levels.ParentOf(level); return new Vector2((NodePos(p).x + NodePos(p + 1).x) / 2, 262); }
+
+        void BuildBonusStops()
+        {
+            bonusNodes.Clear();
+            if (HiddenPage) return;
+            for (int b = Levels.StoryCount; b < Levels.All.Length; b++)
+            {
+                int p = Levels.ParentOf(b);
+                if (p < pageFirst || p > pageEnd) continue;
+                var at = BonusNode(b);
+                // A short dotted trail up from the path
+                for (int k = 1; k <= 3; k++)
+                {
+                    var dot = hud.Picture("hud_coin", new Vector2(.5f, .5f), Vector2.Lerp(Node(p) + new Vector2(0, 60), at, k / 4f), new Vector2(14, 14));
+                    dot.color = BonusOpen(b) ? Color.white : new Color(.3f, .3f, .35f, .8f); screenObjects.Add(dot.gameObject);
+                }
+                var glow = hud.Picture("bubble", new Vector2(.5f, .5f), at, new Vector2(120, 120)); screenObjects.Add(glow.gameObject);
+                var icon = hud.Picture(!BonusOpen(b) ? "lock_yellow" : save.best[b] > 0 ? "block_empty" : "block_strong_coin", new Vector2(.5f, .5f), at, new Vector2(76, 76));
+                screenObjects.Add(icon.gameObject);
+                bonusNodes.Add((icon, glow, b));
+                if (!BonusOpen(b)) continue;
+                for (int k = 0; k < 3; k++)
+                {
+                    var star = hud.Picture("star", new Vector2(.5f, .5f), at + new Vector2(56, 24 - k * 26), new Vector2(26, 26));
+                    star.color = (save.stars[b] >> k & 1) != 0 ? Color.white : new Color(.12f, .14f, .22f, .75f);
+                    screenObjects.Add(star.gameObject);
+                }
+            }
+        }
+
         int MapLast => Mathf.Min(HiddenPage ? Mathf.Max(save.unlocked, pageFirst) : save.unlocked, pageEnd);
-        public bool MapWalking => Mathf.Abs(mapAt - nodeAt[mapCursor]) > .5f;
+        public bool MapWalking => Mathf.Abs(mapAt - nodeAt[PathStop(mapCursor)]) > .5f;
         public float MapHeroX => mapHero.rectTransform.anchoredPosition.x;
 
         void BuildPath()
@@ -114,7 +151,7 @@ namespace Kfitsa
             int last = MapLast;
             // Coming back from a finished level: the hero starts there, and the new part of the path draws itself
             bool walkOn = mapFrom >= pageFirst && mapFrom < mapCursor;
-            mapAt = nodeAt[walkOn ? mapFrom : mapCursor];
+            mapAt = nodeAt[walkOn ? mapFrom : PathStop(mapCursor)];
             mapReveal = walkOn ? nodeAt[mapFrom] : nodeAt[last];
             mapWait = walkOn ? .6f : 0;
             mapFrom = -1; mapEnter = false;
@@ -169,6 +206,7 @@ namespace Kfitsa
                 count.text = got + "/" + total; count.color = got == total ? new Color(1, .9f, .4f) : Color.white;
                 screenObjects.Add(count.gameObject);
             }
+            BuildBonusStops();
             (mapHero, mapHat) = HeroPicture('s', "stand", Vector2.zero, new Vector2(100, 120));
             if (newOutfit != null) { Line(newOutfit, 40, -245, new Color(1, .86f, .3f)); newOutfit = null; }
             mapInfo = Line("", 52, -300);
@@ -211,7 +249,7 @@ namespace Kfitsa
                 bool open = TrialOpen(mapCursor); int t = save.trialTime[mapCursor];
                 trialBox.color = open ? new Color(.1f, .14f, .26f, .85f) : new Color(.1f, .12f, .18f, .45f);
                 string key = TouchUi.Available ? "" : "  (T)";
-                trialText.text = Rtl.V("מרוץ נגד השעון" + key + "\n" + (!open ? (d.boss ? "לא בשלב בוס" : "מסיימים את השלב קודם") : t > 0 ? "שיא " + Hud.TimeText(t / 10f) : "עוד אין שיא"));
+                trialText.text = Rtl.V("מרוץ נגד השעון" + key + "\n" + (!open ? (d.boss ? "לא בשלב בוס" : d.Bonus ? "לא בשלב בונוס" : "מסיימים את השלב קודם") : t > 0 ? "שיא " + Hud.TimeText(t / 10f) : "עוד אין שיא"));
                 trialText.color = open ? new Color(1, .9f, .45f) : new Color(.7f, .72f, .8f);
             }
             mapInfo.text = Rtl.V($"{d.Code}: {d.name}");
@@ -234,7 +272,7 @@ namespace Kfitsa
             float open = nodeAt[MapLast];
             if (mapWait > 0) mapWait -= dt;
             else if (mapReveal < open) mapReveal = Mathf.Min(open, mapReveal + MapReveal * dt);
-            float target = nodeAt[mapCursor];
+            float target = nodeAt[PathStop(mapCursor)];
             bool walking = mapWait <= 0 && Mathf.Abs(mapAt - target) > .5f;
             int dir = 0;
             if (walking)
@@ -268,6 +306,11 @@ namespace Kfitsa
                 glow.enabled = level == mapCursor;
                 glow.color = new Color(1, .95f, .6f, .35f + .15f * Mathf.Sin(Time.unscaledTime * 4));
             }
+            foreach (var (icon, glow, level) in bonusNodes)
+            {
+                glow.enabled = level == mapCursor;
+                glow.color = new Color(.8f, .95f, 1, .4f + .15f * Mathf.Sin(Time.unscaledTime * 4));
+            }
 
             // Feet on the path between stops, standing on top of the block at a stop
             float near = float.MaxValue;
@@ -293,6 +336,21 @@ namespace Kfitsa
         }
         public static float NodeX(int level) => Layout(level, MainCount).x;
         public static Vector2 NodePos(int level) => Layout(level, MainCount);
+
+        /// Up from a stop to its bonus level, down back to the path.
+        void MapBonus(int dy)
+        {
+            if (dy > 0 && !Levels.All[mapCursor].Bonus)
+            {
+                int b = Levels.BonusOf(mapCursor);
+                if (b < 0 || !BonusOpen(b)) return;
+                mapCursor = b;
+            }
+            else if (dy < 0 && Levels.All[mapCursor].Bonus) mapCursor = Levels.ParentOf(mapCursor);
+            else return;
+            mapEnter = false; Sound.Play("select", .5f); PaintMap();
+        }
+        public void MapBonusForTest(int dy) => MapBonus(dy);
 
         void MapChoose(int to)
         {
@@ -338,6 +396,12 @@ namespace Kfitsa
             if (shopBox != null && RectTransformUtility.RectangleContainsScreenPoint(shopBox.rectTransform, at, null)) { Sound.Play("select"); ShowShop(ShowMap); return; }
             var mid = new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height) / 2;
             float reach = Mathf.Min(115, (MapRight - MapLeft) / Mathf.Max(1, pageEnd - pageFirst) * .55f);
+            foreach (var (icon, _, level) in bonusNodes)
+            {
+                if (!BonusOpen(level) || Vector2.Distance(at, mid + BonusNode(level) * hud.Scale) > 60 * hud.Scale) continue;
+                if (level == mapCursor) MapGo(); else { mapCursor = level; mapEnter = false; Sound.Play("select", .5f); PaintMap(); }
+                return;
+            }
             for (int i = pageFirst; i <= MapLast; i++)
             {
                 if (Vector2.Distance(at, mid + Node(i) * hud.Scale) > reach * hud.Scale) continue;
@@ -349,7 +413,8 @@ namespace Kfitsa
         void MapInput((int x, int y, bool ok, bool back) m)
         {
             // Left moves forward, because the path runs right to left
-            if (m.x != 0) MapChoose(mapCursor - m.x);
+            if (m.x != 0) MapChoose(PathStop(mapCursor) - m.x);
+            if (m.y != 0) MapBonus(m.y);
             if (screen != Screen.Map) return;
             if (m.ok) MapGo();
             else if (GameInput.TrialPressed) MapTrial();

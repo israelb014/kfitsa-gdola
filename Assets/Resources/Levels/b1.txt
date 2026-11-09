@@ -1,0 +1,20 @@
+@idea scroll
+@scroll 3.2
+@easyflag 50 2
+@easyflag 130 2
+@room sprint 9
+                                                                                                                                                                                                        gggggggggggggggggggggggggg
+                                                                                                                                                                                                        gggggggggggggggggggggggggg
+                                                                                                                                                                                                        g                        g
+                                                                                                                                                                                                        g                        g
+                                                                                                                                                         s                                              g                        g
+                                                                                                                                                        ###                                             g                      s g
+                                                                                                                                                                                                        g              ggg   ggggg
+                                                                                                            h                                                                                           g                    ggggg
+                                                 s                                                               ooo         ooo                      n                                                 g         ggg        ggggg
+            !bb!  ooooo                  ooo    ###                              ooo                     b!b                              y     #################    +                  ooooooo         g                    ggggg
+                                                                   e                                                                           ##################                                       g    ggg             ggggg
+                                                               ######## oooooooo                                                              ###################                                       g                    ggggg
+    > S                 e         e                     n      ########                     e     , C         D     #########       e        ####################         n         e             G  %  g E                  ggggg
+#########################################   #####################################   #############################   #########   #############    #######################################################gggggggggggggggggggggggggg
+#########################################   #####################################   #############################   #########   #############    #######################################################Rggggggggggggggggggggggggg

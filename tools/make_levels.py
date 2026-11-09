@@ -4,7 +4,7 @@ Legend: # ground, g stone, X planks, b brick, ? coin block, ! power box, * life 
 P palm, F storm flag, o coin, s star, e slime, n snail, y fly, j frog, p spike slime, B boss, S start, G gate, C checkpoint, D secret door, E room door,
 R room wall, T spring, M/V moving platform, ^ spikes, l lava, w water, | torch, decor , % r k f >,
 { } conveyor left/right, u crumbling block, a/A switch blocks, 1 switch, Q false wall, L room lamp,
-I ladder (its top is a ledge), t rope, Y animal box (v2.7: the animal of the level's world, to ride), q block slime, c sinking snow cloud (each run of c is one cloud), m worm, z mouse (enemies near it sleep until it squeaks).
+I ladder (its top is a ledge), t rope, = rails, ~ saw (v2.8), J swimming fish (v2.8), Y animal box (v2.7: the animal of the level's world, to ride), q block slime, c sinking snow cloud (each run of c is one cloud), m worm, z mouse (enemies near it sleep until it squeaks).
 Lines starting with @ are notes for what tiles cannot say, see Grid2.Note. Each level is built around one idea,
 in three parts: met safely, developed, then combined with a twist."""
 import sys
@@ -536,6 +536,195 @@ def boss3():
     l.put(x0 + 26, 3, 's')
     return l
 
+# ---- v2.8: three bonus levels, each opened from a stop beside the map's path ----
+
+def b1():
+    """Auto-scroll: the screen moves on by itself, and its left edge pushes. Met on open ground with gaps; then
+    steps and a high star that cost time; the twist is stairs up and a long drop while the edge keeps coming."""
+    l = L(226, idea='scroll')
+    l.note('scroll 3.2')
+    l.ground(0, 40, 2); l.put(6, 2, 'S'); l.put(4, 2, '>')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!'); l.line(18, 22, 5); l.put(24, 2, 'e'); l.put(34, 2, 'e')
+    l.ground(44, 62, 2); l.line(41, 43, 5); l.row(48, 50, 5); l.put(49, 6, 's'); l.put(56, 2, 'n')
+    l.ground(63, 70, 4); l.put(67, 4, 'e'); l.ground(71, 80, 2); l.line(72, 79, 3)
+    l.ground(84, 112, 2); l.line(81, 83, 5); l.put(92, 2, 'e'); l.put(100, 2, 'C'); l.put(98, 2, ',')
+    l.put(106, 5, '!'); l.put(105, 5, 'b'); l.put(107, 5, 'b'); l.put(110, 2, 'D'); l.put(108, 7, 'h')
+    l.ground(116, 124, 3); l.line(113, 115, 6); l.ground(128, 140, 2); l.line(125, 127, 6); l.put(132, 2, 'e'); l.put(138, 5, 'y')
+    l.stairs(141, 4, 2, '#'); l.ground(145, 160, 6); l.row(152, 154, 9); l.put(153, 10, 's'); l.put(150, 6, 'n')
+    l.ground(161, 199, 2); l.put(165, 5, '+'); l.put(170, 2, 'n'); l.put(180, 2, 'e'); l.line(184, 190, 5); l.put(194, 2, 'G'); l.put(197, 2, '%')
+    l.note('easyflag 50 2'); l.note('easyflag 130 2')
+    x0, x1 = l.box(200)
+    # Bonus room: a sprint up the shelves to the star before the clock runs out; here the screen stands still
+    l.note('room sprint 9')
+    l.put(x0 + 1, 2, 'E')
+    l.row(x0 + 4, x0 + 6, 4, 'g'); l.row(x0 + 9, x0 + 11, 6, 'g'); l.row(x0 + 14, x0 + 16, 8, 'g')
+    l.ground(x1 - 3, x1, 9, 'g'); l.put(x1 - 1, 9, 's')
+    return l
+
+def b2():
+    """Under the sea: the hero swims, the jump button is a stroke. Met in open water over a floor; then columns to
+    go over and under, with spikes and fish; the twist is a zigzag between pillars, and a low tunnel for a star."""
+    l = L(214, idea='swim')
+    l.note('swim')
+    l.fill(0, 189, 0, 1, '#'); l.fill(0, 189, 13, 14, '#')
+    l.put(5, 2, 'S')
+    l.put(12, 6, '!'); l.put(16, 6, '!'); l.line(20, 26, 8)
+    l.fill(30, 32, 2, 7, '#'); l.line(29, 33, 9); l.put(38, 9, 'J'); l.fill(44, 48, 2, 2, '^'); l.arc(43, 5, 7)
+    l.fill(54, 56, 8, 12, '#'); l.put(62, 4, 'J'); l.fill(66, 70, 2, 3, '#')
+    l.fill(76, 84, 9, 9, '#'); l.put(80, 10, 's'); l.put(88, 6, 'J')
+    l.put(96, 2, 'C'); l.put(104, 6, '!'); l.put(108, 2, 'D'); l.put(102, 9, 'h')
+    l.fill(116, 118, 2, 9, '#'); l.fill(126, 128, 6, 12, '#'); l.put(122, 4, 'J'); l.put(134, 10, 'J')
+    l.fill(138, 146, 2, 2, '^'); l.line(138, 146, 6)
+    l.fill(150, 160, 4, 4, '#'); l.put(155, 2, 's'); l.put(166, 8, 'J'); l.put(172, 5, '+'); l.line(176, 181, 4)
+    l.put(184, 2, 'G')
+    l.note('easyflag 52 2'); l.note('easyflag 164 2')
+    x0, x1 = l.box(190)
+    # Bonus room: dry land; collect every pearl-coin before the clock runs out and the star appears
+    l.note('room pearls 12')
+    l.put(x0 + 1, 2, 'E')
+    l.line(x0 + 4, x0 + 8, 3); l.row(x0 + 10, x0 + 13, 5, 'g'); l.line(x0 + 10, x0 + 13, 6); l.row(x0 + 15, x0 + 18, 8, 'g'); l.line(x0 + 15, x0 + 18, 9)
+    l.line(x1 - 3, x1, 3); l.put(x1 - 1, 5, 's')
+    return l
+
+def b3():
+    """A mine cart that never stops on its own: jump the gaps and the saws. Met on a straight track; then steps the
+    cart stops at and a star over a gap; the twist is saws among gaps, a dip for a star, and a station with the door."""
+    l = L(236, idea='cart')
+    l.note('cart')
+    def track(x0, x1, top): l.ground(x0, x1, top, 'g'); l.row(x0, x1, top, '=')
+    l.fill(0, 209, 13, 14, 'g')
+    track(0, 30, 2); l.put(4, 2, 'S')
+    l.put(12, 5, '!'); l.put(16, 5, '!'); l.line(20, 26, 5)
+    track(35, 60, 2); l.line(31, 34, 6); l.put(45, 2, '~'); l.put(54, 2, 'e')
+    track(61, 70, 4); l.put(73, 8, 's'); track(76, 103, 2); l.line(80, 86, 5); l.put(90, 2, 'C')
+    # The station: a wall stops the cart by the door; after the room, jump the wall and the cart rolls on
+    l.fill(104, 104, 0, 4, 'g'); l.put(103, 2, 'D'); l.put(98, 2, '|'); l.put(99, 6, 'h')
+    track(105, 130, 2); l.put(110, 5, '!'); l.put(118, 2, 'e'); l.put(124, 2, '~')
+    track(137, 150, 3); l.line(131, 136, 7); l.put(144, 3, '~')
+    track(151, 160, 1); l.put(156, 1, 's'); l.put(158, 1, '~')
+    track(161, 206, 3); l.put(170, 6, '+'); l.put(175, 3, 'n'); l.put(184, 3, '~'); l.put(190, 3, 'e'); l.line(193, 197, 6); l.put(200, 3, 'G')
+    l.fill(207, 209, 3, 12, 'g')
+    l.note('easyflag 50 2'); l.note('easyflag 140 3')
+    x0, x1 = l.box(210)
+    # Bonus room: out of the cart; light the three lamps and the star appears
+    l.note('room sparks 0')
+    l.put(x0 + 1, 2, 'E'); l.put(x0 + 3, 2, '|')
+    l.row(x0 + 5, x0 + 8, 5, 'g'); l.put(x0 + 6, 7, 'L'); l.row(x0 + 11, x0 + 14, 8, 'g'); l.put(x0 + 12, 10, 'L'); l.put(x1 - 1, 3, 'L')
+    l.put(x0 + 18, 3, 's')
+    return l
+
+# ---- v2.9: holiday levels, each opened by the Hebrew calendar. "deco x y name" places a holiday picture ----
+
+def hanukkah():
+    """Hanukkah: a dark level where candles show the way and oil jugs are the coins. Met with candles close together;
+    then fewer candles over gaps; the twist is a climb in the dark to the great hanukkiah."""
+    l = L(204, idea='hanukkah')
+    l.note('dark 6')
+    l.ground(0, 34, 2); l.put(6, 2, 'S')
+    for x in (4, 10, 16, 22, 28, 33): l.put(x, 2, '|')
+    l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!'); l.line(18, 24, 5); l.put(26, 2, 'e')
+    l.ground(38, 60, 2); l.put(37, 3, '|'); l.put(44, 2, '|'); l.put(52, 2, '|'); l.put(59, 2, '|'); l.put(48, 2, 'n'); l.line(35, 37, 6)
+    l.row(46, 48, 6); l.put(47, 7, 's')
+    l.ground(64, 70, 4); l.put(67, 4, '|'); l.ground(74, 104, 2); l.put(76, 2, '|'); l.put(84, 2, '|'); l.put(92, 2, 'C'); l.put(96, 2, '|'); l.put(102, 2, '|')
+    l.put(88, 2, 'e'); l.put(98, 5, '!'); l.put(97, 5, 'b'); l.put(99, 5, 'b'); l.put(100, 2, 'D'); l.put(99, 8, 'h'); l.line(71, 73, 7)
+    l.ground(108, 120, 3); l.put(110, 3, '|'); l.put(118, 3, '|'); l.put(114, 3, 'n'); l.line(105, 107, 7)
+    l.stairs(121, 4, 3, '#'); l.ground(125, 140, 7); l.put(128, 7, '|'); l.put(136, 7, '|'); l.row(131, 133, 10); l.put(132, 11, 's'); l.put(134, 7, 'e')
+    l.ground(141, 179, 2); l.put(144, 2, '|'); l.put(152, 2, '|'); l.put(160, 2, '|'); l.put(150, 5, '+'); l.put(156, 2, 'p'); l.line(162, 168, 5)
+    l.put(172, 2, 'G'); l.put(170, 2, '|'); l.put(176, 2, '|')
+    l.note('deco 165 2 h_hanukkiah'); l.note('deco 30 2 h_hanukkiah')
+    l.note('easyflag 50 2'); l.note('easyflag 145 2')
+    x0, x1 = l.box(180)
+    # Bonus room: light the candles one by one and the star appears
+    l.note('room candles 0')
+    l.put(x0 + 1, 2, 'E')
+    l.row(x0 + 4, x0 + 6, 4, 'g'); l.put(x0 + 5, 6, 'L'); l.row(x0 + 9, x0 + 11, 7, 'g'); l.put(x0 + 10, 9, 'L'); l.row(x0 + 14, x0 + 16, 5, 'g'); l.put(x0 + 15, 7, 'L'); l.put(x1 - 1, 3, 'L')
+    l.put(x0 + 19, 3, 's')
+    return l
+
+def purim():
+    """Purim: a costume party. The hero comes in costume, masks are the coins, and springs throw everyone high.
+    Met with one spring; then springs over gaps to balloons; the twist is a chain of springs between enemies."""
+    l = L(206, idea='purim')
+    l.ground(0, 36, 2); l.put(6, 2, 'S'); l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!')
+    l.put(22, 2, 'T'); l.row(20, 24, 9); l.line(20, 24, 10); l.put(30, 2, 'e')
+    l.ground(42, 58, 2); l.put(40, 1, 'T'); l.ground(39, 41, 1); l.line(37, 41, 8); l.put(50, 2, 'n'); l.row(52, 54, 6); l.put(53, 7, 's')
+    l.ground(62, 72, 2); l.put(64, 2, 'T'); l.ground(76, 106, 6); l.put(80, 6, 'e'); l.line(66, 74, 11)
+    l.put(90, 6, 'C'); l.put(98, 9, '!'); l.put(97, 9, 'b'); l.put(99, 9, 'b'); l.put(103, 6, 'D'); l.put(96, 12, 'h')
+    l.ground(107, 116, 2); l.put(110, 2, 'T'); l.put(114, 2, 'e'); l.ground(120, 128, 8); l.put(124, 8, 'n'); l.line(118, 121, 12)
+    l.ground(129, 140, 2); l.put(132, 2, 'T'); l.row(136, 138, 12); l.put(137, 13, 's'); l.put(139, 2, 'e')
+    l.ground(141, 181, 2); l.put(148, 5, '+'); l.put(152, 2, 'j'); l.put(160, 2, 'e'); l.line(163, 169, 5); l.put(174, 2, 'G')
+    l.note('deco 26 2 h_balloons'); l.note('deco 86 6 h_gragger'); l.note('deco 168 2 h_balloons')
+    l.note('easyflag 46 2'); l.note('easyflag 145 2')
+    x0, x1 = l.box(182)
+    # Bonus room: catch every mask before the clock runs out and the star appears
+    l.note('room masks 12')
+    l.put(x0 + 1, 2, 'E')
+    l.line(x0 + 4, x0 + 7, 3); l.row(x0 + 9, x0 + 12, 5, 'g'); l.line(x0 + 9, x0 + 12, 6); l.row(x0 + 14, x0 + 17, 8, 'g'); l.line(x0 + 14, x0 + 17, 9)
+    l.line(x1 - 3, x1, 3); l.put(x1 - 1, 5, 's')
+    return l
+
+def pesach():
+    """Pesach: the sea goes back and forth over low ground, and the way is open only while it is down; matzot are
+    the coins. Met over one short stretch; then longer ones with a ledge halfway; the twist is enemies in the channel."""
+    l = L(210, idea='pesach')
+    l.note('tide -1 5.2 10 26 150')
+    def rock(x0, x1, top=6): l.ground(x0, x1, top); l.stairs(x0 - 2, 2, 2, 'X')
+    l.ground(0, 25, 2); l.put(6, 2, 'S'); l.put(11, 5, '!'); l.put(12, 5, 'b'); l.put(13, 5, 'b'); l.put(14, 5, '!'); rock(20, 25)
+    l.ground(26, 36, 2); rock(37, 42); l.line(28, 35, 3)
+    l.ground(43, 60, 2); rock(61, 66); l.line(45, 58, 3); l.put(50, 2, 'e'); l.row(51, 53, 5); l.put(52, 6, 's')
+    l.ground(67, 90, 2); l.row(76, 79, 5); l.put(77, 6, 'n'); rock(91, 104); l.put(94, 6, 'C'); l.put(98, 9, '!'); l.put(97, 9, 'b'); l.put(99, 9, 'b'); l.put(102, 6, 'D'); l.put(99, 12, 'h')
+    l.ground(105, 128, 2); l.row(113, 115, 5); l.row(121, 123, 5); l.put(118, 2, 'e'); l.put(126, 2, 'n'); rock(129, 150); l.put(140, 9, 's'); l.row(139, 141, 8)
+    l.ground(151, 185, 2); l.put(156, 5, '+'); l.put(162, 2, 'e'); l.line(166, 172, 5); l.put(178, 2, 'G')
+    l.note('deco 133 6 h_cup'); l.note('deco 8 2 h_matzot'); l.note('deco 170 2 h_matzot')
+    l.note('easyflag 63 6'); l.note('easyflag 145 6')
+    x0, x1 = l.box(186)
+    # Bonus room: the afikoman, a race to the hidden star
+    l.note('room afikoman 9')
+    l.put(x0 + 1, 2, 'E')
+    l.row(x0 + 4, x0 + 6, 4, 'g'); l.row(x0 + 9, x0 + 11, 6, 'g'); l.row(x0 + 14, x0 + 16, 8, 'g'); l.ground(x1 - 3, x1, 9, 'g'); l.put(x1 - 1, 9, 's')
+    return l
+
+def sukkot():
+    """Sukkot: clouds of glory, the sinking clouds of world 3, between sukkot; etrogs are the coins. Met over a ditch;
+    then over pits; the twist is clouds up and down with enemies on the islands."""
+    l = L(204, 18, 'sukkot')
+    def cloud(x0, x1, y): l.row(x0, x1, y, 'c')
+    l.ground(0, 30, 3); l.put(6, 3, 'S'); l.put(12, 6, '!'); l.put(13, 6, 'b'); l.put(14, 6, 'b'); l.put(15, 6, '!'); l.put(24, 3, 'e')
+    l.ground(31, 45, 1); l.stairs(43, 2, 1, '#'); cloud(34, 36, 2); cloud(39, 41, 2); l.line(34, 36, 5); l.line(39, 41, 5)
+    l.ground(45, 62, 3); l.put(52, 3, 'n'); l.row(56, 58, 7); l.put(57, 8, 's')
+    cloud(66, 68, 3); cloud(72, 74, 5); cloud(78, 80, 3); l.arc(76, 8, 5)
+    l.ground(85, 112, 3); l.put(90, 3, 'C'); l.put(96, 6, '!'); l.put(95, 6, 'b'); l.put(97, 6, 'b'); l.put(104, 3, 'D'); l.put(100, 3, 'e'); l.put(98, 9, 'h')
+    cloud(117, 119, 4); cloud(123, 124, 6); cloud(128, 130, 8); l.put(129, 12, 's'); cloud(134, 136, 6)
+    l.ground(140, 178, 3); l.put(146, 6, '+'); l.put(152, 3, 'e'); l.put(160, 3, 'n'); l.line(163, 169, 6); l.put(172, 3, 'G')
+    l.note('deco 18 3 h_sukkah'); l.note('deco 150 3 h_sukkah'); l.note('deco 108 3 h_lulav')
+    l.note('easyflag 48 3'); l.note('easyflag 142 3')
+    x0, x1 = l.box(179)
+    # Bonus room: a race past the lulav to the star
+    l.note('room lulav 9')
+    l.put(x0 + 1, 2, 'E')
+    l.row(x0 + 4, x0 + 6, 4, 'g'); l.row(x0 + 9, x0 + 11, 6, 'g'); l.row(x0 + 14, x0 + 16, 8, 'g'); l.ground(x1 - 3, x1, 9, 'g'); l.put(x1 - 1, 9, 's')
+    return l
+
+def roshhashana():
+    """Rosh Hashana: apples for coins, and bees around the hives with their honey. Met with one bee over safe ground;
+    then bees over gaps; the twist is a climb on small ledges between bees to the shofar."""
+    l = L(206, idea='roshhashana')
+    l.ground(0, 36, 2); l.put(6, 2, 'S'); l.put(12, 5, '!'); l.put(13, 5, 'b'); l.put(14, 5, 'b'); l.put(15, 5, '!'); l.put(26, 3, 'W'); l.line(20, 24, 5)
+    l.ground(40, 62, 2); l.line(37, 39, 6); l.put(48, 3, 'W'); l.put(56, 2, 'e'); l.row(50, 52, 6); l.put(51, 7, 's')
+    l.ground(66, 76, 3); l.put(70, 4, 'W'); l.ground(80, 108, 2); l.line(77, 79, 6); l.put(86, 2, 'n')
+    l.put(94, 2, 'C'); l.put(100, 5, '!'); l.put(99, 5, 'b'); l.put(101, 5, 'b'); l.put(105, 2, 'D'); l.put(100, 8, 'h')
+    l.ground(112, 120, 2); l.put(116, 3, 'W'); l.row(124, 126, 4); l.row(129, 131, 6); l.row(134, 136, 8); l.put(130, 9, 'W'); l.put(135, 9, 's')
+    l.ground(139, 180, 2); l.put(146, 5, '+'); l.put(152, 2, 'e'); l.put(160, 3, 'W'); l.line(163, 169, 5); l.put(174, 2, 'G')
+    l.note('deco 30 2 h_honey'); l.note('deco 90 2 h_pomegranate'); l.note('deco 170 2 h_shofar')
+    l.note('easyflag 46 2'); l.note('easyflag 142 2')
+    x0, x1 = l.box(182)
+    # Bonus room: collect every apple before the clock runs out and the star appears
+    l.note('room honey 12')
+    l.put(x0 + 1, 2, 'E')
+    l.line(x0 + 4, x0 + 7, 3); l.row(x0 + 9, x0 + 12, 5, 'g'); l.line(x0 + 9, x0 + 12, 6); l.row(x0 + 14, x0 + 17, 8, 'g'); l.line(x0 + 14, x0 + 17, 9)
+    l.line(x1 - 3, x1, 3); l.put(x1 - 1, 5, 's')
+    return l
+
 def test():
     """Not a real level: one open floor with everything the self test needs at known places."""
     l = L(120, idea='test')
@@ -553,5 +742,5 @@ def test():
     return l
 
 out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
-for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('boss2',boss2),('w4l1',w4l1),('w4l2',w4l2),('w4l3',w4l3),('boss3',boss3),('test',test)):
+for n, f in (('w1l1',w1l1),('w1l2',w1l2),('w1l3',w1l3),('w2l1',w2l1),('w2l2',w2l2),('w2l3',w2l3),('boss',boss),('w3l1',w3l1),('w3l2',w3l2),('w3l3',w3l3),('boss2',boss2),('w4l1',w4l1),('w4l2',w4l2),('w4l3',w4l3),('boss3',boss3),('b1',b1),('b2',b2),('b3',b3),('hanukkah',hanukkah),('purim',purim),('pesach',pesach),('sukkot',sukkot),('roshhashana',roshhashana),('test',test)):
     f().save(n, out)

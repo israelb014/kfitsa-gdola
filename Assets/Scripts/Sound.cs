@@ -16,7 +16,7 @@ namespace Kfitsa
 
         /// Every sound the game ships. The build compares these with the folder and with the code, and the audio test plays each one.
         public static readonly string[] Effects = { "brick", "bump", "coin", "disappear", "freeze", "gameover", "gem", "hurt", "jump", "jump-high", "lose", "magic", "pop", "power", "select", "shatter", "shrink", "spring", "stomp", "throw", "win", "wind_rise", "wind_storm" };
-        public static readonly string[] Tracks = { "m_boss", "m_boss2", "m_boss3", "m_ending", "m_map", "m_title", "m_world1", "m_world2", "m_world3", "m_world4" };
+        public static readonly string[] Tracks = { "m_boss", "m_boss2", "m_boss3", "m_ending", "m_map", "m_title", "m_world1", "m_world2", "m_world3", "m_world4", "m_bonus" };
 
         /// Tells the audio test what the game asked to play.
         public static Action<string> Started;

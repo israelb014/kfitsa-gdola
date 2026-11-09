@@ -36,6 +36,7 @@ namespace Kfitsa
             app.run = new RunState { lives = 99, power = power };
             G.god = !enemies ? false : true;
             G.tidy = !enemies;
+            G.noScroll = !enemies;      // v2.8: routes found without the moving screen are replayed without it
             G.StartLevel(level);
             if (!enemies) G.RemoveEnemies();
         }
@@ -81,7 +82,7 @@ namespace Kfitsa
             app.save.difficulty = 1; Full(def, index, true); app.save.difficulty = 0;
             Ride(def, index);
             // v2.3: the time trial of the level, on the small hero's way to the gate
-            if (!def.boss && trialRoute != null)
+            if (!def.boss && !def.Bonus && trialRoute != null)
             {
                 app.save.trialTime[index] = 0; app.save.ghost[index] = null;
                 app.run = new RunState { lives = 1 }; G.god = false; G.tidy = true; G.trial = true; G.StartLevel(index);
@@ -245,7 +246,7 @@ namespace Kfitsa
                     $"{G.EnemyCount - room} of {total}, {G.FlagCount} flags");
             }
             int plans = 0;
-            while (G.Running && !G.Won && G.levelTime < 400 && plans < 10)
+            while (G.Running && !G.Won && G.levelTime < 400 && plans < (G.grid.ScrollSpeed > 0 ? 80 : 10))     // the moving screen bumps the bot off its plan often
             {
                 plans++;
                 if (G.boss != null && G.boss.alive && G.hero.x > G.boss.x - 24) { FightBoss(); continue; }
@@ -321,7 +322,7 @@ namespace Kfitsa
     {
         App app; string dir; int step; float t; bool shot;
         static readonly string[] Names = { "title", "map", "scores", "settings", "credits", "ending", "pause", "l1", "l1room", "l2", "l3", "l3top", "l4", "l5", "l5flood", "l6", "l6belts", "l7", "l7arena", "power", "controls", "difficulty", "intro",
-            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop", "ride_ram", "ride_camel", "ride_penguin", "ride_bird" };
+            "flag_storm", "frost", "dust_shield", "boss_warn", "boss_shadow", "hand", "map_walk", "map_full", "w3l1", "w3l1_ladder", "w3l1_rope", "world_cleared", "w3l2_clouds", "w3l2_worm", "w3l3_sleepers", "w3l3_squeak", "boss2_throw", "boss2_stuck", "wardrobe", "outfit_game", "outfit_map", "achievements", "toast", "win_time", "trial_map", "trial_ghost", "w4l1", "w4l2", "w4l3", "boss3", "map_hidden", "boss_intro", "help_box", "shop", "wardrobe_shop", "ride_ram", "ride_camel", "ride_penguin", "ride_bird", "bonus_scroll", "bonus_sea", "bonus_cart", "map_bonus" };
         Func<bool> freezeWhen;     // stops the game on the exact frame worth capturing
 
         public void Begin(App a, string captureDir) { app = a; dir = captureDir; Directory.CreateDirectory(dir); app.ShowTitle(); t = 1.5f; }
@@ -430,6 +431,26 @@ namespace Kfitsa
                     if (k == 3) { G.hero.y = 9; G.hero.vy = 0; G.hero.grounded = false; G.TestStep(30, new Pad { x = 1, jumpHeld = true }); }
                     if (k == 0) G.TestStep(30, new Pad { x = 1 });
                     G.SnapCamera(); G.DrawNow(); app.hud.Hint(0, "");
+                    break;
+                }
+                case 62: case 63: case 64:
+                {
+                    app.hud.Show(true); Outfit.Hat = Outfit.Pant = 0;
+                    string[] file = { "b1", "b2", "b3" }; float[] x = { 46, 40, 112 }, y = { 2, 6, 2 };
+                    At(Array.FindIndex(Levels.All, l => l.file == file[step - 62]), x[step - 62], y[step - 62]); G.paused = true;
+                    if (step == 62) { G.ScrollLeft = 38; G.TestStep(60, new Pad { x = 1 }); }
+                    if (step == 63) G.TestStep(20, new Pad { x = 1, jumpPressed = true });
+                    if (step == 64) G.TestStep(20, default);
+                    G.SnapCamera(); G.TestStep(1, default); G.DrawNow(); app.hud.Hint(0, "");
+                    break;
+                }
+                case 65:
+                {
+                    if (G.Running) G.Unload();
+                    app.hud.Show(false); app.mapHold = false; app.save.unlocked = 9;
+                    for (int i = 0; i < 10; i++) { app.save.best[i] = 900; app.save.stars[i] = 7; }
+                    int bb = Array.FindIndex(Levels.All, l => l.file == "b2"); app.save.best[Array.FindIndex(Levels.All, l => l.file == "b1")] = 500; app.save.stars[bb - 1] = 3;
+                    app.MapTestFinished(3); app.MapTestTick(3); app.MapBonusForTest(1); app.MapTestTick(.2f);
                     break;
                 }
                 case 47:
@@ -1048,7 +1069,7 @@ namespace Kfitsa
             // Version 2.4: the land of colours
             {
                 int c1 = Array.FindIndex(Levels.All, l => l.file == "w4l1"), k3 = Array.FindIndex(Levels.All, l => l.file == "boss3");
-                Check("colours: four hidden levels after the frost giant", Levels.All.Length == App.MainCount + 4 && Levels.All[App.MainCount - 1].file == "boss2" && c1 == App.MainCount && Levels.All[k3].hidden);
+                Check("colours: four hidden levels after the frost giant", Levels.StoryCount == App.MainCount + 4 && Levels.All[App.MainCount - 1].file == "boss2" && c1 == App.MainCount && Levels.All[k3].hidden);
                 app.run = new RunState { lives = 9 }; app.game.skipIntro = true; app.game.StartLevel(c1); g = app.game; g.god = true;
                 Check("colours: a level starts red, so red blocks are solid and blue ones open", g.world.sw == 0 && g.grid.Solid(24, 5) && !g.grid.Solid(45, 1));
                 g.hero.x = 18.5f; g.hero.y = 2; g.hero.vx = 0; g.SnapCamera(); g.TestStep(10, none);
@@ -1288,6 +1309,49 @@ namespace Kfitsa
                 g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(1, none);
                 Check("a jump skips the rest of the entrance", !g.BossIntroOn);
                 g.god = false; g.skipBossIntro = true; g.Unload();
+            }
+
+            // Version 2.8: the bonus levels
+            {
+                int b1 = Array.FindIndex(Levels.All, l => l.file == "b1"), b2 = Array.FindIndex(Levels.All, l => l.file == "b2"), b3 = Array.FindIndex(Levels.All, l => l.file == "b3");
+                Check("bonus: three levels after the story, each opened by a level of worlds 1 to 3", b1 == Levels.StoryCount && b2 == b1 + 1 && b3 == b2 + 1
+                    && Levels.ParentOf(b1) == 2 && Levels.ParentOf(b2) == 4 && Levels.ParentOf(b3) == 8 && Levels.BonusOf(2) == b1);
+                app.run = new RunState { lives = 9 }; app.game.StartLevel(b2); g = app.game; g.RemoveEnemies();
+                int seaDeaths = g.deaths; g.hero.x = 10; g.hero.y = 6; g.hero.vy = 0; g.TestStep(120, none); float sank = 6 - g.hero.y;
+                Check($"sea: the hero sinks slowly in the water ({sank:F1} tiles in a second)", g.hero.swimming && sank > 1.5f && sank < 4 && g.deaths == seaDeaths);
+                float by0 = g.hero.y; g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(30, none);
+                Check("sea: the jump button is a stroke up", g.hero.y > by0 + .8f);
+                g.hero.x = 18; g.hero.y = 10; g.TestStep(1, none); float bx0 = g.hero.x; g.TestStep(120, new Pad { x = 1 });
+                Check($"sea: swimming is slower than walking ({g.hero.x - bx0:F1} tiles in a second)", g.hero.x - bx0 > 2.5f && g.hero.x - bx0 < Tune.WalkSpeed);
+                g.Unload(); app.run = new RunState { lives = 9 }; app.game.StartLevel(b3); g = app.game; g.RemoveEnemies(); g.god = true;
+                g.hero.x = 80; g.hero.y = 2; g.TestStep(1, none); bx0 = g.hero.x; g.TestStep(60, none);
+                Check($"cart: rolls on by itself ({(g.hero.x - bx0) * 2:F1} tiles a second)", Mathf.Abs((g.hero.x - bx0) * 2 - Player.CartSpeed) < .3f && g.InCart);
+                g.TestStep(300, none);
+                Check($"cart: a wall stops it at the station ({g.hero.x:F1})", g.hero.x > 103 && g.hero.x < 104 && g.hero.vx >= 0);
+                g.TestStep(1, new Pad { jumpPressed = true, jumpHeld = true }); g.TestStep(90, new Pad { jumpHeld = true });
+                Check("cart: a jump clears the wall and it rolls on", g.hero.x > 106);
+                g.god = false; g.Unload(); app.run = new RunState { lives = 9 }; app.game.StartLevel(b1); g = app.game; g.RemoveEnemies();
+                g.hero.x = 20; g.hero.y = 2; g.TestStep(1, none); float bleft0 = g.ScrollLeft; g.TestStep(240, none);
+                Check($"scroll: the screen moves on by itself ({g.ScrollLeft - bleft0:F1} tiles in 2 seconds)", Mathf.Abs(g.ScrollLeft - bleft0 - 6.4f) < .3f);
+                g.TestStep(600, none);
+                Check("scroll: its edge pushes a hero who stands still", g.hero.x >= g.ScrollLeft + g.hero.w / 2 - .05f && g.hero.x > 21);
+                int bd0 = g.deaths; g.hero.x = 62.4f; g.hero.y = 2; g.hero.vx = 0; g.ScrollLeft = 59; g.TestStep(240, none);
+                Check("scroll: pushed into a wall, the hero is lost", g.deaths == bd0 + 1);
+                g.Unload();
+                var bkeepS = app.save; app.save = new Save(); app.save.unlocked = 4;
+                Check("bonus: shut until its level is finished", !app.BonusOpen(b1));
+                app.save.best[2] = 500;
+                Check("bonus: open once it is", app.BonusOpen(b1) && !app.BonusOpen(b2) && !app.TrialOpen(b1));
+                app.mapHold = true; app.MapTestFinished(1); app.MapTestTick(3);
+                app.MapBonusForTest(1);
+                Check("bonus: up on the map from its level chooses it", app.MapCursor == b1);
+                app.MapTestTick(.1f, 0, true); app.MapTestTick(1);
+                Check("bonus: and plays it", app.ScreenName == "Playing" && app.game.levelIndex == b1);
+                app.game.WinForTest(); app.LevelDone();
+                Check($"bonus: finishing it opens nothing new and goes back to its stop ({app.save.unlocked} {app.MapCursor} {app.ScreenName} {app.save.best[b1]})", app.save.unlocked == 4 && app.MapCursor == b1 && app.ScreenName == "Map" && app.save.best[b1] > 0);
+                app.MapBonusForTest(-1);
+                Check("bonus: down goes back to the path", app.MapCursor == 2);
+                app.mapHold = false; app.save = bkeepS;
             }
 
             // Version 2.7: animals to ride

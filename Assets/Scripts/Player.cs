@@ -16,6 +16,9 @@ namespace Kfitsa
         // v2.7, a ridden animal: the camel jumps higher, the bird glides. Left at 1 and false for the search.
         public float jumpScale = 1; public bool glide;
         public const float GlideFall = 3f;
+        // v2.8: under the sea the jump button is a stroke and the hero sinks slowly; in a mine cart the hero rolls on by itself
+        public bool swimming;
+        public const float SwimGravity = 11f, SwimSink = 3.2f, SwimStroke = 6.8f, SwimSpeed = 4.4f, SwimFast = 5.8f, SwimAccel = 10f, CartSpeed = 8.5f;
 
         float coyote, buffer, riseGravity = Tune.RiseGravity, fallStartVy;
         bool wasGrounded = true;
@@ -39,6 +42,8 @@ namespace Kfitsa
             invuln = Mathf.Max(0, invuln - dt);
             coyote -= dt; buffer -= dt; grabWait -= dt;
             if (p.jumpPressed) buffer = Tune.JumpBuffer;
+            swimming = grid.SwimAt(x);
+            if (swimming) { Swim(dt, p); return; }
             if (!climbing && CanGrab(p)) Grab(p);
             if (climbing) { Climb(dt, p); return; }
 
@@ -47,8 +52,29 @@ namespace Kfitsa
             Vertical(dt, p);
         }
 
+        void Swim(float dt, Pad p)
+        {
+            float max = p.run ? SwimFast : SwimSpeed;
+            vx = Mathf.MoveTowards(vx, p.x * max, SwimAccel * dt);
+            if (p.x != 0) facing = (int)p.x;
+            skidding = false; climbing = false; jumping = false;
+            MoveX(vx * dt);
+            if (buffer > 0) { vy = SwimStroke; buffer = 0; onJump?.Invoke(); }
+            float sink = p.down ? SwimSink * 1.8f : SwimSink;
+            vy = Mathf.Max(vy - SwimGravity * (p.down ? 2 : 1) * dt, -sink);
+            MoveY(vy * dt);
+            wasGrounded = grounded;
+        }
+
         void Horizontal(float dt, Pad p)
         {
+            if (grid.CartAt(x))
+            {
+                // The cart rolls on to the right at one speed, in the air too; a wall stops it until a jump clears it
+                vx = CartSpeed; facing = 1; skidding = false;
+                if (MoveX(vx * dt) && !grounded) LedgeStep(1, CartSpeed);
+                return;
+            }
             float dir = p.x, max = p.run ? Tune.RunSpeed : Tune.WalkSpeed, rate;
             skidding = false;
             if (grounded)

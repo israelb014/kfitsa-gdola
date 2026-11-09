@@ -35,7 +35,7 @@ namespace Kfitsa
 
     public class Enemy : Body
     {
-        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime, m worm, z mouse; v2.4: W bee, K ladybug, N fish
+        public char kind;              // e slime, n snail, y fly, j frog, p spike slime, q block slime, m worm, z mouse; v2.4: W bee, K ladybug, N fish; v2.8: J swimming fish
         public SpriteRenderer view;
         public bool awake, alive = true, flying;
         public int state;              // snail: 0 walking, 1 in shell, 2 sliding
@@ -54,6 +54,7 @@ namespace Kfitsa
         {
             baseX = x; baseY = y + 2;
             if (kind == 'y' || kind == 'W') y = baseY;
+            if (kind == 'J') { baseY = y + .2f; y = baseY; t = Mathf.Repeat(x * .41f, 1) * 9; }
             if (kind == 'N') { baseY = y; t = Mathf.Repeat(x * .37f, 1) * FishPeriod; y = baseY - 1.8f; }
             if (kind == 'm') t = Mathf.Repeat(x * .618f, 1) * WormPeriod;     // neighbours keep different times
         }
@@ -114,6 +115,12 @@ namespace Kfitsa
                         return;
                     }
                     break;
+                case 'J':
+                    // Swims back and forth along its row, bobbing a little
+                    float fx = baseX + Mathf.Sin(t * .7f) * 3f;
+                    dir = fx > x ? 1 : -1;
+                    x = fx; y = baseY + Mathf.Sin(t * 1.3f) * .3f;
+                    return;
                 case 'y':
                     float nx = baseX + Mathf.Sin(t * .9f) * 3.5f;
                     dir = nx > x ? 1 : -1;
@@ -177,6 +184,7 @@ namespace Kfitsa
                 case 'j': view.sprite = Art.Feet(!alive ? "frog_rest" : grounded ? "frog_idle" : "frog_jump"); break;
                 case 'z': view.sprite = Art.Feet(!alive ? "mouse_rest" : scared ? ((int)(t * 12) % 2 == 0 ? "mouse_walk_a" : "mouse_walk_b") : "mouse_rest"); break;
                 case 'm': view.sprite = Art.Feet(!alive ? "worm_normal_rest" : Out ? (a ? "worm_normal_move_a" : "worm_normal_move_b") : "worm_normal_rest"); view.sortingOrder = alive ? -1 : 5; break;
+                case 'J': view.sprite = Art.Feet(!alive ? "fish_blue_rest" : (int)(t * 5) % 2 == 0 ? "fish_blue_swim_a" : "fish_blue_swim_b"); break;
                 case 'W': view.sprite = Art.Feet(!alive ? "bee_rest" : (int)(t * 14) % 2 == 0 ? "bee_a" : "bee_b"); break;
                 case 'K': view.sprite = Art.Feet(!alive ? "ladybug_rest" : state == 1 ? "ladybug_fly" : a ? "ladybug_walk_a" : "ladybug_walk_b"); break;
                 case 'N': view.sprite = Art.Feet(!alive ? "fish_purple_rest" : dir > 0 ? "fish_purple_up" : "fish_purple_down"); view.flipX = false; view.sortingOrder = alive ? -1 : 5; break;

@@ -1,0 +1,20 @@
+@idea cart
+@cart
+@easyflag 50 2
+@easyflag 140 3
+@room sparks 0
+gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+                                                                                                                                                                                                               gggg                        g
+                                                                                                                                                                                                               gggg                        g
+                                                                                                                                                                                                               gggg            L           g
+                                                                                                                                                                                                               gggg                        g
+                                                                         s                                                                                                                                     gggg           gggg         g
+                                                                                                                                   oooooo                                                                      gggg      L                 g
+                               oooo                                                                h                                                                      +                      ooooo         gggg                        g
+            !   !   ooooooo                                                     ooooooo                       !                                                                                                gggg     gggg               g
+                                                             ==========                                 g                                                                                                      gggg                        g
+                                                             gggggggggg                                 g                                =======~======          ==============n========~=====e=========G======gggg                  s   L g
+====S==========================    ==========~========e======gggggggggg     ==============C=======|====Dg=============e=====~======      gggggggggggggg          gggggggggggggggggggggggggggggggggggggggggggggg   g E |                    g
+ggggggggggggggggggggggggggggggg    gggggggggggggggggggggggggggggggggggg     ggggggggggggggggggggggggggggggggggggggggggggggggggggggg      gggggggggggggg=====s=~==gggggggggggggggggggggggggggggggggggggggggggggg   gggggggggggggggggggggggggg
+ggggggggggggggggggggggggggggggg    gggggggggggggggggggggggggggggggggggg     ggggggggggggggggggggggggggggggggggggggggggggggggggggggg      gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg   Rggggggggggggggggggggggggg

@@ -196,6 +196,7 @@ namespace Kfitsa
             if (grid.HasDoor) PlaceDoor(grid.Door);
             if (grid.HasRoomDoor) PlaceDoor(grid.RoomDoor);
             BuildGate();
+            BuildBonus();
             if (grid.HasBoss)
             {
                 bool giant = Def.terrain == "snow", colours = grid.ColorSwitches.Count > 0;
@@ -395,6 +396,8 @@ namespace Kfitsa
             if (world.sw != switchWas) { Sound.Play("bump"); PaintGates(); }
             float wall = CamLeft + hero.w / 2;
             if (hero.x < wall) { hero.x = wall; if (hero.vx < 0) hero.vx = 0; }
+            if (Scrolling && hero.x > CamLeft + 2 * HalfW - hero.w / 2) { hero.x = CamLeft + 2 * HalfW - hero.w / 2; if (hero.vx > 0) hero.vx = 0; }
+            if (Crushed()) { ForceDie(); return; }      // v2.8: the moving edge pushed the hero into a wall
             if (hero.grounded) stompChain = 0;
 
             if (input.runPressed && hero.shooter || input.throwPressed && hero.shooter) Throw();
@@ -525,6 +528,7 @@ namespace Kfitsa
             float next = camX + (target - camX) * (1 - Mathf.Exp(-Tune.CamFollow * dt));
             SetCamBounds();
             camX = Mathf.Clamp(next, camMin, camMax);   // free both ways, so a missed star can be gone back for
+            if (Scrolling) { StepScroll(dt); camX = Mathf.Clamp(scrollX + HalfW, camMin, camMax); }
             // Tall levels: keep the hero a little below the middle, and follow faster on the way down
             float wantY = hero.y + 2.5f;
             camY += (wantY - camY) * (1 - Mathf.Exp(-(wantY < camY ? 9f : 5f) * dt));
@@ -603,7 +607,7 @@ namespace Kfitsa
                 {
                     if (e.kind == 'n') { e.state = 1; e.shellT = 6; }
                     else if (e.kind == 'q') BecomeBlock(e);
-                    else if (e.kind == 'y' || e.kind == 'W' || e.kind == 'N' || e.kind == 'K' && e.state == 1) { e.alive = false; e.flying = true; e.vy = 0; }
+                    else if (e.kind == 'y' || e.kind == 'W' || e.kind == 'N' || e.kind == 'J' || e.kind == 'K' && e.state == 1) { e.alive = false; e.flying = true; e.vy = 0; }
                     else if (e.kind == 'K' && e.state == 0) { e.TakeOff(); e.safe = .3f; }       // a ladybug flies after the first stomp
                     else { e.alive = false; e.flat = .45f; }
                     Stomped();
@@ -1043,6 +1047,7 @@ namespace Kfitsa
 
             DrawHero(dt);
             DrawRide(dt);
+            DrawBonus(dt);
             foreach (var e in enemies) e.Draw();
             boss?.Draw();
             if (phase == Phase.BossIntro) DrawBossIntro();
@@ -1237,7 +1242,7 @@ namespace Kfitsa
             float sy = 1 + squash + stretch, sx = 1 - (squash + stretch) * .7f;
             float gone = phase == Phase.Won ? 1 - heroGone : 1;
             heroView.transform.localScale = new Vector3(sx * gone, sy * gone, 1);
-            heroView.transform.position = new Vector3(hero.x, hero.y + seatUp * gone, 0);
+            heroView.transform.position = new Vector3(hero.x, hero.y + seatUp * gone + CartLift, 0);
             heroView.transform.localEulerAngles = new Vector3(0, 0, storm != null ? storm.HeroTilt : 0);
             heroView.sortingOrder = storm != null ? storm.HeroOrder : 10;
             heroView.enabled = hero.invuln <= 0 || (int)(simT * 14) % 2 == 0;

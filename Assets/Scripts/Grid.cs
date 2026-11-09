@@ -19,9 +19,14 @@ namespace Kfitsa
         public int Sw;               // state of the switch blocks; World keeps it in step
         public string Idea = "", RoomMode = "";
         /// Rooms where the coins are the challenge: "coins" on the floor, "ropes" along climbing ropes (v2.0).
-        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes" || RoomMode == "paint";
+        public bool RoomCoins => RoomMode == "coins" || RoomMode == "ropes" || RoomMode == "paint" || RoomMode == "pearls";
         /// v2.4: the lamps room behind colour blocks, and the ladybug room, work like the earlier ones.
-        public bool RoomLamps => RoomMode == "lights" || RoomMode == "beacons";
+        public bool RoomLamps => RoomMode == "lights" || RoomMode == "beacons" || RoomMode == "sparks";
+        /// v2.8, the bonus levels: the screen moves on by itself; the hero swims; the hero rides a mine cart. Only in the main part.
+        public float ScrollSpeed; public bool Swim, Cart;
+        public bool SwimAt(float x) => Swim && x < MainW;
+        public bool CartAt(float x) => Cart && x < MainW;
+        public readonly List<(int c, int r)> Saws = new List<(int, int)>();
         public bool RoomStomp => RoomMode == "stomp" || RoomMode == "blocks" || RoomMode == "bugs";
         public float RoomSeconds, DarkRadius, CheckpointWater = -1;
         public int RoomH = 15;
@@ -73,7 +78,8 @@ namespace Kfitsa
                         case 'R': g.RoomStart = c; g.MainW = c; ch = 'g'; break;
                         case 'B': g.BossSpot = cell; g.HasBoss = true; ch = ' '; break;
                         case 'o': g.Coins.Add(new Vector2(c + .5f, r + .5f)); ch = ' '; break;
-                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': case 'z': case 'W': case 'K': case 'N': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case 'e': case 'n': case 'y': case 'j': case 'p': case 'q': case 'm': case 'z': case 'W': case 'K': case 'N': case 'J': g.Enemies.Add((cell, ch)); ch = ' '; break;
+                        case '~': g.Saws.Add((c, r)); break;       // v2.8: a saw on the track, it stays a hazard cell
                         case '2': case '3': case '4': case '5': g.ColorSwitches.Add((c, r, ch - '2')); ch = ' '; break;
                         case '?': g.Blocks.Add((c, r, BlockKind.Coin)); break;
                         case '!': g.Blocks.Add((c, r, BlockKind.Grow)); break;
@@ -144,6 +150,9 @@ namespace Kfitsa
                 case "flood": Flood = new Flood { trigger = F(1), y0 = F(2), speed = F(3), top = F(4) }; break;
                 case "chase": Chase = new Chase { trigger = F(1), x0 = F(2), speed = F(3), end = F(4) }; break;
                 case "pool": RoomPool = new RoomWater { x0 = F(1), x1 = F(2), high = F(3), low = F(4) }; break;
+                case "scroll": ScrollSpeed = F(1); break;
+                case "swim": Swim = true; break;
+                case "cart": Cart = true; break;
                 default: throw new System.Exception("Unknown level note: " + a[0]);
             }
         }
@@ -223,7 +232,7 @@ namespace Kfitsa
         public bool Hazard(int c, int r)
         {
             char ch = At(c, r);
-            return ch == '^' || ch == 'l';
+            return ch == '^' || ch == 'l' || ch == '~';
         }
 
         public bool Spike(int c, int r) => At(c, r) == '^';
@@ -262,6 +271,7 @@ namespace Kfitsa
                 case 'w': return At(c, r + 1) == 'w' ? "water" : "water_top";
                 case 'I': return At(c, r + 1) != 'I' ? "ladder_top" : At(c, r - 1) != 'I' ? "ladder_bottom" : "ladder_middle";
                 case 't': return "rope";
+                case '=': return "rail";
                 default: return null;
             }
         }

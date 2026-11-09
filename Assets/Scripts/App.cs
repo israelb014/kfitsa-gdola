@@ -76,7 +76,7 @@ namespace Kfitsa
             hud.Touch.Configure(save);
             game = gameObject.AddComponent<Game>();
             game.Init(this);
-            mapCursor = Mathf.Min(save.unlocked, Levels.All.Length - 1);
+            mapCursor = Mathf.Min(save.unlocked, Levels.StoryCount - 1);
 
             if (Array.IndexOf(args, "-playtest") >= 0)
             {
@@ -490,7 +490,7 @@ namespace Kfitsa
         // ---- time trial (v2.3) ----
 
         RunState runBeforeTrial;
-        public bool TrialOpen(int level) => level >= 0 && level < Levels.All.Length && !Levels.All[level].boss && save.best[level] > 0;
+        public bool TrialOpen(int level) => level >= 0 && level < Levels.All.Length && !Levels.All[level].boss && !Levels.All[level].Bonus && save.best[level] > 0;
 
         /// A run of a finished level against the clock, with the game's own run kept aside until it ends.
         public void EnterTrial(int level)
@@ -636,13 +636,23 @@ namespace Kfitsa
         {
             int i = game.levelIndex;
             if (i < 0) return;
-            save.best[i] = Mathf.Max(save.best[i], run.score);
-            save.unlocked = Mathf.Max(save.unlocked, Mathf.Min(i + 1, Levels.All.Length - 1));
+            bool firstFinish = save.best[i] <= 0;
+            save.best[i] = Mathf.Max(save.best[i], Mathf.Max(1, run.score));
+            if (Levels.All[i].Bonus)
+            {
+                // A bonus level opens nothing: back to its stop on the map
+                save.Write(); hud.Banner(""); game.Unload();
+                mapCursor = i; mapFrom = -1; starsBefore = -1; CheckProgressAchievements();
+                ShowMap(); return;
+            }
+            int bonus = Levels.BonusOf(i);
+            if (firstFinish && bonus >= 0) newOutfit = "נפתח שלב בונוס: " + Levels.All[bonus].name + "!  הוא מחכה ליד השלב במפה";
+            save.unlocked = Mathf.Max(save.unlocked, Mathf.Min(i + 1, Levels.StoryCount - 1));
             save.Write();
             hud.Banner("");
             game.Unload();
-            if (i == MainCount - 1 || i == Levels.All.Length - 1) { ShowEnding(i); return; }     // the last boss of the journey, or of the hidden world
-            mapCursor = Mathf.Min(i + 1, Levels.All.Length - 1);
+            if (i == MainCount - 1 || i == Levels.StoryCount - 1) { ShowEnding(i); return; }     // the last boss of the journey, or of the hidden world
+            mapCursor = Mathf.Min(i + 1, Levels.StoryCount - 1);
             mapFrom = i;      // the map opens on the level just finished, and the hero walks on to the next
             if (starsBefore >= 0 && Outfit.OpenCount(StarCount) > Outfit.OpenCount(starsBefore))
                 OutfitNote = newOutfit = "חדש בארון הבגדים: " + Outfit.ItemName(Outfit.OpenCount(StarCount)) + "!";

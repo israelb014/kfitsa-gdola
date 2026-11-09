@@ -219,6 +219,7 @@ namespace Kfitsa
             k = k * 2 + (s.sw & 1);
             k = k * 2 + (s.floodAt >= 0 || s.chaseAt >= 0 ? 1 : 0);
             k = k * 2 + (p.climbing ? 1 : 0);
+            k = k * 8 + (p.swimming ? Mathf.Clamp(Mathf.RoundToInt(p.vy / 2.5f) + 4, 0, 7) : 0);     // v2.8: a swimmer's rise or sink matters
             k = k * 64 + (s.cloudA & 63);
             k = k * 64 + Mathf.Min(63, Mathf.RoundToInt(s.sinkA * 3));
             int phase = cycle > 0 && Near(p.x, p.y) ? Mathf.FloorToInt(Mathf.Repeat(s.t, cycle) * 2) : 0;
@@ -237,7 +238,8 @@ namespace Kfitsa
         {
             if (!seen.TryAdd(Key(n.p, n.s), nodes.Count)) return;
             nodes.Add(n);
-            int where = n.p.on != null ? -2 - g.Platforms.IndexOf(n.p.on) : n.p.climbing ? -100000 - Mathf.FloorToInt(n.p.x) * 64 - Mathf.FloorToInt(n.p.y) / 3 : SurfaceUnder(n.p);
+            int where = n.p.on != null ? -2 - g.Platforms.IndexOf(n.p.on) : n.p.climbing ? -100000 - Mathf.FloorToInt(n.p.x) * 64 - Mathf.FloorToInt(n.p.y) / 3
+                : n.p.swimming ? -300000 - Mathf.FloorToInt(n.p.x / 2) * 64 - Mathf.FloorToInt(n.p.y / 2) : SurfaceUnder(n.p);
             if (!places.TryGetValue(where, out var q)) { places[where] = q = new Place { x = n.p.x, y = n.p.y }; q.far = Distance(q.x, q.y); }
             q.waiting.Add(nodes.Count - 1); queued++;
         }
@@ -348,9 +350,10 @@ namespace Kfitsa
                         if (since >= 99 || since >= World.CrumbleDelay + World.CrumbleBack + 1) trail = new Trail { key = k, at = s.t, older = trail };
                     }
                 }
-                if (tick >= plan.max && (h.grounded || h.climbing)) break;
+                if (tick >= plan.max && (h.grounded || h.climbing || h.swimming)) break;
                 if (plan.jump && (h.grounded || h.climbing && plan.v > 0) && tick > 3) break;
-                if (tick >= plan.max && !h.grounded && !h.climbing && !plan.jump)
+                if (plan.jump && h.swimming && tick > 30) break;       // a stroke: a short move, then the next choice
+                if (tick >= plan.max && !h.grounded && !h.climbing && !h.swimming && !plan.jump)
                 {
                     // Walked off an edge: the input carries on until the landing
                     plan.max = MaxAir; plan.jump = false;

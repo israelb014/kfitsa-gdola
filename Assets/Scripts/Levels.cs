@@ -9,7 +9,9 @@ namespace Kfitsa
         public string bossMusic, bossTitle;     // v2.5: the boss's own battle music, and the line under its name in its entrance
         public int world, stage;
         public bool boss, hidden;      // hidden: the world on the map's second page (v2.4)
-        public string Code => boss ? "בוס" : world + "-" + stage;
+        public string after;           // v2.8, a bonus level: the level that opens it; its stop sits beside that one on the map
+        public bool Bonus => after != null;
+        public string Code => Bonus ? "בונוס" : boss ? "בוס" : world + "-" + stage;
     }
 
     public static class Levels
@@ -58,6 +60,17 @@ namespace Kfitsa
                 tip = "הדגים קופצים מהמים בקצב קבוע. חכו שהם ירדו", roomTip = "מרוץ! ארבעה מתגים בדרך לכוכב" },
             new LevelDef { file = "boss3", name = "מלך הג'לי חוזר", terrain = "purple", sky = "clouds", music = "m_world4", bossMusic = "m_boss3", bossTitle = "עכשיו בכל הצבעים", world = 4, stage = 4, boss = true, hidden = true,
                 tip = "המלך חוזר בצבעים! דרכו עליו רק אחרי המתג בצבע שלו", roomTip = "אספו את המטבעות בכל הצבעים" },
+            // v2.8: bonus levels, each opened by a level of worlds 1 to 3, off the main path
+            new LevelDef { file = "b1", name = "המסך לא מחכה", terrain = "grass", sky = "trees", music = "m_bonus", world = 11, stage = 1, after = "w1l3",
+                tip = "המסך זז לבד, והקצה שלו דוחף. אל תישארו מאחור", roomTip = "ספרינט! עלו על המדפים לכוכב לפני שהזמן נגמר" },
+            new LevelDef { file = "b2", name = "מתחת לים", terrain = "sand", sky = "sea", music = "m_bonus", world = 12, stage = 1, after = "w2l2",
+                tip = "שוחים! כל קפיצה היא תנועת שחייה, וחץ למטה צולל", roomTip = "אספו את כל המטבעות לפני שהזמן נגמר" },
+            new LevelDef { file = "b3", name = "מסילת המכרה", terrain = "stone", sky = "mine", music = "m_bonus", world = 13, stage = 1, after = "w3l2",
+                tip = "העגלה נוסעת לבד. קופצים מעל בורות ומסורים", roomTip = "הדליקו את שלוש המנורות" },
         };
+        /// The levels of the journey and the hidden world; the bonus levels come after them.
+        public static int StoryCount => System.Array.FindIndex(All, d => d.Bonus) is int k && k >= 0 ? k : All.Length;
+        public static int BonusOf(int level) => System.Array.FindIndex(All, d => d.after == All[level].file);
+        public static int ParentOf(int level) => All[level].Bonus ? System.Array.FindIndex(All, d => d.file == All[level].after) : -1;
     }
 }
