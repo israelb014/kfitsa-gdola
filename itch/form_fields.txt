@@ -1,0 +1,79 @@
+קפיצה גדולה ב־itch.io: מה למלא בכל שדה בטופס "Create new project"
+(itch.io > Dashboard > Create new project). שמות השדות כתובים באנגלית, כמו שהם מופיעים בטופס.
+
+Title
+    קפיצה גדולה
+    (אם רוצים שם שגם קוראי אנגלית יבינו: קפיצה גדולה - Kfitsa Gdola)
+
+Project URL
+    kfitsa-gdola
+    (הכתובת תהיה https://israelb014.itch.io/kfitsa-gdola)
+
+Short description or tagline
+    פלטפורמר צבעוני בעברית: קופצים, אוספים כוכבים ומביסים בוסים בארבעה עולמות
+    (באנגלית, אם מעדיפים: מופיע ב־short_description.txt)
+
+Classification
+    Games
+
+Kind of project
+    Downloadable
+
+Release status
+    Released
+
+Pricing
+    $0 or donate
+    Suggested donation: 2.00 (או כל סכום שתרצה, אפשר גם להשאיר ריק)
+
+Uploads
+    לא מעלים כאן קבצים ביד. אחרי ששומרים את הדף כטיוטה, הקבצים עולים עם butler לשלושה ערוצים:
+    linux, windows, android. אחרי ההעלאה הראשונה חוזרים לדף העריכה ומסמנים ליד כל קובץ את הפלטפורמה שלו
+    (Linux, Windows, Android), אם itch לא סימן אותה לבד.
+
+Description
+    הדבק את התוכן של description_he.md, ואחריו קו מפריד ואת description_en.md.
+
+Genre
+    Platformer
+
+Tags
+    platformer, 2d, cartoon, hebrew, family-friendly, kids, singleplayer, cute, retro, android
+    (itch מקבל עד 10 תגיות)
+
+AI generation disclosure
+    זו החלטה שלך. הקוד של המשחק נכתב בעזרת בינה מלאכותית (Claude), וגם חלק מהגרפיקה: הכובעים, החיות,
+    העגלה והכיסוי צוירו בקוד שהבינה המלאכותית כתבה, על בסיס הגרפיקה של Kenney. המוזיקה והצלילים הם של אנשים
+    (Kenney, Juhani Junkala, nene). ההמלצה שלי: לסמן Yes, ולבחור את הקטגוריות Code ו־Graphics.
+
+App store links
+    להשאיר ריק.
+
+Custom noun
+    להשאיר ריק.
+
+Download & install instructions
+    Windows: מחלצים את הקובץ ומריצים את KfitsaGdola.exe.
+    Linux: מחלצים ומריצים את ./KfitsaGdola.x86_64.
+    Android: מורידים את הקובץ בטלפון, פותחים אותו ומאשרים התקנה ממקור לא ידוע עבור הדפדפן.
+
+Community
+    Comments
+
+Visibility & access
+    Draft עד שהקבצים עולים ונבדקים בדף, ואז Public.
+
+Cover image
+    cover.png (630x500)
+
+Screenshots
+    screenshots/1-l1.png עד screenshots/5-map_full.png (1920x1080, מהמשחק עצמו)
+
+אחרי השמירה הראשונה, בדף העריכה (Edit game > More metadata) כדאי למלא גם:
+    Made with: Unity
+    Inputs: Keyboard, Gamepad (any), Touchscreen
+    Languages: Hebrew
+    Average session: A few minutes
+    Multiplayer: none (Single-player)
+    Accessibility: Configurable controls (גודל, שקיפות ומיקום של כפתורי המגע)
+    Content: אין תוכן למבוגרים בלבד

@@ -13,3 +13,4 @@ __pycache__/
 Keystore/
 .utmp/
 build/
+itch/raw/
